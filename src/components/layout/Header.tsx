@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Search, Bell, AlertTriangle, X, ChevronRight,
-  Brain, Mic, Sparkles
+  Brain, Mic, User, Settings, LogOut
 } from 'lucide-react';
 import { performGlobalSearch, AISearchResult } from '../../services/aiCommandEngine';
 import MedicalIcon from '../common/MedicalIcons';
@@ -15,11 +15,12 @@ interface HeaderProps {
 
 export default function Header({ sidebarCollapsed }: HeaderProps) {
   const navigate = useNavigate();
-  const { state } = useAuth();
+  const { state, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<AISearchResult[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [aiInitialQuery, setAiInitialQuery] = useState('');
@@ -27,6 +28,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = 3;
 
@@ -41,7 +43,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
     }
   }, [searchQuery, state.user?.role]);
 
-  // Global Keyboard Shortcut: Ctrl+K / Cmd+K or / to open AI Command Board
+  // Global Keyboard Shortcut: Ctrl+K / Cmd+K to open AI Command Board
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -64,6 +66,9 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -77,6 +82,8 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
 
   const openAIBoard = (q = '', voice = false) => {
     setShowSearch(false);
+    setShowNotifications(false);
+    setShowProfileMenu(false);
     setAiInitialQuery(q);
     setAutoStartVoice(voice);
     setIsAIOpen(true);
@@ -87,9 +94,9 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   return (
     <>
       <header className={`header ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {/* Global Search with AI Command & Direct Microphone Integration */}
+        {/* 1. Global Search Box */}
         <div className="header-search" ref={searchRef}>
-          <Search size={14} className="header-search-icon" />
+          <Search size={15} className="header-search-icon" />
           <input
             id="global-search"
             type="text"
@@ -104,54 +111,16 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
               }
             }}
           />
-
-          {/* Inline Microphone Button */}
-          <button
-            id="header-inline-mic-btn"
-            className="btn btn-ghost btn-icon btn-icon-sm"
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              color: 'var(--color-primary)',
-              background: 'rgba(5, 150, 105, 0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-              marginRight: 4,
-              flexShrink: 0,
-              border: '1px solid rgba(5, 150, 105, 0.2)',
-            }}
-            onClick={() => openAIBoard('', true)}
-            aria-label="Start voice command (English & Telugu)"
-            title="Start Voice Command in English or Telugu (మాట్లాడండి)"
-          >
-            <Mic size={14} />
-          </button>
-
-          {/* Quick AI Trigger Button */}
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{
-              padding: '2px 8px',
-              height: 24,
-              fontSize: 11,
-              color: 'var(--color-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              borderRadius: 6,
-              background: 'var(--color-primary-muted)',
-              border: '1px solid rgba(5,150,105,0.2)',
-            }}
-            onClick={() => openAIBoard(searchQuery, false)}
-            title="Open AI Command Board & Voice Assistant (Ctrl+K)"
-          >
-            <Brain size={12} />
-            <span>AI</span>
-            <kbd style={{ fontSize: 9, opacity: 0.8, background: 'rgba(0,0,0,0.06)', padding: '1px 3px', borderRadius: 3 }}>⌘K</kbd>
-          </button>
+          {searchQuery && (
+            <button
+              type="button"
+              className="header-search-clear"
+              onClick={() => { setSearchQuery(''); setShowSearch(false); }}
+              aria-label="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
 
           {/* Dropdown Instant Search Results */}
           {showSearch && searchResults.length > 0 && (
@@ -173,7 +142,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
                   style={{ color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
                   onClick={() => openAIBoard(searchQuery, false)}
                 >
-                  Ask AI Command Board →
+                  Ask AI Command Center →
                 </span>
               </div>
               {searchResults.map(result => (
@@ -221,33 +190,31 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
 
         <div className="header-spacer" />
 
-        {/* Actions */}
+        {/* 2. Actions: AI | AI Voice Command | Emergency | Notification | Profile */}
         <div className="header-actions">
-          {/* AI Voice Assistant Header Pill Button */}
+          {/* AI Button */}
+          <button
+            id="header-ai-btn"
+            className="header-ai-btn"
+            onClick={() => openAIBoard('', false)}
+            title="Open AI Command Center (Ctrl+K)"
+            aria-label="Open AI Command Center"
+          >
+            <Brain size={16} />
+            <span>AI</span>
+          </button>
+
+          {/* AI Voice Command Button */}
           <button
             id="ai-voice-btn"
-            className="btn btn-sm"
-            style={{
-              background: 'linear-gradient(135deg, rgba(5,150,105,0.12), rgba(16,185,129,0.06))',
-              color: 'var(--color-primary)',
-              border: '1px solid rgba(5,150,105,0.3)',
-              borderRadius: 8,
-              padding: '6px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontWeight: 600,
-              fontSize: 12,
-              boxShadow: '0 2px 8px rgba(5,150,105,0.1)',
-            }}
+            className="header-voice-btn"
             onClick={() => openAIBoard('', true)}
-            title="Open AI Command Center & Voice Control"
+            title="Start AI Voice Command in English or Telugu (మాట్లాడండి)"
+            aria-label="Start AI Voice Command"
           >
-            <Mic size={14} style={{ color: 'var(--color-primary)' }} />
-            <span>AI Voice Command</span>
-            <span style={{ fontSize: 10, background: 'var(--color-primary)', color: 'white', padding: '1px 5px', borderRadius: 10 }}>
-              TE + EN
-            </span>
+            <Mic size={15} />
+            <span className="voice-btn-label">AI Voice Command</span>
+            <span className="voice-lang-badge">TE + EN</span>
           </button>
 
           {/* Emergency Button */}
@@ -255,9 +222,11 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
             id="emergency-btn"
             className="emergency-btn"
             onClick={() => setShowEmergency(true)}
+            aria-label="Emergency and Ambulance Request"
+            title="Emergency Care & Ambulance Dispatch"
           >
-            <AlertTriangle size={14} />
-            Emergency
+            <AlertTriangle size={15} />
+            <span>Emergency</span>
           </button>
 
           {/* Notifications */}
@@ -265,8 +234,12 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
             <button
               id="notifications-btn"
               className="header-btn"
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                setShowProfileMenu(false);
+              }}
               title="Notifications"
+              aria-label="Notifications"
             >
               <Bell size={16} />
               {unreadCount > 0 && <span className="header-btn-badge" />}
@@ -297,7 +270,11 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
                   </div>
                 ))}
                 <div style={{ padding: '12px 20px', textAlign: 'center' }}>
-                  <button className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => setShowNotifications(false)}
+                  >
                     View all notifications
                   </button>
                 </div>
@@ -305,9 +282,77 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
             )}
           </div>
 
-          {/* User Avatar */}
-          <div className="user-avatar" title={state.user?.name}>
-            {initials}
+          {/* User Profile Avatar with Dropdown */}
+          <div style={{ position: 'relative' }} ref={profileRef}>
+            <div
+              id="header-user-profile-btn"
+              className="user-avatar"
+              onClick={() => {
+                setShowProfileMenu(!showProfileMenu);
+                setShowNotifications(false);
+              }}
+              title={`${state.user?.name} (${state.user?.role})`}
+              role="button"
+              tabIndex={0}
+            >
+              {initials}
+            </div>
+
+            {showProfileMenu && (
+              <div className="profile-dropdown-menu">
+                <div className="profile-menu-header">
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                    {state.user?.name || 'Hospital User'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                    {state.user?.email || 'user@alnhms.com'}
+                  </div>
+                  <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span className="badge badge-primary" style={{ fontSize: 10, textTransform: 'capitalize' }}>
+                      {(state.user?.role || 'User').replace(/_/g, ' ')}
+                    </span>
+                    {state.user?.department && (
+                      <span className="badge badge-neutral" style={{ fontSize: 10 }}>
+                        {state.user.department}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="profile-menu-item"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    navigate('/settings');
+                  }}
+                >
+                  <Settings size={14} style={{ color: 'var(--text-tertiary)' }} />
+                  <span>Settings & Preferences</span>
+                </div>
+
+                <div
+                  className="profile-menu-item"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    openAIBoard('', false);
+                  }}
+                >
+                  <Brain size={14} style={{ color: 'var(--color-ai)' }} />
+                  <span>AI Command Center</span>
+                </div>
+
+                <div
+                  className="profile-menu-item logout"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                  }}
+                >
+                  <LogOut size={14} />
+                  <span>Sign Out</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -384,4 +429,3 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
     </>
   );
 }
-
