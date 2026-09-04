@@ -3,41 +3,49 @@ import { useNavigate } from 'react-router-dom';
 import {
   Brain, Mic, MicOff, Search, Volume2, VolumeX, X,
   ChevronRight, Sparkles, CheckCircle2, AlertTriangle, RefreshCw,
-  Clock, ArrowRight, ShieldCheck, Activity, BedDouble, Stethoscope,
-  Pill, FlaskConical, ReceiptText, Droplets, Calendar, Users
+  Clock, ArrowRight, ShieldCheck, Activity, Radio, AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   processAICommand, AICommandResponse, AISearchResult,
   DetectedLanguage, computeLiveHospitalMetrics
 } from '../../services/aiCommandEngine';
-import MedicalIcon, { MedicalBrandLogo } from '../common/MedicalIcons';
+import MedicalIcon from '../common/MedicalIcons';
 
-interface AICommandBoardProps {
+export interface AICommandBoardProps {
   isOpen: boolean;
   onClose: () => void;
   initialQuery?: string;
+  autoStartVoice?: boolean;
 }
 
 const EXAMPLE_PROMPTS = [
+  { en: "Open OPD", te: "OPD ఓపెన్ చేయి", mixed: "OPD section open cheyyi" },
+  { en: "Open IPD", te: "IPD ఓపెన్ చేయండి", mixed: "IPD beds chupinchu" },
+  { en: "Available beds", te: "ఖాళీ బెడ్లు చూపించు", mixed: "Available beds chupinchu" },
+  { en: "Open Pharmacy", te: "ఫార్మసీ ఓపెన్ చేయి", mixed: "Pharmacy stock chupinchu" },
+  { en: "Open Laboratory", te: "ల్యాబ్ ఓపెన్ చేయి", mixed: "Pending lab reports chupinchu" },
+  { en: "Open Blood Bank", te: "బ్లడ్ బ్యాంక్ ఓపెన్ చేయి", mixed: "Blood bank inventory chupinchu" },
+  { en: "Open Billing", te: "బిల్లింగ్ ఓపెన్ చేయి", mixed: "Billing outstanding chupinchu" },
   { en: "Show today's OPD patients", te: "ఈరోజు OPD patients చూపించు", mixed: "Today OPD queue chupinchu" },
-  { en: "How many beds are available?", te: "Available beds ఎన్ని ఉన్నాయి?", mixed: "ICU lo available beds enni unnayi?" },
-  { en: "Show today's revenue", te: "ఈరోజు revenue ఎంత?", mixed: "Today collections entha vachayi?" },
-  { en: "Show pending lab reports", te: "Pending lab reports చూపించు", mixed: "Pending lab tests list chupinchu" },
-  { en: "Low stock medicines", te: "Low stock medicines ఏవి?", mixed: "Pharmacy lo low stock medicines enti?" },
-  { en: "Available O+ blood", te: "O positive blood stock ఎంత?", mixed: "Blood bank lo O positive units enni unnayi?" },
 ];
 
-export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: AICommandBoardProps) {
+export default function AICommandBoard({
+  isOpen,
+  onClose,
+  initialQuery = '',
+  autoStartVoice = false
+}: AICommandBoardProps) {
   const navigate = useNavigate();
   const { state } = useAuth();
   const [query, setQuery] = useState(initialQuery);
   const [selectedLang, setSelectedLang] = useState<'auto' | 'en' | 'te'>('auto');
-  const [isListening, setIsListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing' | 'navigating' | 'error' | 'permission_error'>('idle');
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [response, setResponse] = useState<AICommandResponse | null>(null);
+  const [navCountdown, setNavCountdown] = useState<number | null>(null);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('aln_ai_history');
@@ -50,24 +58,43 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
 
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const navTimerRef = useRef<any>(null);
   const liveMetrics = computeLiveHospitalMetrics();
 
-  // Focus input on open
+  // Reset and focus on open
   useEffect(() => {
     if (isOpen) {
+      setQuery(initialQuery);
+      setResponse(null);
+      setSpeechError(null);
+      setVoiceStatus('idle');
+      setActionConfirmed(false);
+      clearNavTimer();
+
       setTimeout(() => {
         inputRef.current?.focus();
         if (initialQuery) {
           executeCommand(initialQuery);
+        } else if (autoStartVoice) {
+          startListening();
         }
-      }, 100);
+      }, 150);
     } else {
       stopListening();
       stopSpeaking();
+      clearNavTimer();
     }
-  }, [isOpen, initialQuery]);
+  }, [isOpen, initialQuery, autoStartVoice]);
 
-  // Handle Speech Recognition Setup
+  const clearNavTimer = () => {
+    if (navTimerRef.current) {
+      clearInterval(navTimerRef.current);
+      navTimerRef.current = null;
+    }
+    setNavCountdown(null);
+  };
+
+  // Setup Web Speech Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -77,37 +104,61 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
       recognition.lang = selectedLang === 'te' ? 'te-IN' : 'en-IN';
 
       recognition.onstart = () => {
-        setIsListening(true);
+        setVoiceStatus('listening');
         setSpeechError(null);
       };
 
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((r: any) => r[0].transcript)
-          .join('');
-        setQuery(transcript);
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const trans = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += trans;
+          } else {
+            interimTranscript += trans;
+          }
+        }
+
+        const currentText = finalTranscript || interimTranscript;
+        setQuery(currentText);
+
+        if (finalTranscript.trim()) {
+          setVoiceStatus('processing');
+          setTimeout(() => {
+            executeCommand(finalTranscript.trim(), true);
+          }, 300);
+        }
       };
 
       recognition.onerror = (event: any) => {
         console.warn('Speech recognition error:', event.error);
-        setIsListening(false);
-        if (event.error === 'not-allowed') {
-          setSpeechError('Microphone permission denied. Please allow mic access or type your command.');
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setVoiceStatus('permission_error');
+          setSpeechError('Microphone permission is required for voice commands. Please allow microphone access.');
+        } else if (event.error === 'no-speech') {
+          setVoiceStatus('idle');
         } else {
-          setSpeechError(`Voice error (${event.error}). Please speak again or type below.`);
+          setVoiceStatus('error');
+          setSpeechError(`Voice recognition error (${event.error}). Speak again or type your command.`);
         }
       };
 
       recognition.onend = () => {
-        setIsListening(false);
+        if (voiceStatus === 'listening') {
+          setVoiceStatus('idle');
+        }
       };
 
       recognitionRef.current = recognition;
+    } else {
+      recognitionRef.current = null;
     }
-  }, [selectedLang]);
+  }, [selectedLang, voiceStatus]);
 
   const toggleListening = () => {
-    if (isListening) {
+    if (voiceStatus === 'listening') {
       stopListening();
     } else {
       startListening();
@@ -115,31 +166,35 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
   };
 
   const startListening = () => {
+    clearNavTimer();
+    stopSpeaking();
     if (recognitionRef.current) {
       try {
         setSpeechError(null);
+        setVoiceStatus('listening');
         recognitionRef.current.lang = selectedLang === 'te' ? 'te-IN' : 'en-IN';
         recognitionRef.current.start();
       } catch (err) {
-        console.warn('Recognition start issue:', err);
+        console.warn('Recognition start exception:', err);
       }
     } else {
-      setSpeechError('Speech recognition is not supported in this browser. Please type your query.');
+      setVoiceStatus('error');
+      setSpeechError('Speech recognition is not supported in this browser. Please type your command.');
     }
   };
 
   const stopListening = () => {
-    if (recognitionRef.current && isListening) {
+    if (recognitionRef.current && voiceStatus === 'listening') {
       try {
         recognitionRef.current.stop();
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
-    setIsListening(false);
+    setVoiceStatus('idle');
   };
 
-  // Text-To-Speech
+  // Text-To-Speech Readout
   const speakText = (text: string, lang: DetectedLanguage) => {
     if (!isAudioEnabled || !('speechSynthesis' in window)) return;
     try {
@@ -166,17 +221,18 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
     setIsSpeaking(false);
   };
 
-  const executeCommand = (cmdText: string) => {
+  const executeCommand = (cmdText: string, isFromVoice = false) => {
     if (!cmdText.trim()) return;
     stopListening();
     stopSpeaking();
+    clearNavTimer();
     setActionConfirmed(false);
 
-    const userRole = state.user?.role || 'receptionist';
+    const userRole = state.user?.role || 'super_admin';
     const res = processAICommand(cmdText, userRole, selectedLang);
     setResponse(res);
 
-    // Save to history
+    // Save history
     const newHistory = [cmdText, ...history.filter(h => h !== cmdText)].slice(0, 8);
     setHistory(newHistory);
     try {
@@ -185,21 +241,54 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
       // ignore
     }
 
-    // Audio readout
+    // Voice announcement
     if (res.voiceText) {
       speakText(res.voiceText, res.detectedLanguage);
     }
+
+    // Auto-Navigation for NAVIGATE intent
+    if (res.intentType === 'NAVIGATE' && res.targetRoute) {
+      setVoiceStatus('navigating');
+      let countdown = isFromVoice ? 2 : 3;
+      setNavCountdown(countdown);
+
+      navTimerRef.current = setInterval(() => {
+        countdown -= 1;
+        if (countdown <= 0) {
+          clearNavTimer();
+          onClose();
+          navigate(res.targetRoute!);
+        } else {
+          setNavCountdown(countdown);
+        }
+      }, 1000);
+    } else {
+      setVoiceStatus('idle');
+    }
+  };
+
+  const cancelAutoNav = () => {
+    clearNavTimer();
+    setVoiceStatus('idle');
+  };
+
+  const jumpNow = (route: string) => {
+    clearNavTimer();
+    onClose();
+    navigate(route);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       executeCommand(query);
     } else if (e.key === 'Escape') {
+      clearNavTimer();
       onClose();
     }
   };
 
   const handleResultClick = (res: AISearchResult) => {
+    clearNavTimer();
     onClose();
     navigate(res.route);
   };
@@ -216,19 +305,23 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(6px)' }}>
+    <div
+      className="modal-backdrop"
+      onClick={() => { clearNavTimer(); onClose(); }}
+      style={{ zIndex: 9999, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(6px)' }}
+    >
       <div
         className="modal modal-lg"
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: 820,
+          maxWidth: 840,
           background: 'var(--bg-card)',
           borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(5, 150, 105, 0.25)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(5, 150, 105, 0.25)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '88vh',
+          maxHeight: '90vh',
         }}
       >
         {/* Top Header Bar */}
@@ -245,21 +338,34 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, background: 'linear-gradient(135deg, var(--color-primary), #10b981)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(5,150,105,0.3)' }}>
-              <Brain size={18} style={{ color: 'white' }} />
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                background: 'linear-gradient(135deg, var(--color-primary), #10b981)',
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
+              }}
+            >
+              <Brain size={20} style={{ color: 'white' }} />
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                ALN Cure AI Command Board
-                <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>Live Neural Engine</span>
+                ALN Cure AI Command Center
+                <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>
+                  Live Voice & NLP
+                </span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                Multilingual Voice & NLP · Real-Time Hospital Intelligence · RBAC Protected
+                English · తెలుగు · Tanglish | Auto-Navigation & RBAC Protection
               </div>
             </div>
           </div>
 
-          {/* Controls: Audio Toggle, Language, Close */}
+          {/* Controls: Language Selector, TTS, Close */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Language Selector */}
             <div style={{ display: 'flex', background: 'var(--bg-surface)', padding: 2, borderRadius: 8, border: '1px solid var(--border-default)' }}>
@@ -267,7 +373,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                 className={`btn btn-sm ${selectedLang === 'auto' ? 'btn-primary' : 'btn-ghost'}`}
                 style={{ fontSize: 11, padding: '3px 8px', height: 26 }}
                 onClick={() => setSelectedLang('auto')}
-                title="Auto detect language"
+                title="Auto-detect English / Telugu / Mixed"
               >
                 Auto (ఆటో)
               </button>
@@ -301,7 +407,10 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
             </button>
 
             {/* Close */}
-            <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={onClose}>
+            <button
+              className="btn btn-ghost btn-icon btn-icon-sm"
+              onClick={() => { clearNavTimer(); onClose(); }}
+            >
               <X size={16} />
             </button>
           </div>
@@ -315,11 +424,11 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
               alignItems: 'center',
               gap: 10,
               background: 'var(--bg-surface)',
-              border: isListening ? '2px solid #ef4444' : '1.5px solid var(--border-default)',
+              border: voiceStatus === 'listening' ? '2px solid #ef4444' : '1.5px solid var(--border-default)',
               borderRadius: 12,
               padding: '8px 14px',
               transition: 'all 0.2s ease',
-              boxShadow: isListening ? '0 0 16px rgba(239, 68, 68, 0.25)' : 'none',
+              boxShadow: voiceStatus === 'listening' ? '0 0 16px rgba(239, 68, 68, 0.25)' : 'none',
             }}
           >
             <Search size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
@@ -336,7 +445,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                 fontWeight: 500,
                 flex: 1,
               }}
-              placeholder="Ask anything in English, తెలుగు, or Tanglish... (e.g., 'ICU beds enni unnayi?')"
+              placeholder="Speak or type (e.g., 'Open OPD', 'ICU beds enni unnayi?', 'ఫార్మసీ ఓపెన్ చేయి')..."
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -350,10 +459,11 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
 
             {/* Microphone Voice Button */}
             <button
-              className={`btn btn-sm ${isListening ? 'btn-danger' : 'btn-primary'}`}
+              id="ai-board-mic-btn"
+              className={`btn btn-sm ${voiceStatus === 'listening' ? 'btn-danger' : 'btn-primary'}`}
               style={{
                 borderRadius: 8,
-                padding: '6px 12px',
+                padding: '6px 14px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -361,15 +471,16 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                 fontWeight: 600,
               }}
               onClick={toggleListening}
+              aria-label="Start voice command"
             >
-              {isListening ? (
+              {voiceStatus === 'listening' ? (
                 <>
                   <span className="spin" style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />
                   Listening...
                 </>
               ) : (
                 <>
-                  <Mic size={14} /> Speak
+                  <Mic size={14} /> Speak (మాట్లాడండి)
                 </>
               )}
             </button>
@@ -379,55 +490,119 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
               style={{ borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600 }}
               onClick={() => executeCommand(query)}
             >
-              Run Command
+              Run
             </button>
           </div>
 
-          {/* Listening Pulse Wave Indicator */}
-          {isListening && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '6px 12px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: 8, border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-              <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                🔴 Live Listening... Speak now in English or Telugu
-              </span>
-              <div style={{ display: 'flex', gap: 3, alignItems: 'center', marginLeft: 'auto' }}>
-                <span style={{ width: 3, height: 16, background: '#ef4444', animation: 'pulse 0.8s infinite' }} />
-                <span style={{ width: 3, height: 24, background: '#ef4444', animation: 'pulse 0.6s infinite' }} />
-                <span style={{ width: 3, height: 12, background: '#ef4444', animation: 'pulse 0.9s infinite' }} />
-                <span style={{ width: 3, height: 20, background: '#ef4444', animation: 'pulse 0.7s infinite' }} />
+          {/* Voice UI Listening Wave Indicator */}
+          {voiceStatus === 'listening' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: 10,
+                padding: '8px 14px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                borderRadius: 8,
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#dc2626', fontWeight: 600, fontSize: 13 }}>
+                <span className="pulse-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
+                <span>Listening... Speak your command in English or Telugu</span>
+              </div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <span style={{ width: 3, height: 14, background: '#ef4444', animation: 'pulse 0.8s infinite' }} />
+                <span style={{ width: 3, height: 22, background: '#ef4444', animation: 'pulse 0.6s infinite' }} />
+                <span style={{ width: 3, height: 16, background: '#ef4444', animation: 'pulse 0.9s infinite' }} />
+                <span style={{ width: 3, height: 26, background: '#ef4444', animation: 'pulse 0.5s infinite' }} />
+                <span style={{ width: 3, height: 12, background: '#ef4444', animation: 'pulse 0.7s infinite' }} />
               </div>
             </div>
           )}
 
+          {/* Error Banner */}
           {speechError && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-danger)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div
+              style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                background: 'var(--color-danger-muted)',
+                borderRadius: 8,
+                fontSize: 12,
+                color: 'var(--color-danger)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
               <AlertTriangle size={14} /> {speechError}
             </div>
           )}
 
-          {/* Example Quick Prompt Chips */}
+          {/* Example Prompt Chips */}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginTop: 10, paddingBottom: 2 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-              <Sparkles size={12} style={{ color: 'var(--color-primary)' }} /> Try:
+              <Sparkles size={12} style={{ color: 'var(--color-primary)' }} /> Quick Commands:
             </span>
-            {EXAMPLE_PROMPTS.map((p, idx) => (
-              <button
-                key={idx}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: 11, padding: '3px 10px', height: 24, whiteSpace: 'nowrap', borderRadius: 20 }}
-                onClick={() => {
-                  const text = selectedLang === 'te' ? p.te : p.en;
-                  setQuery(text);
-                  executeCommand(text);
-                }}
-              >
-                {selectedLang === 'te' ? p.te : p.en}
-              </button>
-            ))}
+            {EXAMPLE_PROMPTS.map((p, idx) => {
+              const text = selectedLang === 'te' ? p.te : selectedLang === 'en' ? p.en : p.mixed;
+              return (
+                <button
+                  key={idx}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '3px 10px', height: 24, whiteSpace: 'nowrap', borderRadius: 20 }}
+                  onClick={() => {
+                    setQuery(text);
+                    executeCommand(text);
+                  }}
+                >
+                  {text}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Modal Body: Results / History */}
+        {/* Modal Body: Active Response / Auto-Navigation / History */}
         <div className="modal-body" style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Automatic Navigation Banner */}
+          {navCountdown !== null && response?.targetRoute && (
+            <div
+              style={{
+                padding: '14px 18px',
+                background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.15), rgba(16, 185, 129, 0.1))',
+                border: '1.5px solid var(--color-primary)',
+                borderRadius: 12,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.15)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="spin" style={{ width: 16, height: 16, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)' }}>
+                    🚀 Automatically opening {response.displayText} in {navCountdown}s...
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    Destination: <strong>{response.targetRoute}</strong>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary btn-sm" onClick={cancelAutoNav}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary btn-sm" onClick={() => jumpNow(response.targetRoute!)}>
+                  Go Now <ArrowRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Active AI Response Section */}
           {response && (
             <div
@@ -445,7 +620,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <MedicalIcon name="dashboard" size={16} color="var(--color-primary)" />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                    AI Interpretation ({response.detectedLanguage.toUpperCase()})
+                    Command Interpretation ({response.detectedLanguage.toUpperCase()})
                   </span>
                 </div>
                 <span className={`badge ${response.intentType === 'DENIED' ? 'badge-danger' : 'badge-success'}`}>
@@ -457,7 +632,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                 {response.displayText}
               </div>
 
-              {/* Stat Summary Card if query was a statistical metric */}
+              {/* Stat Summary Card */}
               {response.statSummary && (
                 <div
                   style={{
@@ -482,14 +657,14 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                     )}
                   </div>
                   {response.targetRoute && (
-                    <button className="btn btn-primary btn-sm" onClick={() => { onClose(); navigate(response.targetRoute!); }}>
-                      Open Module <ArrowRight size={13} />
+                    <button className="btn btn-primary btn-sm" onClick={() => jumpNow(response.targetRoute!)}>
+                      Open Section <ArrowRight size={13} />
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Action Confirmation Modal Card (For Sensitive Actions) */}
+              {/* Action Confirmation Modal Card (For Sensitive Write Operations) */}
               {response.pendingAction && !actionConfirmed && (
                 <div
                   style={{
@@ -545,7 +720,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                 <span>Matching Hospital Records ({response.results.length})</span>
-                <span>Click to View</span>
+                <span>Click to Open Section</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {response.results.map(res => (
@@ -592,32 +767,32 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
             </div>
           )}
 
-          {/* Empty / Initial State: Live Metrics Bar & Recent Commands */}
+          {/* Initial State / Snapshot & History */}
           {!response && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Real-Time Hospital Snapshot */}
+              {/* Real-Time Hospital Intelligence Snapshot */}
               <div style={{ padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-default)' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Activity size={14} style={{ color: 'var(--color-primary)' }} /> Live Hospital Intelligence Snapshot
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, textAlign: 'center' }}>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)' }}>
+                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show OPD queue')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-primary)' }}>{liveMetrics.waitingOPD}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>OPD Waiting</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)' }}>
+                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show available beds')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#d97706' }}>{liveMetrics.availableBeds}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Available Beds</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)' }}>
+                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show ICU beds')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#dc2626' }}>{liveMetrics.availableIcuBeds}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>ICU Vacancies</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)' }}>
+                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show pending lab tests')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#7c3aed' }}>{liveMetrics.pendingLab}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Pending Lab</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)' }}>
+                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show low stock medicines')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#0d9488' }}>{liveMetrics.lowStockCount}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Low Stock Meds</div>
                   </div>
@@ -629,7 +804,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
-                      Recent AI Commands
+                      Recent Voice & Text Commands
                     </span>
                     <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: 0 }} onClick={clearHistory}>
                       Clear
@@ -684,7 +859,7 @@ export default function AICommandBoard({ isOpen, onClose, initialQuery = '' }: A
           }}
         >
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border-default)' }}>↵ Enter</kbd> to execute</span>
+            <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border-default)' }}>↵ Enter</kbd> to run</span>
             <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border-default)' }}>ESC</kbd> to close</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

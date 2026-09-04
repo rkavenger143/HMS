@@ -2,12 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  Search, Bell, AlertTriangle, X, ChevronRight, Loader2,
-  Users, Calendar, FileText, Pill, ReceiptText, BedDouble,
+  Search, Bell, AlertTriangle, X, ChevronRight,
   Brain, Mic, Sparkles
 } from 'lucide-react';
-import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_DOCTORS } from '../../data/seedData';
-import type { SearchResult } from '../../types';
+import { performGlobalSearch, AISearchResult } from '../../services/aiCommandEngine';
 import MedicalIcon from '../common/MedicalIcons';
 import AICommandBoard from '../ai/AICommandBoard';
 
@@ -15,76 +13,17 @@ interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
-function getSearchResults(query: string): SearchResult[] {
-  if (!query || query.length < 2) return [];
-  const q = query.toLowerCase();
-  const results: SearchResult[] = [];
-
-  DEMO_PATIENTS.forEach(p => {
-    const fullName = `${p.firstName} ${p.lastName}`.toLowerCase();
-    if (fullName.includes(q) || p.id.toLowerCase().includes(q) || p.phone.includes(q)) {
-      results.push({
-        id: p.id, type: 'patient',
-        title: `${p.firstName} ${p.lastName}`,
-        subtitle: `${p.id} · ${p.phone} · ${p.bloodGroup}`,
-        route: `/patients/${p.id}`
-      });
-    }
-  });
-
-  DEMO_DOCTORS.forEach(d => {
-    if (d.name.toLowerCase().includes(q) || d.specialization.toLowerCase().includes(q)) {
-      results.push({
-        id: d.id, type: 'doctor',
-        title: d.name,
-        subtitle: `${d.specialization} · ${d.department}`,
-        route: `/doctors/${d.id}`
-      });
-    }
-  });
-
-  DEMO_APPOINTMENTS.forEach(a => {
-    if (a.patientName.toLowerCase().includes(q) || a.id.toLowerCase().includes(q)) {
-      results.push({
-        id: a.id, type: 'appointment',
-        title: `Apt: ${a.patientName}`,
-        subtitle: `${a.date} ${a.time} · Dr. ${a.doctorName} · ${a.status}`,
-        route: `/appointments`
-      });
-    }
-  });
-
-  return results.slice(0, 8);
-}
-
-const TYPE_ICONS: Record<string, React.ReactNode> = {
-  patient: <MedicalIcon name="patients" size={14} color="var(--color-primary)" />,
-  doctor: <MedicalIcon name="doctors" size={14} color="var(--color-ai)" />,
-  appointment: <MedicalIcon name="appointments" size={14} color="var(--color-success)" />,
-  lab_report: <MedicalIcon name="laboratory" size={14} color="var(--color-warning)" />,
-  bill: <MedicalIcon name="billing" size={14} color="var(--color-accent)" />,
-  medicine: <MedicalIcon name="pharmacy" size={14} color="#0d9488" />,
-  admission: <MedicalIcon name="ipd" size={14} color="#d97706" />,
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  patient: 'var(--color-primary)',
-  doctor: 'var(--color-ai)',
-  appointment: 'var(--color-success)',
-  lab_report: 'var(--color-warning)',
-  bill: 'var(--color-accent)',
-};
-
 export default function Header({ sidebarCollapsed }: HeaderProps) {
   const navigate = useNavigate();
   const { state } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<AISearchResult[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [aiInitialQuery, setAiInitialQuery] = useState('');
+  const [autoStartVoice, setAutoStartVoice] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -92,15 +31,15 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   const unreadCount = 3;
 
   useEffect(() => {
-    if (searchQuery.length >= 2) {
-      const results = getSearchResults(searchQuery);
+    if (searchQuery.trim().length >= 1) {
+      const results = performGlobalSearch(searchQuery, state.user?.role || 'super_admin');
       setSearchResults(results);
       setShowSearch(true);
     } else {
       setShowSearch(false);
       setSearchResults([]);
     }
-  }, [searchQuery]);
+  }, [searchQuery, state.user?.role]);
 
   // Global Keyboard Shortcut: Ctrl+K / Cmd+K or / to open AI Command Board
   useEffect(() => {
@@ -108,6 +47,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setAiInitialQuery('');
+        setAutoStartVoice(false);
         setIsAIOpen(true);
       }
     };
@@ -129,15 +69,16 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const handleResultClick = (result: SearchResult) => {
+  const handleResultClick = (result: AISearchResult) => {
     navigate(result.route);
     setSearchQuery('');
     setShowSearch(false);
   };
 
-  const openAIBoard = (q = '') => {
+  const openAIBoard = (q = '', voice = false) => {
     setShowSearch(false);
     setAiInitialQuery(q);
+    setAutoStartVoice(voice);
     setIsAIOpen(true);
   };
 
@@ -146,23 +87,48 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   return (
     <>
       <header className={`header ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {/* Global Search with AI Command Integration */}
+        {/* Global Search with AI Command & Direct Microphone Integration */}
         <div className="header-search" ref={searchRef}>
           <Search size={14} className="header-search-icon" />
           <input
             id="global-search"
             type="text"
             className="header-search-input"
-            placeholder="Search HMS or ask AI in English / తెలుగు... (Ctrl+K)"
+            placeholder="Search patients, beds, bills or speak (Ctrl+K)..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            onFocus={() => searchQuery.length >= 2 && setShowSearch(true)}
+            onFocus={() => searchQuery.trim().length >= 1 && setShowSearch(true)}
             onKeyDown={e => {
               if (e.key === 'Enter' && searchQuery.trim()) {
-                openAIBoard(searchQuery);
+                openAIBoard(searchQuery, false);
               }
             }}
           />
+
+          {/* Inline Microphone Button */}
+          <button
+            id="header-inline-mic-btn"
+            className="btn btn-ghost btn-icon btn-icon-sm"
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              color: 'var(--color-primary)',
+              background: 'rgba(5, 150, 105, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              marginRight: 4,
+              flexShrink: 0,
+              border: '1px solid rgba(5, 150, 105, 0.2)',
+            }}
+            onClick={() => openAIBoard('', true)}
+            aria-label="Start voice command (English & Telugu)"
+            title="Start Voice Command in English or Telugu (మాట్లాడండి)"
+          >
+            <Mic size={14} />
+          </button>
 
           {/* Quick AI Trigger Button */}
           <button
@@ -179,7 +145,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
               background: 'var(--color-primary-muted)',
               border: '1px solid rgba(5,150,105,0.2)',
             }}
-            onClick={() => openAIBoard(searchQuery)}
+            onClick={() => openAIBoard(searchQuery, false)}
             title="Open AI Command Board & Voice Assistant (Ctrl+K)"
           >
             <Brain size={12} />
@@ -187,6 +153,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
             <kbd style={{ fontSize: 9, opacity: 0.8, background: 'rgba(0,0,0,0.06)', padding: '1px 3px', borderRadius: 3 }}>⌘K</kbd>
           </button>
 
+          {/* Dropdown Instant Search Results */}
           {showSearch && searchResults.length > 0 && (
             <div className="search-results">
               <div
@@ -201,10 +168,10 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
                   color: 'var(--text-secondary)',
                 }}
               >
-                <span>Quick Results</span>
+                <span>Global Hospital Results ({searchResults.length})</span>
                 <span
                   style={{ color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
-                  onClick={() => openAIBoard(searchQuery)}
+                  onClick={() => openAIBoard(searchQuery, false)}
                 >
                   Ask AI Command Board →
                 </span>
@@ -213,31 +180,40 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
                 <div key={result.id} className="search-result-item" onClick={() => handleResultClick(result)}>
                   <div style={{
                     width: 28, height: 28, borderRadius: 'var(--radius-sm)',
-                    background: `${TYPE_COLORS[result.type] || 'var(--color-primary)'}20`,
-                    color: TYPE_COLORS[result.type] || 'var(--color-primary)',
+                    background: 'var(--color-primary-muted)',
+                    color: 'var(--color-primary)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                   }}>
-                    {TYPE_ICONS[result.type]}
+                    <MedicalIcon name={result.category as any} size={14} />
                   </div>
                   <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{result.title}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{result.subtitle}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {result.title}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {result.subtitle}
+                    </div>
                   </div>
+                  {result.badgeText && (
+                    <span className={`badge ${result.badgeVariant ? `badge-${result.badgeVariant}` : 'badge-neutral'}`} style={{ fontSize: 9 }}>
+                      {result.badgeText}
+                    </span>
+                  )}
                   <ChevronRight size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 </div>
               ))}
             </div>
           )}
 
-          {showSearch && searchQuery.length >= 2 && searchResults.length === 0 && (
+          {showSearch && searchQuery.trim().length >= 1 && searchResults.length === 0 && (
             <div className="search-results" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px' }}>
-              <div>No instant match for "{searchQuery}"</div>
+              <div>No exact match for "{searchQuery}"</div>
               <button
                 className="btn btn-primary btn-sm"
                 style={{ marginTop: 8 }}
-                onClick={() => openAIBoard(searchQuery)}
+                onClick={() => openAIBoard(searchQuery, false)}
               >
-                <Brain size={13} /> Ask AI Assistant
+                <Brain size={13} /> Ask AI Command Center
               </button>
             </div>
           )}
@@ -264,8 +240,8 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
               fontSize: 12,
               boxShadow: '0 2px 8px rgba(5,150,105,0.1)',
             }}
-            onClick={() => openAIBoard()}
-            title="Open AI Command Board & Voice Assistant"
+            onClick={() => openAIBoard('', true)}
+            title="Open AI Command Center & Voice Control"
           >
             <Mic size={14} style={{ color: 'var(--color-primary)' }} />
             <span>AI Voice Command</span>
@@ -336,11 +312,12 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
         </div>
       </header>
 
-      {/* AI Command Board Modal Dialog */}
+      {/* AI Command Center Modal Dialog */}
       <AICommandBoard
         isOpen={isAIOpen}
         onClose={() => setIsAIOpen(false)}
         initialQuery={aiInitialQuery}
+        autoStartVoice={autoStartVoice}
       />
 
       {/* Emergency Modal */}
@@ -407,3 +384,4 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
     </>
   );
 }
+
