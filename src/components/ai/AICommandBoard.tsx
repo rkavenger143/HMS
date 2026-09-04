@@ -8,7 +8,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import {
   processAICommand, AICommandResponse, AISearchResult,
-  DetectedLanguage, computeLiveHospitalMetrics
+  DetectedLanguage, computeLiveHospitalMetrics,
+  evaluateRealtimeVoiceStream
 } from '../../services/aiCommandEngine';
 import MedicalIcon from '../common/MedicalIcons';
 
@@ -59,6 +60,7 @@ export default function AICommandBoard({
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const navTimerRef = useRef<any>(null);
+  const hasExecutedRef = useRef(false);
   const liveMetrics = computeLiveHospitalMetrics();
 
   // Reset and focus on open
@@ -69,6 +71,7 @@ export default function AICommandBoard({
       setSpeechError(null);
       setVoiceStatus('idle');
       setActionConfirmed(false);
+      hasExecutedRef.current = false;
       clearNavTimer();
 
       setTimeout(() => {
@@ -78,16 +81,18 @@ export default function AICommandBoard({
         } else if (autoStartVoice) {
           startListening();
         }
-      }, 150);
+      }, 100);
     } else {
       stopListening();
       stopSpeaking();
       clearNavTimer();
+      hasExecutedRef.current = false;
     }
   }, [isOpen, initialQuery, autoStartVoice]);
 
   const clearNavTimer = () => {
     if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
       clearInterval(navTimerRef.current);
       navTimerRef.current = null;
     }
@@ -106,6 +111,7 @@ export default function AICommandBoard({
       recognition.onstart = () => {
         setVoiceStatus('listening');
         setSpeechError(null);
+        hasExecutedRef.current = false;
       };
 
       recognition.onresult = (event: any) => {
@@ -121,14 +127,67 @@ export default function AICommandBoard({
           }
         }
 
-        const currentText = finalTranscript || interimTranscript;
-        setQuery(currentText);
+        const streamText = (finalTranscript || interimTranscript).trim();
+        if (!streamText) return;
+        setQuery(streamText);
 
-        if (finalTranscript.trim()) {
-          setVoiceStatus('processing');
-          setTimeout(() => {
-            executeCommand(finalTranscript.trim(), true);
-          }, 300);
+        // If already executed for this speech burst, don't execute repeatedly
+        if (hasExecutedRef.current) return;
+
+        // REAL-TIME STREAMING INTENT EVALUATION (0ms lag)
+        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin', selectedLang);
+
+        if (evalResult.isConfident && evalResult.confidence === 'HIGH' && evalResult.response) {
+          // High-confidence intent matched in real time without waiting for sentence completion!
+          hasExecutedRef.current = true;
+          stopListening();
+          stopSpeaking();
+          clearNavTimer();
+
+          const res = evalResult.response;
+          setResponse(res);
+
+          // Save history
+          saveCommandHistory(streamText);
+
+          // If navigation command -> Instant Fast Route Execution
+          if (res.intentType === 'NAVIGATE' && res.targetRoute) {
+            setVoiceStatus('navigating');
+            if (res.voiceText) {
+              speakText(res.voiceText, res.detectedLanguage);
+            }
+            // Navigate immediately with clean visual transition
+            navTimerRef.current = setTimeout(() => {
+              onClose();
+              navigate(res.targetRoute!);
+            }, 180);
+            return;
+          }
+
+          // If sensitive write action -> Show confirmation modal immediately
+          if (res.intentType === 'ACTION_CONFIRMATION') {
+            setVoiceStatus('idle');
+            if (res.voiceText) {
+              speakText(res.voiceText, res.detectedLanguage);
+            }
+            return;
+          }
+
+          // If live stat query / information -> Display live cards instantly
+          if (res.intentType === 'STAT_QUERY' || res.intentType === 'DENIED' || res.intentType === 'SEARCH') {
+            setVoiceStatus('idle');
+            if (res.voiceText) {
+              speakText(res.voiceText, res.detectedLanguage);
+            }
+            return;
+          }
+        }
+
+        // Fallback: If browser marked finalTranscript and not yet executed
+        if (finalTranscript.trim() && !hasExecutedRef.current) {
+          hasExecutedRef.current = true;
+          stopListening();
+          executeCommand(finalTranscript.trim(), true);
         }
       };
 
@@ -155,7 +214,17 @@ export default function AICommandBoard({
     } else {
       recognitionRef.current = null;
     }
-  }, [selectedLang, voiceStatus]);
+  }, [selectedLang, voiceStatus, state.user?.role]);
+
+  const saveCommandHistory = (cmdText: string) => {
+    const newHistory = [cmdText, ...history.filter(h => h !== cmdText)].slice(0, 8);
+    setHistory(newHistory);
+    try {
+      localStorage.setItem('aln_ai_history', JSON.stringify(newHistory));
+    } catch {
+      // ignore
+    }
+  };
 
   const toggleListening = () => {
     if (voiceStatus === 'listening') {
@@ -168,6 +237,7 @@ export default function AICommandBoard({
   const startListening = () => {
     clearNavTimer();
     stopSpeaking();
+    hasExecutedRef.current = false;
     if (recognitionRef.current) {
       try {
         setSpeechError(null);
@@ -231,37 +301,27 @@ export default function AICommandBoard({
     const userRole = state.user?.role || 'super_admin';
     const res = processAICommand(cmdText, userRole, selectedLang);
     setResponse(res);
-
-    // Save history
-    const newHistory = [cmdText, ...history.filter(h => h !== cmdText)].slice(0, 8);
-    setHistory(newHistory);
-    try {
-      localStorage.setItem('aln_ai_history', JSON.stringify(newHistory));
-    } catch {
-      // ignore
-    }
+    saveCommandHistory(cmdText);
 
     // Voice announcement
     if (res.voiceText) {
       speakText(res.voiceText, res.detectedLanguage);
     }
 
-    // Auto-Navigation for NAVIGATE intent
+    // Direct Fast Navigation for NAVIGATE intent
     if (res.intentType === 'NAVIGATE' && res.targetRoute) {
       setVoiceStatus('navigating');
-      let countdown = isFromVoice ? 2 : 3;
-      setNavCountdown(countdown);
-
-      navTimerRef.current = setInterval(() => {
-        countdown -= 1;
-        if (countdown <= 0) {
-          clearNavTimer();
+      if (isFromVoice) {
+        // Fast instant jump
+        navTimerRef.current = setTimeout(() => {
           onClose();
           navigate(res.targetRoute!);
-        } else {
-          setNavCountdown(countdown);
-        }
-      }, 1000);
+        }, 180);
+      } else {
+        // Direct jump on text enter
+        onClose();
+        navigate(res.targetRoute);
+      }
     } else {
       setVoiceStatus('idle');
     }

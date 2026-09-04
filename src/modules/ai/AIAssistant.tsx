@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   processAICommand, AICommandResponse, AISearchResult,
   DetectedLanguage, computeLiveHospitalMetrics,
-  getAIAuditLogs, AIAuditLogEntry
+  getAIAuditLogs, AIAuditLogEntry, evaluateRealtimeVoiceStream
 } from '../../services/aiCommandEngine';
 import MedicalIcon from '../../components/common/MedicalIcons';
 
@@ -87,6 +87,7 @@ export default function AIAssistant() {
 
   const recognitionRef = useRef<any>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const hasExecutedRef = useRef(false);
   const metrics = computeLiveHospitalMetrics();
 
   // Web Speech API Setup
@@ -101,6 +102,7 @@ export default function AIAssistant() {
       recognition.onstart = () => {
         setVoiceStatus('listening');
         setSpeechError(null);
+        hasExecutedRef.current = false;
       };
 
       recognition.onresult = (event: any) => {
@@ -116,14 +118,25 @@ export default function AIAssistant() {
           }
         }
 
-        const currentText = final || interim;
-        setVoiceQuery(currentText);
+        const streamText = (final || interim).trim();
+        if (!streamText) return;
+        setVoiceQuery(streamText);
 
-        if (final.trim()) {
-          setVoiceStatus('processing');
-          setTimeout(() => {
-            handleRunCommand(final.trim());
-          }, 300);
+        if (hasExecutedRef.current) return;
+
+        // REAL-TIME STREAMING EVALUATION (0ms lag)
+        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin', selectedLang);
+        if (evalResult.isConfident && evalResult.confidence === 'HIGH' && evalResult.response) {
+          hasExecutedRef.current = true;
+          stopVoice();
+          handleRunCommand(streamText);
+          return;
+        }
+
+        if (final.trim() && !hasExecutedRef.current) {
+          hasExecutedRef.current = true;
+          stopVoice();
+          handleRunCommand(final.trim());
         }
       };
 
@@ -147,7 +160,7 @@ export default function AIAssistant() {
 
       recognitionRef.current = recognition;
     }
-  }, [selectedLang, voiceStatus]);
+  }, [selectedLang, voiceStatus, state.user?.role]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -168,6 +181,7 @@ export default function AIAssistant() {
   };
 
   const startVoice = () => {
+    hasExecutedRef.current = false;
     if (recognitionRef.current) {
       try {
         setSpeechError(null);

@@ -109,6 +109,76 @@ export function saveAIAuditLog(entry: AIAuditLogEntry) {
   }
 }
 
+export interface RealtimeVoiceEvaluation {
+  isConfident: boolean;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  response: AICommandResponse | null;
+  matchedEntity?: string;
+}
+
+/**
+ * Real-Time Streaming Speech Evaluator (0ms Lag Intent Recognition)
+ * Evaluates interim speech transcripts on the fly without waiting for silence or final results.
+ */
+export function evaluateRealtimeVoiceStream(
+  transcript: string,
+  userRole: UserRole = 'super_admin',
+  forcedLang?: 'auto' | 'en' | 'te'
+): RealtimeVoiceEvaluation {
+  const raw = transcript.trim();
+  if (!raw || raw.length < 2) {
+    return { isConfident: false, confidence: 'LOW', response: null };
+  }
+
+  const qLower = raw.toLowerCase();
+
+  // Strip common trailing/leading filler words for early intent detection
+  const normalized = qLower
+    .replace(/\b(please|can you|could you|kindly|for me|now|fast ga|urgent|urgently|sir|madam|brother|andi|garu|twaraga|veganga|chusi)\b/gi, '')
+    .trim();
+
+  // 1. Destructive / Sensitive Write Action (HIGH Confidence)
+  const isDestructive = /(cancel|delete|discharge|transfer|refund|allocate|రద్దు|డిశ్చార్జ్|బదిలీ|తొలగించు|cancel chey|discharge chey|transfer chey)/i.test(normalized);
+  if (isDestructive && (normalized.includes('appointment') || normalized.includes('patient') || normalized.includes('bed') || normalized.includes('admission') || normalized.includes('అపాయింట్‌మెంట్') || normalized.includes('డిశ్చార్జ్') || normalized.includes('బదిలీ'))) {
+    const res = processAICommand(raw, userRole, forcedLang);
+    return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: 'destructive_action' };
+  }
+
+  // 2. Specific Live Hospital Statistics Query (HIGH Confidence)
+  const isStat = /(available bed|available beds|icu bed|icu beds|bed vacancy|ఖాళీ బెడ్లు|బెడ్స్|beds enni|low stock|pharmacy stock|pending lab|lab reports|today's opd|today opd|opd queue|blood stock|blood units|today's revenue|today revenue|collections|outstanding)/i.test(normalized);
+  if (isStat) {
+    const res = processAICommand(raw, userRole, forcedLang);
+    if (res.intentType === 'STAT_QUERY' || res.intentType === 'DENIED') {
+      return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: 'stat_query' };
+    }
+  }
+
+  // 3. Direct Master Navigation Routing (HIGH Confidence)
+  for (const item of NAV_COMMAND_REGISTRY) {
+    const isDirectMatch = item.keywords.some(kw => {
+      const kwLower = kw.toLowerCase();
+      // Match whole word or exact token
+      return normalized.includes(kwLower);
+    });
+
+    if (isDirectMatch) {
+      const res = processAICommand(raw, userRole, forcedLang);
+      return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: item.route };
+    }
+  }
+
+  // 4. Search Exact Matches
+  if (normalized.length >= 4) {
+    const searchRes = performGlobalSearch(normalized, userRole);
+    if (searchRes.length > 0) {
+      const res = processAICommand(raw, userRole, forcedLang);
+      return { isConfident: true, confidence: 'MEDIUM', response: res, matchedEntity: 'search_match' };
+    }
+  }
+
+  return { isConfident: false, confidence: 'LOW', response: null };
+}
+
 /**
  * Language Detector for English, Telugu Script, and Code-Mixed Tanglish
  */
