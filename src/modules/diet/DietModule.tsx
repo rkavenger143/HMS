@@ -1,28 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import {
-  UtensilsCrossed, LayoutDashboard, Users, User, Scale, Stethoscope,
-  ChefHat, Truck, AlertCircle, Ban, Apple, ShieldAlert, History,
-  UserCheck, Bell, BarChart3, FileText, Settings, Search, Plus
+  LayoutDashboard,
+  Users,
+  UtensilsCrossed,
+  ChefHat,
+  Apple,
+  FileText,
+  Activity,
+  History,
+  BarChart3,
+  Search,
+  Plus,
 } from 'lucide-react';
 import { DietProvider, useDiet, DietTab } from './context/DietContext';
 import DietDashboard from './components/DietDashboard';
-import PatientDietList from './components/PatientDietList';
-import PatientDietProfile from './components/PatientDietProfile';
-import NutritionAssessmentView from './components/NutritionAssessmentView';
-import DoctorDietOrders from './components/DoctorDietOrders';
-import DailyMealPlans from './components/DailyMealPlans';
-import KitchenService from './components/KitchenService';
-import MealDeliveryTracker from './components/MealDeliveryTracker';
-import MealRefusalLog from './components/MealRefusalLog';
-import NPOManagement from './components/NPOManagement';
-import FoodItemMaster from './components/FoodItemMaster';
-import AllergiesRestrictions from './components/AllergiesRestrictions';
-import DietHistoryAudit from './components/DietHistoryAudit';
-import DietitianManagement from './components/DietitianManagement';
-import DietAlertCenter from './components/DietAlertCenter';
-import DietAnalytics from './components/DietAnalytics';
-import DietReports from './components/DietReports';
-import DietSettings from './components/DietSettings';
+import DietPlansView from './components/DietPlansView';
+import DailyDietChartView from './components/DailyDietChartView';
+import MealScheduleView from './components/MealScheduleView';
+import FoodDatabaseView from './components/FoodDatabaseView';
+import SpecialDietsView from './components/SpecialDietsView';
+import DietMonitoringView from './components/DietMonitoringView';
+import DietReviewHistoryView from './components/DietReviewHistoryView';
+import DietReportsView from './components/DietReportsView';
 import DietSearchModal from './components/DietSearchModal';
 import CreateDietChartModal from './components/modals/CreateDietChartModal';
 
@@ -31,9 +30,6 @@ function DietModuleContent() {
     activeTab,
     setActiveTab,
     kpis,
-    dietAlerts,
-    npoPatients,
-    doctorOrders,
     admissions,
   } = useDiet();
 
@@ -52,25 +48,17 @@ function DietModuleContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const unackAlerts = dietAlerts.filter(a => a.status === 'new').length;
-  const activeNPO = npoPatients.filter(n => n.status === 'active').length;
-  const newDoctorOrders = doctorOrders.filter(o => o.status === 'new').length;
-
+  // 9 Clean Logical Hospital Navigation Tabs in Exact Order
   const NAV_TABS = [
-    { id: 'dashboard', label: '1. Diet Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'patient_diets', label: '2. Patient Diet Charts', icon: <Users size={14} />, badge: kpis.patientsWithDiet },
-    { id: 'patient_profile', label: '3. Patient Nutrition Profile', icon: <User size={14} /> },
-    { id: 'doctor_orders', label: '4. Diet Orders', icon: <Stethoscope size={14} />, badge: newDoctorOrders > 0 ? newDoctorOrders : undefined },
-    { id: 'daily_meal_plans', label: '5. Meal Schedule', icon: <ChefHat size={14} /> },
-    { id: 'npo_management', label: '6. NPO Patients', icon: <Ban size={14} />, badge: activeNPO > 0 ? activeNPO : undefined },
-    { id: 'allergies_restrictions', label: '7. Allergies & Restrictions', icon: <ShieldAlert size={14} /> },
-    { id: 'nutrition_assessment', label: '8. Nutrition Assessment', icon: <Scale size={14} /> },
-    { id: 'meal_delivery', label: '9. Meal Status & Delivery', icon: <Truck size={14} /> },
-    { id: 'food_items', label: '10. Food Master', icon: <Apple size={14} /> },
-    { id: 'dietitian_management', label: '11. Dietitians', icon: <UserCheck size={14} /> },
-    { id: 'diet_history', label: '12. Diet History', icon: <History size={14} /> },
-    { id: 'reports', label: '13. Diet Reports', icon: <BarChart3 size={14} /> },
-    { id: 'settings', label: '14. Diet Settings', icon: <Settings size={14} /> },
+    { id: 'dashboard', label: '1. Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'diet_plans', label: '2. Diet Plans', icon: <Users size={14} />, badge: kpis.activeDietPlans },
+    { id: 'daily_diet_chart', label: '3. Daily Diet Chart', icon: <UtensilsCrossed size={14} /> },
+    { id: 'meal_schedule', label: '4. Meal Schedule & Status', icon: <ChefHat size={14} />, badge: kpis.pendingMeals > 0 ? kpis.pendingMeals : undefined },
+    { id: 'diet_monitoring', label: '5. Diet Monitoring', icon: <Activity size={14} />, badge: kpis.missedMeals > 0 ? kpis.missedMeals : undefined },
+    { id: 'food_database', label: '6. Food Database', icon: <Apple size={14} /> },
+    { id: 'special_diets', label: '7. Special Diets', icon: <FileText size={14} />, badge: kpis.specialDietPatients },
+    { id: 'diet_review_history', label: '8. Diet Review & History', icon: <History size={14} /> },
+    { id: 'reports', label: '9. Reports', icon: <BarChart3 size={14} /> },
   ];
 
   return (
@@ -85,55 +73,33 @@ function DietModuleContent() {
             <span className="breadcrumb-sep">›</span>
             <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Diet Charts</span>
           </div>
-          <div className="page-title">Diet Charts & Clinical Nutrition Management</div>
+          <div className="page-title">Diet Charts & Nutrition Management</div>
           <div className="page-subtitle">
-            Hospital nutrition workflow: Diet Assessment → Diet Order → Allergy Check → Chart Creation → Approval → Kitchen Schedule → Meal Delivery
+            Patient Assessment → Diet Plan → Daily Diet Chart → Meal Schedule → Meal Delivery/Status → Diet Monitoring → Diet Review → Diet History → Reports
           </div>
         </div>
 
         <div className="page-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Universal Quick Search Button */}
+          {/* Universal Quick Search */}
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => setShowSearchModal(true)}
             title="Press Ctrl+K to search anytime"
           >
-            <Search size={14} /> Search Nutrition <kbd style={{ background: 'var(--bg-surface)', padding: '2px 5px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>Ctrl+K</kbd>
+            <Search size={14} /> Quick Search <kbd style={{ background: 'var(--bg-surface)', padding: '2px 5px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>Ctrl+K</kbd>
           </button>
 
-          {/* Active NPO Callout Badge */}
-          {activeNPO > 0 && (
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={() => setActiveTab('npo_management')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Ban size={13} /> {activeNPO} NPO Patient{activeNPO > 1 ? 's' : ''}
-            </button>
-          )}
-
-          {/* Live Alert Badge */}
-          {unackAlerts > 0 && (
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={() => setActiveTab('alerts')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Bell size={13} /> {unackAlerts} Nutrition Alert{unackAlerts > 1 ? 's' : ''}
-            </button>
-          )}
-
-          {/* Prescribe Diet Chart CTA */}
+          {/* Create Diet Plan CTA */}
           <button
             className="btn btn-primary btn-sm"
             onClick={() => setShowCreateModal(true)}
           >
-            <Plus size={14} /> Prescribe Diet Chart
+            <Plus size={14} /> Prescribe Diet Plan
           </button>
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs Bar (Scrollable with Badges) */}
+      {/* 9-Tab Navigation Bar */}
       <div
         className="card"
         style={{
@@ -173,8 +139,8 @@ function DietModuleContent() {
                 {tab.badge !== undefined && (
                   <span
                     style={{
-                      background: isActive ? 'white' : 'var(--color-warning)',
-                      color: isActive ? 'var(--color-primary)' : 'var(--text-inverse)',
+                      background: isActive ? 'white' : 'var(--color-primary-muted)',
+                      color: isActive ? 'var(--color-primary)' : 'var(--color-primary)',
                       fontSize: 10,
                       fontWeight: 800,
                       padding: '1px 6px',
@@ -193,30 +159,22 @@ function DietModuleContent() {
       {/* Tab Panels */}
       <div>
         {activeTab === 'dashboard' && <DietDashboard />}
-        {activeTab === 'patient_diets' && <PatientDietList />}
-        {activeTab === 'patient_profile' && <PatientDietProfile />}
-        {activeTab === 'nutrition_assessment' && <NutritionAssessmentView />}
-        {activeTab === 'doctor_orders' && <DoctorDietOrders />}
-        {activeTab === 'daily_meal_plans' && <DailyMealPlans />}
-        {activeTab === 'kitchen_service' && <KitchenService />}
-        {activeTab === 'meal_delivery' && <MealDeliveryTracker />}
-        {activeTab === 'meal_refusals' && <MealRefusalLog />}
-        {activeTab === 'npo_management' && <NPOManagement />}
-        {activeTab === 'food_items' && <FoodItemMaster />}
-        {activeTab === 'allergies_restrictions' && <AllergiesRestrictions />}
-        {activeTab === 'diet_history' && <DietHistoryAudit />}
-        {activeTab === 'dietitian_management' && <DietitianManagement />}
-        {activeTab === 'alerts' && <DietAlertCenter />}
-        {activeTab === 'analytics' && <DietAnalytics />}
-        {activeTab === 'reports' && <DietReports />}
-        {activeTab === 'settings' && <DietSettings />}
+        {activeTab === 'diet_plans' && <DietPlansView />}
+        {activeTab === 'daily_diet_chart' && <DailyDietChartView />}
+        {activeTab === 'meal_schedule' && <MealScheduleView />}
+        {activeTab === 'diet_monitoring' && <DietMonitoringView />}
+        {activeTab === 'food_database' && <FoodDatabaseView />}
+        {activeTab === 'special_diets' && <SpecialDietsView />}
+        {activeTab === 'diet_review_history' && <DietReviewHistoryView />}
+        {activeTab === 'reports' && <DietReportsView />}
       </div>
 
-      {/* Modals */}
+      {/* Universal Search Modal */}
       {showSearchModal && (
         <DietSearchModal onClose={() => setShowSearchModal(false)} />
       )}
 
+      {/* Prescribe Diet Chart Modal */}
       {showCreateModal && (
         <CreateDietChartModal
           initialAdmissionId={admissions[0]?.id}

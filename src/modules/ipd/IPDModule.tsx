@@ -64,21 +64,15 @@ function IPDModuleContent() {
   const pendingTasksCount = nursingTasks.filter(t => t.status === 'pending').length;
   const cleaningBedsCount = beds.filter(b => b.status === 'cleaning').length;
 
-  // 13 Ordered Tabs (Section 9)
+  // 7 Clean Core Hospital Views
   const NAV_TABS: NavTabItem[] = [
-    { id: 'dashboard', label: '1. IPD Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'admission', label: '2. Admissions', icon: <UserPlus size={14} /> },
-    { id: 'inpatients', label: '3. Inpatient List', icon: <Users size={14} />, badge: activeInpatientsCount },
-    { id: 'bed_management', label: '4. Bed Management', icon: <BedDouble size={14} /> },
-    { id: 'bed_allocation', label: '5. Bed Allocation', icon: <Layers size={14} /> },
-    { id: 'transfers', label: '6. Bed Transfer', icon: <ArrowRightLeft size={14} /> },
-    { id: 'wards', label: '7. Ward Management', icon: <Building2 size={14} /> },
-    { id: 'rooms', label: '8. Room Management', icon: <Building2 size={14} /> },
-    { id: 'discharge', label: '9. Discharge', icon: <CheckCircle2 size={14} /> },
-    { id: 'history', label: '10. IPD History', icon: <History size={14} /> },
-    { id: 'billing', label: '11. IPD Billing', icon: <ReceiptText size={14} /> },
-    { id: 'reports', label: '12. IPD Reports', icon: <BarChart3 size={14} /> },
-    { id: 'settings', label: '13. IPD Settings', icon: <Settings size={14} /> },
+    { id: 'dashboard', label: 'IPD Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'admission', label: 'Admit Patient', icon: <UserPlus size={14} /> },
+    { id: 'inpatients', label: 'Inpatient Census', icon: <Users size={14} />, badge: activeInpatientsCount },
+    { id: 'beds', label: 'Bed Management & Board', icon: <BedDouble size={14} />, badge: cleaningBedsCount > 0 ? cleaningBedsCount : undefined },
+    { id: 'transfers', label: 'Patient Transfer', icon: <ArrowRightLeft size={14} /> },
+    { id: 'discharge', label: 'Discharge Station', icon: <CheckCircle2 size={14} /> },
+    { id: 'history', label: 'Stay & Bed History', icon: <History size={14} /> },
   ];
 
   return (
@@ -91,18 +85,18 @@ function IPDModuleContent() {
             <span className="breadcrumb-sep">›</span>
             <span>Clinical</span>
             <span className="breadcrumb-sep">›</span>
-            <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Inpatient Department (IPD) & Beds</span>
+            <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Inpatient Department (IPD) & Bed Management</span>
             <span className="breadcrumb-sep">›</span>
             <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{activeTab.replace('_', ' ')}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div className="page-title">IPD & Bed Management</div>
             <span className="badge badge-primary" style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ✦ Production Inpatient Suite
+              ✦ Production Hospital Suite
             </span>
           </div>
           <div className="page-subtitle">
-            Lifecycle: Admission → Bed Allocation → Clinical Rounds & Nursing → Transfer → Clearance & Discharge → Bed Sanitization
+            Clinical Lifecycle: Admission → Real-time Bed Allocation → Census & Care → Direct Transfer → Discharge & Bed Sanitization
           </div>
         </div>
 
@@ -125,7 +119,7 @@ function IPDModuleContent() {
             {kpis.bedOccupancyRate}% Occupancy ({kpis.occupiedBeds}/{kpis.totalOperationalBeds} Beds)
           </div>
 
-          {/* Admit Patient Quick CTA */}
+          {/* Quick Actions */}
           <button
             id="admit-patient-btn"
             className="btn btn-primary btn-sm"
@@ -136,7 +130,7 @@ function IPDModuleContent() {
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs Bar (13 Ordered Items) */}
+      {/* Streamlined Sub-Navigation Tabs Bar */}
       <div
         className="card"
         style={{
@@ -150,7 +144,8 @@ function IPDModuleContent() {
       >
         <div style={{ display: 'flex', gap: 4 }}>
           {NAV_TABS.map(tab => {
-            const isActive = activeTab === tab.id;
+            const isActive = activeTab === tab.id ||
+              (tab.id === 'beds' && (activeTab === 'bed_management' || activeTab === 'bed_allocation' || activeTab === 'bed_board' || activeTab === 'wards' || activeTab === 'rooms'));
             return (
               <button
                 key={tab.id}
@@ -160,9 +155,9 @@ function IPDModuleContent() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 7,
-                  padding: '8px 14px',
+                  padding: '8px 16px',
                   borderRadius: 'var(--radius-md)',
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: isActive ? 700 : 500,
                   color: isActive ? 'white' : 'var(--text-secondary)',
                   background: isActive ? 'var(--color-primary)' : 'transparent',
@@ -198,20 +193,16 @@ function IPDModuleContent() {
         {activeTab === 'dashboard' && <IPDDashboard />}
         {activeTab === 'admission' && <PatientAdmission />}
         {activeTab === 'inpatients' && <InpatientList />}
-        {activeTab === 'bed_management' && <BedManagement />}
-        {activeTab === 'bed_allocation' && <BedAllocationView />}
+        {(activeTab === 'beds' || activeTab === 'bed_management' || activeTab === 'bed_allocation' || activeTab === 'bed_board' || activeTab === 'wards' || activeTab === 'rooms') && <BedManagement />}
         {activeTab === 'transfers' && <BedTransferManagement />}
-        {activeTab === 'wards' && <WardManagement />}
-        {activeTab === 'rooms' && <RoomManagement />}
         {activeTab === 'discharge' && <DischargeManagement />}
         {activeTab === 'history' && <IPDHistoryView />}
+
+        {/* Clinical Support Views */}
+        {activeTab === 'inpatient_profile' && <InpatientProfile />}
         {activeTab === 'billing' && <IPDBilling />}
         {activeTab === 'reports' && <IPDReports />}
         {activeTab === 'settings' && <IPDSettings />}
-
-        {/* Supporting Views */}
-        {activeTab === 'bed_board' && <BedBoard />}
-        {activeTab === 'inpatient_profile' && <InpatientProfile />}
         {activeTab === 'nursing' && <NursingManagement />}
         {activeTab === 'doctor_rounds' && <DoctorRoundsManagement />}
         {activeTab === 'medications' && <InpatientMedications />}

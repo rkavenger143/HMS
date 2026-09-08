@@ -13,6 +13,7 @@ import type {
   DischargeType,
   InpatientStatus,
   BedTransferRecord,
+  BedAllocationRecord,
   IPDDoctorRound,
   IPDNursingNote,
   IPDNursingTask,
@@ -28,6 +29,9 @@ import type {
   RadiologyStudy,
   PaymentMode,
   Vitals,
+  PatientCondition,
+  AdmissionPriority,
+  DischargeReadiness,
 } from '../../../types';
 import {
   DEMO_PATIENTS,
@@ -47,21 +51,23 @@ export type IPDTab =
   | 'dashboard'
   | 'admission'
   | 'inpatients'
-  | 'bed_management'
-  | 'bed_allocation'
+  | 'beds'
   | 'transfers'
-  | 'wards'
-  | 'rooms'
   | 'discharge'
   | 'history'
+  | 'inpatient_profile'
   | 'billing'
   | 'reports'
   | 'settings'
-  | 'bed_board'
-  | 'inpatient_profile'
   | 'nursing'
   | 'doctor_rounds'
   | 'medications'
+  // Legacy tab aliases mapped gracefully
+  | 'bed_management'
+  | 'bed_allocation'
+  | 'bed_board'
+  | 'wards'
+  | 'rooms'
   | 'analytics';
 
 export interface IPDContextType {
@@ -77,6 +83,7 @@ export interface IPDContextType {
   doctors: Doctor[];
   departments: Department[];
   transfers: BedTransferRecord[];
+  bedAllocations: BedAllocationRecord[];
   doctorRounds: IPDDoctorRound[];
   nursingNotes: IPDNursingNote[];
   nursingTasks: IPDNursingTask[];
@@ -112,6 +119,9 @@ export interface IPDContextType {
     admissionType: AdmissionType;
     admissionDate: string;
     admissionTime: string;
+    expectedDischargeDate?: string;
+    condition?: PatientCondition;
+    priority?: AdmissionPriority;
     diagnosis: string[];
     admissionNotes: string;
     attendantName?: string;
@@ -133,6 +143,7 @@ export interface IPDContextType {
     admittingDoctorId: string;
     emergencyDiagnosis: string;
     admissionNotes: string;
+    expectedDischargeDate?: string;
     attendantName?: string;
     attendantPhone?: string;
     mlc?: boolean;
@@ -147,8 +158,16 @@ export interface IPDContextType {
   }) => BedTransferRecord;
 
   updateBedStatus: (bedId: string, status: BedStatus) => void;
-
   markBedCleaned: (bedId: string) => void;
+  reserveBed: (bedId: string, notes?: string) => void;
+  releaseBed: (bedId: string) => void;
+  setBedMaintenance: (bedId: string, notes?: string) => void;
+
+  updateAdmissionStatus: (admissionId: string, status: AdmissionStatus) => void;
+  updateAdmissionReadiness: (
+    admissionId: string,
+    readiness: DischargeReadiness
+  ) => void;
 
   recordDoctorRound: (data: {
     admissionId: string;
@@ -235,6 +254,7 @@ const STORAGE_KEYS = {
   BEDS: 'aln_hms_ipd_beds_v2',
   WARDS: 'aln_hms_ipd_wards_v2',
   TRANSFERS: 'aln_hms_ipd_transfers_v2',
+  BED_ALLOCATIONS: 'aln_hms_ipd_bed_allocations_v2',
   ROUNDS: 'aln_hms_ipd_rounds_v2',
   NURSING_NOTES: 'aln_hms_ipd_nursing_notes_v2',
   NURSING_TASKS: 'aln_hms_ipd_nursing_tasks_v2',
@@ -281,6 +301,65 @@ const INITIAL_DETAILED_BEDS: Bed[] = [
   { id: 'bed-021', bedNumber: 'MICU-02', ward: 'Medical ICU', wardId: 'w-005', building: 'Building B', roomNumber: 'ICU-302', floor: 3, type: 'icu', status: 'available', dailyRate: 8500, features: ['Mechanical Ventilator', 'Multi-channel Monitor', 'Dialysis Port'] },
   { id: 'bed-022', bedNumber: 'MICU-03', ward: 'Medical ICU', wardId: 'w-005', building: 'Building B', roomNumber: 'ICU-303', floor: 3, type: 'icu', status: 'available', dailyRate: 8500, features: ['Mechanical Ventilator', 'Multi-channel Monitor', 'Oxygen Unit'] },
   { id: 'bed-hdu-01', bedNumber: 'HDU-01', ward: 'Medical ICU', wardId: 'w-005', building: 'Building B', roomNumber: 'HDU-304', floor: 3, type: 'hdu', status: 'available', dailyRate: 5000, features: ['BiPAP Support', 'Multi-para Monitor', 'Central Monitoring Station'] },
+];
+
+const INITIAL_BED_ALLOCATIONS: BedAllocationRecord[] = [
+  {
+    id: 'alloc-001',
+    admissionId: 'adm-001',
+    patientId: 'ALN-2026-00001',
+    patientName: 'Ramesh Yadav',
+    bedId: 'bed-001',
+    bedNumber: 'GA-01',
+    ward: 'General Ward A',
+    roomNumber: 'GW-101',
+    action: 'admitted',
+    timestamp: '2026-08-28 14:30',
+    performedBy: 'Dr. Rajesh Kumar',
+    notes: 'Initial admission to General Ward'
+  },
+  {
+    id: 'alloc-002',
+    admissionId: 'adm-002',
+    patientId: 'ALN-2026-00003',
+    patientName: 'Vijay Malhotra',
+    bedId: 'bed-003',
+    bedNumber: 'GA-03',
+    ward: 'General Ward A',
+    roomNumber: 'GW-102',
+    action: 'admitted',
+    timestamp: '2026-08-30 11:00',
+    performedBy: 'Dr. Rajesh Kumar',
+    notes: 'Post-op observation'
+  },
+  {
+    id: 'alloc-003',
+    admissionId: 'adm-003',
+    patientId: 'ALN-2026-00002',
+    patientName: 'Lakshmi Krishnan',
+    bedId: 'bed-010',
+    bedNumber: 'PR-01',
+    ward: 'Private Ward',
+    roomNumber: 'PVT-201',
+    action: 'admitted',
+    timestamp: '2026-08-29 09:00',
+    performedBy: 'Dr. Sneha Patel',
+    notes: 'Private room allocated'
+  },
+  {
+    id: 'alloc-004',
+    admissionId: 'adm-004',
+    patientId: 'ALN-2026-00007',
+    patientName: 'Deepak Mehta',
+    bedId: 'bed-020',
+    bedNumber: 'MICU-01',
+    ward: 'Medical ICU',
+    roomNumber: 'ICU-301',
+    action: 'admitted',
+    timestamp: '2026-08-31 02:15',
+    performedBy: 'Dr. Rajesh Kumar',
+    notes: 'Emergency ICU triage'
+  }
 ];
 
 const INITIAL_TRANSFERS: BedTransferRecord[] = [
@@ -535,6 +614,16 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     }
   });
 
+  // Bed Allocations & Movement History
+  const [bedAllocations, setBedAllocations] = useState<BedAllocationRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BED_ALLOCATIONS);
+      return saved ? JSON.parse(saved) : INITIAL_BED_ALLOCATIONS;
+    } catch {
+      return INITIAL_BED_ALLOCATIONS;
+    }
+  });
+
   // Doctor Rounds
   const [doctorRounds, setDoctorRounds] = useState<IPDDoctorRound[]>(() => {
     try {
@@ -640,16 +729,26 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
 
   // Persistence Effects
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEYS.ADMISSIONS, JSON.stringify(admissions)); } catch (e) { console.warn(e); }
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMISSIONS, JSON.stringify(admissions));
+      window.dispatchEvent(new CustomEvent('hms_storage_updated'));
+    } catch (e) { console.warn(e); }
   }, [admissions]);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEYS.BEDS, JSON.stringify(beds)); } catch (e) { console.warn(e); }
+    try {
+      localStorage.setItem(STORAGE_KEYS.BEDS, JSON.stringify(beds));
+      window.dispatchEvent(new CustomEvent('hms_storage_updated'));
+    } catch (e) { console.warn(e); }
   }, [beds]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(transfers)); } catch (e) { console.warn(e); }
   }, [transfers]);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEYS.BED_ALLOCATIONS, JSON.stringify(bedAllocations)); } catch (e) { console.warn(e); }
+  }, [bedAllocations]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEYS.ROUNDS, JSON.stringify(doctorRounds)); } catch (e) { console.warn(e); }
@@ -681,7 +780,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     return admissions.find(a => a.id === selectedAdmissionId) || null;
   }, [admissions, selectedAdmissionId]);
 
-  // Computed KPIs
+  // Computed KPIs (Matches exactly the 8 essential indicators)
   const kpis: IPDDashboardKPIs = useMemo(() => {
     const today = '2026-08-31';
     const activeAdmissions = admissions.filter(a => a.status === 'active');
@@ -708,9 +807,9 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     const generalWardOccupancyRate = gwBeds.length > 0 ? Math.round((gwOccupied / gwBeds.length) * 100) : 0;
 
     const patientsAwaitingBed = 2; // Simulated triage queue
-    const patientsAwaitingDischarge = activeAdmissions.filter(a => a.dischargeType === 'normal').length;
+    const patientsAwaitingDischarge = activeAdmissions.filter(a => a.dischargeReadiness === 'ready_for_discharge' || a.dischargeReadiness === 'medically_cleared').length;
     const emergencyAdmissions = admissions.filter(a => a.referredBy === 'Emergency' || a.bedNumber?.startsWith('EM')).length;
-    const highPriorityPatients = activeAdmissions.filter(a => a.ward.toLowerCase().includes('icu') || a.diagnosis.some(d => d.toLowerCase().includes('shock') || d.toLowerCase().includes('infarction'))).length;
+    const highPriorityPatients = activeAdmissions.filter(a => a.priority === 'emergency' || a.priority === 'critical' || a.ward.toLowerCase().includes('icu')).length;
 
     return {
       totalInpatients,
@@ -741,6 +840,9 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     admissionType: AdmissionType;
     admissionDate: string;
     admissionTime: string;
+    expectedDischargeDate?: string;
+    condition?: PatientCondition;
+    priority?: AdmissionPriority;
     diagnosis: string[];
     admissionNotes: string;
     attendantName?: string;
@@ -752,11 +854,11 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     policyNumber?: string;
     tpaName?: string;
   }) => {
-    // 1. Verify target bed availability
+    // 1. Strict Double Bed Allocation Prevention
     const targetBed = beds.find(b => b.id === data.bedId);
     if (!targetBed) throw new Error('Bed not found');
     if (targetBed.status !== 'available') {
-      toast.error('Bed Unavailable', `Bed ${targetBed.bedNumber} is currently ${targetBed.status.toUpperCase()}. Please select an available bed.`);
+      toast.error('Double Bed Allocation Prevented', `Bed ${targetBed.bedNumber} is currently ${targetBed.status.toUpperCase()}. Please select an available vacant bed.`);
       throw new Error(`Bed ${targetBed.bedNumber} is not available.`);
     }
 
@@ -775,9 +877,14 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
       bedId: targetBed.id,
       bedNumber: targetBed.bedNumber,
       ward: targetBed.ward,
+      roomNumber: targetBed.roomNumber,
       admissionDate: data.admissionDate || '2026-08-31',
       admissionTime: data.admissionTime || '10:00',
+      expectedDischargeDate: data.expectedDischargeDate || '2026-09-04',
       status: 'active',
+      condition: data.condition || 'stable',
+      priority: data.priority || 'routine',
+      dischargeReadiness: 'under_treatment',
       diagnosis: data.diagnosis && data.diagnosis.length > 0 ? data.diagnosis : ['Clinical Inpatient Evaluation'],
       admissionNotes: data.admissionNotes || 'Standard Inpatient Admission',
       attendantName: data.attendantName,
@@ -804,7 +911,24 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     setAdmissions(prev => [newAdmission, ...prev]);
     setSelectedAdmissionId(newAdmission.id);
 
-    // 4. If insurance provided, create initial claim
+    // 4. Log Bed Allocation History
+    const allocRecord: BedAllocationRecord = {
+      id: `alloc-${Date.now().toString().slice(-4)}`,
+      admissionId: newAdmission.id,
+      patientId: newAdmission.patientId,
+      patientName: newAdmission.patientName,
+      bedId: targetBed.id,
+      bedNumber: targetBed.bedNumber,
+      ward: targetBed.ward,
+      roomNumber: targetBed.roomNumber,
+      action: 'admitted',
+      timestamp: `${newAdmission.admissionDate} ${newAdmission.admissionTime}`,
+      performedBy: authState.user?.name || doctor.name,
+      notes: `Admitted to ${targetBed.ward} (Bed ${targetBed.bedNumber})`,
+    };
+    setBedAllocations(prev => [allocRecord, ...prev]);
+
+    // 5. If insurance provided, create initial claim
     if (data.insuranceProvider) {
       const newClaim: InsuranceClaimRecord = {
         id: `clm-${Date.now().toString().slice(-4)}`,
@@ -828,7 +952,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     toast.success('Inpatient Admitted Successfully', `Allocated ${targetBed.bedNumber} (${targetBed.ward}) for ${newAdmission.patientName}`);
 
     return newAdmission;
-  }, [beds, admissions, toast]);
+  }, [beds, admissions, authState.user, toast]);
 
   // EMERGENCY ADMISSION WORKFLOW
   const admitEmergencyPatient = useCallback((data: {
@@ -840,6 +964,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     admittingDoctorId: string;
     emergencyDiagnosis: string;
     admissionNotes: string;
+    expectedDischargeDate?: string;
     attendantName?: string;
     attendantPhone?: string;
     mlc?: boolean;
@@ -850,6 +975,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     const tempPatientId = `ALN-EM-${Date.now().toString().slice(-5)}`;
     const nextAdmNum = admissions.length + 101;
     const newAdmissionId = `ADM-EM-${String(nextAdmNum).padStart(4, '0')}`;
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
     const newAdmission: Admission = {
       id: newAdmissionId,
@@ -860,9 +986,14 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
       bedId: targetBed.id,
       bedNumber: targetBed.bedNumber,
       ward: targetBed.ward,
+      roomNumber: targetBed.roomNumber,
       admissionDate: '2026-08-31',
-      admissionTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      admissionTime: nowTime,
+      expectedDischargeDate: data.expectedDischargeDate || '2026-09-03',
       status: 'active',
+      condition: 'critical',
+      priority: 'emergency',
+      dischargeReadiness: 'under_treatment',
       diagnosis: [data.emergencyDiagnosis || 'Acute Emergency Condition'],
       admissionNotes: data.admissionNotes || 'Emergency Triage Admission',
       attendantName: data.attendantName,
@@ -886,12 +1017,28 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
     setAdmissions(prev => [newAdmission, ...prev]);
     setSelectedAdmissionId(newAdmission.id);
 
+    const allocRecord: BedAllocationRecord = {
+      id: `alloc-${Date.now().toString().slice(-4)}`,
+      admissionId: newAdmission.id,
+      patientId: newAdmission.patientId,
+      patientName: newAdmission.patientName,
+      bedId: targetBed.id,
+      bedNumber: targetBed.bedNumber,
+      ward: targetBed.ward,
+      roomNumber: targetBed.roomNumber,
+      action: 'admitted',
+      timestamp: `2026-08-31 ${nowTime}`,
+      performedBy: authState.user?.name || doctor.name,
+      notes: `Emergency Admission to ${targetBed.ward}`,
+    };
+    setBedAllocations(prev => [allocRecord, ...prev]);
+
     toast.warning('🚨 Emergency Inpatient Admitted', `Allocated ${targetBed.bedNumber} for ${newAdmission.patientName}`);
 
     return newAdmission;
-  }, [beds, admissions, toast]);
+  }, [beds, admissions, authState.user, toast]);
 
-  // BED TRANSFER WORKFLOW
+  // BED TRANSFER WORKFLOW: Current Bed -> Select New Available Bed -> Confirm Transfer -> Update Bed Status
   const transferPatient = useCallback((data: {
     admissionId: string;
     toBedId: string;
@@ -907,9 +1054,12 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
 
     if (!newBed) throw new Error('Target bed not found');
     if (newBed.status !== 'available') {
-      toast.error('Cannot Transfer', `Selected bed ${newBed.bedNumber} is currently ${newBed.status.toUpperCase()}.`);
+      toast.error('Cannot Transfer Bed', `Target bed ${newBed.bedNumber} is currently ${newBed.status.toUpperCase()}. Select an available bed.`);
       throw new Error(`Target bed ${newBed.bedNumber} is not available.`);
     }
+
+    const transferDate = '2026-08-31';
+    const transferTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
     const transferRecord: BedTransferRecord = {
       id: `trf-${Date.now().toString().slice(-4)}`,
@@ -924,11 +1074,11 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
       toRoom: newBed.roomNumber,
       toBedId: newBed.id,
       toBedNumber: newBed.bedNumber,
-      reason: data.reason || 'Clinical Step-down / Room Upgrade',
-      requestedBy: data.requestedBy || 'Attending Physician',
-      approvedBy: data.approvedBy || authState.user?.name || 'Dr. Medical Superintendent',
-      transferDate: '2026-08-31',
-      transferTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      reason: data.reason || 'Clinical Movement / Room Upgrade',
+      requestedBy: data.requestedBy || authState.user?.name || 'Attending Physician',
+      approvedBy: data.approvedBy || authState.user?.name || 'Authorized Staff',
+      transferDate,
+      transferTime,
       status: 'completed',
       createdAt: new Date().toISOString(),
     };
@@ -966,17 +1116,50 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
       bedId: newBed.id,
       bedNumber: newBed.bedNumber,
       ward: newBed.ward,
+      roomNumber: newBed.roomNumber,
     } : a));
 
-    // 3. Log Transfer Audit
+    // 3. Log Transfer and Bed Allocation Audit
     setTransfers(prev => [transferRecord, ...prev]);
 
-    toast.success('Patient Transferred Successfully', `Moved ${admission.patientName} from ${transferRecord.fromBedNumber} to ${transferRecord.toBedNumber}. Old bed set to Cleaning.`);
+    const allocOut: BedAllocationRecord = {
+      id: `alloc-out-${Date.now().toString().slice(-4)}`,
+      admissionId: admission.id,
+      patientId: admission.patientId,
+      patientName: admission.patientName,
+      bedId: oldBed?.id || admission.bedId,
+      bedNumber: oldBed?.bedNumber || admission.bedNumber,
+      ward: oldBed?.ward || admission.ward,
+      roomNumber: oldBed?.roomNumber,
+      action: 'transferred_out',
+      timestamp: `${transferDate} ${transferTime}`,
+      performedBy: authState.user?.name || 'Staff',
+      notes: `Transferred out to Bed ${newBed.bedNumber}. Bed sent to cleaning.`,
+    };
+
+    const allocIn: BedAllocationRecord = {
+      id: `alloc-in-${Date.now().toString().slice(-4)}`,
+      admissionId: admission.id,
+      patientId: admission.patientId,
+      patientName: admission.patientName,
+      bedId: newBed.id,
+      bedNumber: newBed.bedNumber,
+      ward: newBed.ward,
+      roomNumber: newBed.roomNumber,
+      action: 'transferred_in',
+      timestamp: `${transferDate} ${transferTime}`,
+      performedBy: authState.user?.name || 'Staff',
+      notes: `Transferred in from Bed ${oldBed?.bedNumber || admission.bedNumber} (${data.reason})`,
+    };
+
+    setBedAllocations(prev => [allocIn, allocOut, ...prev]);
+
+    toast.success('Patient Transferred Successfully', `Moved ${admission.patientName} from ${transferRecord.fromBedNumber} to ${transferRecord.toBedNumber}. Previous bed is now in CLEANING queue.`);
 
     return transferRecord;
   }, [admissions, beds, authState.user, toast]);
 
-  // BED STATUS MANAGEMENT
+  // BED STATUS LIFECYCLE MANAGEMENT
   const updateBedStatus = useCallback((bedId: string, status: BedStatus) => {
     setBeds(prev => prev.map(b => b.id === bedId ? { ...b, status } : b));
     toast.info('Bed Status Updated', `Bed status changed to ${status.toUpperCase()}`);
@@ -984,6 +1167,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
 
   // MARK BED CLEANED -> AVAILABLE
   const markBedCleaned = useCallback((bedId: string) => {
+    const bed = beds.find(b => b.id === bedId);
     setBeds(prev => prev.map(b => b.id === bedId ? {
       ...b,
       status: 'available',
@@ -991,7 +1175,46 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
       currentPatientName: undefined,
       currentAdmissionId: undefined,
     } : b));
-    toast.success('Bed Ready for Admission', 'Cleaning and sanitization verified. Bed is now AVAILABLE.');
+    toast.success('Bed Sanitized & Ready', `Bed ${bed?.bedNumber || bedId} cleaning verified. Status is now AVAILABLE.`);
+  }, [beds, toast]);
+
+  // ONE-CLICK BED RESERVATION: Available <-> Reserved
+  const reserveBed = useCallback((bedId: string, notes?: string) => {
+    const bed = beds.find(b => b.id === bedId);
+    if (!bed) return;
+    if (bed.status !== 'available') {
+      toast.error('Cannot Reserve', `Bed ${bed.bedNumber} is currently ${bed.status}. Only available beds can be reserved.`);
+      return;
+    }
+    setBeds(prev => prev.map(b => b.id === bedId ? { ...b, status: 'reserved' } : b));
+    toast.warning('Bed Reserved', `Bed ${bed.bedNumber} placed on temporary hold/reservation.${notes ? ` (${notes})` : ''}`);
+  }, [beds, toast]);
+
+  const releaseBed = useCallback((bedId: string) => {
+    const bed = beds.find(b => b.id === bedId);
+    setBeds(prev => prev.map(b => b.id === bedId ? { ...b, status: 'available' } : b));
+    toast.success('Bed Released', `Bed ${bed?.bedNumber || bedId} is now AVAILABLE.`);
+  }, [beds, toast]);
+
+  // ONE-CLICK BED MAINTENANCE: Available <-> Maintenance
+  const setBedMaintenance = useCallback((bedId: string, notes?: string) => {
+    const bed = beds.find(b => b.id === bedId);
+    setBeds(prev => prev.map(b => b.id === bedId ? { ...b, status: 'maintenance' } : b));
+    toast.info('Bed Under Maintenance', `Bed ${bed?.bedNumber || bedId} moved to Maintenance / Repair.${notes ? ` (${notes})` : ''}`);
+  }, [beds, toast]);
+
+  // ADMISSION STATUS UPDATES
+  const updateAdmissionStatus = useCallback((admissionId: string, status: AdmissionStatus) => {
+    setAdmissions(prev => prev.map(a => a.id === admissionId ? { ...a, status } : a));
+    toast.info('Inpatient Status Updated', `Admission status set to ${status.toUpperCase()}`);
+  }, [toast]);
+
+  const updateAdmissionReadiness = useCallback((
+    admissionId: string,
+    readiness: DischargeReadiness
+  ) => {
+    setAdmissions(prev => prev.map(a => a.id === admissionId ? { ...a, dischargeReadiness: readiness } : a));
+    toast.success('Discharge Readiness Updated', `Patient readiness: ${readiness.replace('_', ' ').toUpperCase()}`);
   }, [toast]);
 
   // RECORD DOCTOR ROUND
@@ -1343,6 +1566,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
       dischargeDate: dischargeRecord.dischargeDate,
       dischargeTime: dischargeRecord.dischargeTime,
       dischargeType: dischargeData.dischargeType === 'normal' ? 'normal' : 'ama',
+      dischargeReadiness: 'ready_for_discharge',
     } : a));
 
     // 2. Mark bed as CLEANING (NOT available immediately until cleaned)
@@ -1356,15 +1580,31 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
         admittingDoctorName: undefined,
         admissionDate: undefined,
       } : b));
+
+      const allocRecord: BedAllocationRecord = {
+        id: `alloc-dis-${Date.now().toString().slice(-4)}`,
+        admissionId: admission.id,
+        patientId: admission.patientId,
+        patientName: admission.patientName,
+        bedId: allocatedBed.id,
+        bedNumber: allocatedBed.bedNumber,
+        ward: allocatedBed.ward,
+        roomNumber: allocatedBed.roomNumber,
+        action: 'discharged',
+        timestamp: `${dischargeRecord.dischargeDate} ${dischargeRecord.dischargeTime}`,
+        performedBy: authState.user?.name || admission.admittingDoctorName,
+        notes: `Patient discharged. Bed ${allocatedBed.bedNumber} released to Cleaning queue.`,
+      };
+      setBedAllocations(prev => [allocRecord, ...prev]);
     }
 
     // 3. Save Discharge Record
     setDischargeRecords(prev => [dischargeRecord, ...prev]);
 
-    toast.success('Patient Discharged Successfully', `Generated Discharge Summary. Bed ${allocatedBed?.bedNumber} is now in CLEANING queue.`);
+    toast.success('Patient Discharged Successfully', `Discharge summary created. Bed ${allocatedBed?.bedNumber} is now in CLEANING queue.`);
 
     return dischargeRecord;
-  }, [admissions, beds, procedures, toast]);
+  }, [admissions, beds, procedures, authState.user, toast]);
 
   // GENERATE IPD BILL
   const generateIPDBill = useCallback((billData: Partial<IPDBill>) => {
@@ -1478,6 +1718,7 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
         doctors: DEMO_DOCTORS,
         departments: DEMO_DEPARTMENTS,
         transfers,
+        bedAllocations,
         doctorRounds,
         nursingNotes,
         nursingTasks,
@@ -1503,6 +1744,11 @@ export function IPDProvider({ children }: { children: React.ReactNode }) {
         transferPatient,
         updateBedStatus,
         markBedCleaned,
+        reserveBed,
+        releaseBed,
+        setBedMaintenance,
+        updateAdmissionStatus,
+        updateAdmissionReadiness,
         recordDoctorRound,
         recordNursingVitals,
         recordNursingNote,

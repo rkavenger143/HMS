@@ -1,7 +1,8 @@
 import React from 'react';
 import {
   BedDouble, X, User, Activity, Clock, ArrowRightLeft,
-  Sparkles, CheckCircle2, ShieldAlert, Stethoscope, FileText
+  Sparkles, CheckCircle2, ShieldAlert, Stethoscope, FileText,
+  Wrench, Shield, Check
 } from 'lucide-react';
 import { useIPD } from '../../context/IPDContext';
 import type { Bed } from '../../../../types';
@@ -27,6 +28,9 @@ export default function BedDetailsModal({ bed, onClose, onTransfer, onAdmit, onV
   const {
     updateBedStatus,
     markBedCleaned,
+    reserveBed,
+    releaseBed,
+    setBedMaintenance,
     admissions,
     vitalsHistory,
   } = useIPD();
@@ -97,7 +101,7 @@ export default function BedDetailsModal({ bed, onClose, onTransfer, onAdmit, onV
               {latestVitals && (
                 <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', display: 'flex', gap: 12, fontSize: 11 }}>
                   <span>BP: <strong>{latestVitals.bloodPressure}</strong></span>
-                  <span>Pulse: <strong>{latestVitals.pulse}</strong></span>
+                  <span>Pulse: <strong>{latestVitals.pulse} bpm</strong></span>
                   <span>SpO2: <strong>{latestVitals.spo2}%</strong></span>
                   <span>Temp: <strong>{latestVitals.temperature}°F</strong></span>
                 </div>
@@ -121,7 +125,7 @@ export default function BedDetailsModal({ bed, onClose, onTransfer, onAdmit, onV
           {/* Bed Status Control Actions */}
           <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>
-              QUICK STATUS CONTROL
+              BED STATUS LIFECYCLE CONTROLS
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {bed.status === 'cleaning' && (
@@ -132,10 +136,10 @@ export default function BedDetailsModal({ bed, onClose, onTransfer, onAdmit, onV
 
               {bed.status === 'available' && (
                 <>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { updateBedStatus(bed.id, 'reserved'); onClose(); }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { reserveBed(bed.id, 'Reserved for incoming planned admission'); onClose(); }}>
                     Set Reserved
                   </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { updateBedStatus(bed.id, 'maintenance'); onClose(); }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { setBedMaintenance(bed.id, 'Routine biomedical & linen maintenance'); onClose(); }}>
                     Set Maintenance
                   </button>
                 </>
@@ -143,12 +147,12 @@ export default function BedDetailsModal({ bed, onClose, onTransfer, onAdmit, onV
 
               {bed.status === 'maintenance' && (
                 <button className="btn btn-success btn-sm" onClick={() => { updateBedStatus(bed.id, 'cleaning'); onClose(); }}>
-                  <Sparkles size={13} /> Maintenance Done → Cleaning
+                  <Sparkles size={13} /> Maintenance Done → Send to Cleaning
                 </button>
               )}
 
               {bed.status === 'reserved' && (
-                <button className="btn btn-secondary btn-sm" onClick={() => { updateBedStatus(bed.id, 'available'); onClose(); }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => { releaseBed(bed.id); onClose(); }}>
                   Cancel Reservation → Available
                 </button>
               )}

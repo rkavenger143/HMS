@@ -1,35 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
-  HeartPulse, LayoutDashboard, Users, User, Activity, ClipboardList,
-  FileText, CheckCircle2, Pill, Droplets, Stethoscope, Clock,
-  CheckSquare, BookOpen, AlertTriangle, Bell, BarChart3, Search,
-  Plus, ShieldAlert, Sparkles, UserCheck
+  LayoutDashboard, Users, Clock, CheckCircle2, Pill, Activity,
+  ClipboardList, FileText, Search, Siren, Plus, UserCheck, ShieldAlert
 } from 'lucide-react';
 import { NursingProvider, useNursing, NursingTab } from './context/NursingContext';
 import NursingDashboard from './components/NursingDashboard';
+import NurseManagement from './components/NurseManagement';
+import ShiftManagement from './components/ShiftManagement';
 import NursingPatientList from './components/NursingPatientList';
-import NursingPatientProfile from './components/NursingPatientProfile';
-import VitalsManagement from './components/VitalsManagement';
-import NursingNotesManagement from './components/NursingNotesManagement';
-import CarePlanManagement from './components/CarePlanManagement';
 import NursingTaskManagement from './components/NursingTaskManagement';
 import MARManagement from './components/MARManagement';
-import IVInfusionMonitoring from './components/IVInfusionMonitoring';
-import IntakeOutputManagement from './components/IntakeOutputManagement';
-import PatientAssessment from './components/PatientAssessment';
-import WoundCareManagement from './components/WoundCareManagement';
+import VitalsManagement from './components/VitalsManagement';
+import NursingNotesManagement from './components/NursingNotesManagement';
 import NursingHandover from './components/NursingHandover';
-import ShiftManagement from './components/ShiftManagement';
-import DoctorOrdersManagement from './components/DoctorOrdersManagement';
-import SampleCollectionManagement from './components/SampleCollectionManagement';
-import DischargeChecklist from './components/DischargeChecklist';
-import PatientEducation from './components/PatientEducation';
-import IncidentReporting from './components/IncidentReporting';
-import AlertCenter from './components/AlertCenter';
-import NursingAnalytics from './components/NursingAnalytics';
-import NursingReports from './components/NursingReports';
-import NursingSearchModal from './components/NursingSearchModal';
+import EmergencyReportingModal from './components/modals/EmergencyReportingModal';
 import RecordVitalsModal from './components/modals/RecordVitalsModal';
+import NursingSearchModal from './components/NursingSearchModal';
 
 function NursingModuleContent() {
   const {
@@ -37,12 +23,14 @@ function NursingModuleContent() {
     setActiveTab,
     kpis,
     admissions,
-    nursingAlerts,
+    emergencies,
     nursingTasks,
+    nurses,
   } = useNursing();
 
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showQuickVitalsModal, setShowQuickVitalsModal] = useState(false);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
 
   // Keyboard shortcut Ctrl+K / Cmd+K for universal search
   useEffect(() => {
@@ -56,65 +44,47 @@ function NursingModuleContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const unackAlerts = nursingAlerts.filter(a => a.status === 'new').length;
+  const activeEmergencies = emergencies.filter(e => e.status === 'active');
   const pendingTasks = nursingTasks.filter(t => t.status === 'pending').length;
+  const onDutyCount = nurses.filter(n => n.status === 'on_duty').length;
 
-  const NAV_TABS = [
+  const NAV_TABS: { id: NursingTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'dashboard', label: '1. Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'patients', label: '2. My Patients', icon: <Users size={14} />, badge: kpis.totalAssignedPatients },
-    { id: 'patient_profile', label: '3. Patient Care EHR', icon: <User size={14} /> },
-    { id: 'vitals', label: '4. Vitals', icon: <Activity size={14} /> },
-    { id: 'mar', label: '5. Medication Admin (MAR)', icon: <Pill size={14} />, badge: kpis.medicationDueCount > 0 ? kpis.medicationDueCount : undefined },
-    { id: 'tasks', label: '6. Nursing Tasks', icon: <CheckCircle2 size={14} />, badge: pendingTasks > 0 ? pendingTasks : undefined },
-    { id: 'care_plans', label: '7. Care Plans', icon: <FileText size={14} /> },
-    { id: 'intake_output', label: '8. Intake & Output', icon: <Droplets size={14} /> },
-    { id: 'wound_care', label: '9. Wound Care', icon: <HeartPulse size={14} /> },
-    { id: 'assessment', label: '10. Pain & Assessment', icon: <Stethoscope size={14} /> },
-    { id: 'notes', label: '11. Nursing Notes', icon: <ClipboardList size={14} /> },
-    { id: 'handover', label: '12. Handover', icon: <FileText size={14} /> },
-    { id: 'shifts', label: '13. Shift Management', icon: <Clock size={14} /> },
-    { id: 'doctor_orders', label: '14. Doctor Orders', icon: <Stethoscope size={14} /> },
-    { id: 'reports', label: '15. Nursing Reports', icon: <BarChart3 size={14} /> },
+    { id: 'nurses', label: '2. Nurses', icon: <UserCheck size={14} />, badge: onDutyCount },
+    { id: 'shifts', label: '3. Shifts', icon: <Clock size={14} /> },
+    { id: 'patients', label: '4. Assigned Patients', icon: <Users size={14} />, badge: kpis.totalAssignedPatients },
+    { id: 'tasks', label: '5. Nursing Tasks', icon: <CheckCircle2 size={14} />, badge: pendingTasks > 0 ? pendingTasks : undefined },
+    { id: 'medication', label: '6. Medication (MAR)', icon: <Pill size={14} />, badge: kpis.medicationDueCount > 0 ? kpis.medicationDueCount : undefined },
+    { id: 'vitals', label: '7. Vital Signs', icon: <Activity size={14} /> },
+    { id: 'notes', label: '8. Nursing Notes', icon: <ClipboardList size={14} /> },
+    { id: 'handover', label: '9. Shift Handover', icon: <FileText size={14} /> },
   ];
 
   return (
-    <div>
-      {/* Page Header */}
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <div className="page-header-content">
-          <div className="breadcrumb">
-            <span>Home</span>
-            <span className="breadcrumb-sep">›</span>
-            <span>Clinical Care</span>
-            <span className="breadcrumb-sep">›</span>
-            <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Nursing</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Top Header Banner */}
+      <div className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--color-primary-muted)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Activity size={24} />
           </div>
-          <div className="page-title">Nursing Station & Inpatient Care</div>
-          <div className="page-subtitle">
-            Bedside care flow: Nurse Allocation → Vitals → Doctor Orders → MAR → Tasks → Care Plan → Notes → Shift Handover
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>Nursing Station & Bedside Care Workspace</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Nurse assignments · Rapid vitals · MAR execution · Shift handover · Emergency broadcast
+            </div>
           </div>
         </div>
 
-        <div className="page-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Universal Search Button */}
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => setShowSearchModal(true)}
             title="Press Ctrl+K to search anytime"
           >
-            <Search size={14} /> Search Nursing <kbd style={{ background: 'var(--bg-surface)', padding: '2px 5px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>Ctrl+K</kbd>
+            <Search size={14} /> Search <kbd style={{ background: 'var(--bg-surface)', padding: '2px 5px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>Ctrl+K</kbd>
           </button>
-
-          {/* Live Alert Badge */}
-          {unackAlerts > 0 && (
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={() => setActiveTab('alerts')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Bell size={13} /> {unackAlerts} Critical Alert{unackAlerts > 1 ? 's' : ''}
-            </button>
-          )}
 
           {/* Quick Record Vitals CTA */}
           <button
@@ -123,15 +93,58 @@ function NursingModuleContent() {
           >
             <Activity size={14} /> Record Vitals
           </button>
+
+          {/* Emergency Alert Button */}
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => setShowEmergencyModal(true)}
+            style={{ fontWeight: 800 }}
+          >
+            <Siren size={14} /> Emergency Alert
+          </button>
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs Bar (Scrollable with Badges) */}
+      {/* Active Emergency Alert Banner */}
+      {activeEmergencies.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(255, 69, 58, 0.15), rgba(255, 159, 10, 0.15))',
+          border: '1px solid rgba(255, 69, 58, 0.4)',
+          borderRadius: 'var(--radius-md)',
+          padding: '12px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--color-danger)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Siren size={18} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--color-danger)' }}>
+                🚨 {activeEmergencies.length} ACTIVE MEDICAL EMERGENCY ALERT{activeEmergencies.length > 1 ? 'S' : ''}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                {activeEmergencies[0].type.toUpperCase().replace('_', ' ')}: {activeEmergencies[0].patientName ? `${activeEmergencies[0].patientName} (Bed ${activeEmergencies[0].bedNumber})` : activeEmergencies[0].ward} — {activeEmergencies[0].description}
+              </div>
+            </div>
+          </div>
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => setActiveTab('dashboard')}
+          >
+            View Active Emergencies
+          </button>
+        </div>
+      )}
+
+      {/* 9 Core Navigation Tabs Bar */}
       <div
         className="card"
         style={{
           padding: '6px',
-          marginBottom: 20,
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-default)',
           overflowX: 'auto',
@@ -140,12 +153,12 @@ function NursingModuleContent() {
       >
         <div style={{ display: 'flex', gap: 4 }}>
           {NAV_TABS.map(tab => {
-            const isActive = activeTab === tab.id;
+            const isActive = activeTab === tab.id || (tab.id === 'medication' && activeTab === 'mar');
             return (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as NursingTab)}
+                onClick={() => setActiveTab(tab.id)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -166,8 +179,8 @@ function NursingModuleContent() {
                 {tab.badge !== undefined && (
                   <span
                     style={{
-                      background: isActive ? 'white' : 'var(--color-warning)',
-                      color: isActive ? 'var(--color-primary)' : 'var(--text-inverse)',
+                      background: isActive ? 'white' : 'var(--color-primary-muted)',
+                      color: isActive ? 'var(--color-primary)' : 'var(--color-primary)',
                       fontSize: 10,
                       fontWeight: 800,
                       padding: '1px 6px',
@@ -186,38 +199,33 @@ function NursingModuleContent() {
       {/* Tab Panels */}
       <div>
         {activeTab === 'dashboard' && <NursingDashboard />}
+        {activeTab === 'nurses' && <NurseManagement />}
+        {activeTab === 'shifts' && <ShiftManagement />}
         {activeTab === 'patients' && <NursingPatientList />}
-        {activeTab === 'patient_profile' && <NursingPatientProfile />}
+        {activeTab === 'tasks' && <NursingTaskManagement />}
+        {(activeTab === 'medication' || activeTab === 'mar') && <MARManagement />}
         {activeTab === 'vitals' && <VitalsManagement />}
         {activeTab === 'notes' && <NursingNotesManagement />}
-        {activeTab === 'care_plans' && <CarePlanManagement />}
-        {activeTab === 'tasks' && <NursingTaskManagement />}
-        {activeTab === 'mar' && <MARManagement />}
-        {activeTab === 'iv_infusion' && <IVInfusionMonitoring />}
-        {activeTab === 'intake_output' && <IntakeOutputManagement />}
-        {activeTab === 'assessment' && <PatientAssessment />}
-        {activeTab === 'wound_care' && <WoundCareManagement />}
         {activeTab === 'handover' && <NursingHandover />}
-        {activeTab === 'shifts' && <ShiftManagement />}
-        {activeTab === 'doctor_orders' && <DoctorOrdersManagement />}
-        {activeTab === 'sample_collection' && <SampleCollectionManagement />}
-        {activeTab === 'discharge_checklist' && <DischargeChecklist />}
-        {activeTab === 'patient_education' && <PatientEducation />}
-        {activeTab === 'incidents' && <IncidentReporting />}
-        {activeTab === 'alerts' && <AlertCenter />}
-        {activeTab === 'analytics' && <NursingAnalytics />}
-        {activeTab === 'reports' && <NursingReports />}
       </div>
 
-      {/* Modals */}
+      {/* Universal Search Modal */}
       {showSearchModal && (
         <NursingSearchModal onClose={() => setShowSearchModal(false)} />
       )}
 
+      {/* Quick Record Vitals Modal */}
       {showQuickVitalsModal && (
         <RecordVitalsModal
           admission={admissions[0]}
           onClose={() => setShowQuickVitalsModal(false)}
+        />
+      )}
+
+      {/* Emergency Reporting Modal */}
+      {showEmergencyModal && (
+        <EmergencyReportingModal
+          onClose={() => setShowEmergencyModal(false)}
         />
       )}
     </div>

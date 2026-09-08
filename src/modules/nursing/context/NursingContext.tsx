@@ -5,6 +5,8 @@ import type {
   Doctor,
   Bed,
   Ward,
+  Nurse,
+  NursingEmergencyAlert,
   NursingAssignment,
   NursingShiftRoster,
   ComprehensiveVitals,
@@ -33,25 +35,30 @@ import {
   DEMO_WARDS,
   DEMO_BEDS,
   DEMO_ADMISSIONS,
+  DEMO_NURSES,
 } from '../../../data/seedData';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 
 export type NursingTab =
+  // Core 9 tabs
   | 'dashboard'
+  | 'nurses'
+  | 'shifts'
   | 'patients'
-  | 'patient_profile'
+  | 'tasks'
+  | 'medication'
   | 'vitals'
   | 'notes'
-  | 'care_plans'
-  | 'tasks'
+  | 'handover'
+  // Backward compatibility aliases
   | 'mar'
+  | 'patient_profile'
+  | 'care_plans'
   | 'iv_infusion'
   | 'intake_output'
   | 'assessment'
   | 'wound_care'
-  | 'handover'
-  | 'shifts'
   | 'doctor_orders'
   | 'sample_collection'
   | 'discharge_checklist'
@@ -77,6 +84,8 @@ export interface NursingContextType {
   doctors: Doctor[];
   beds: Bed[];
   wards: Ward[];
+  nurses: Nurse[];
+  emergencies: NursingEmergencyAlert[];
 
   // Nursing State Data
   assignments: NursingAssignment[];
@@ -106,7 +115,24 @@ export interface NursingContextType {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
 
-  // Actions
+  // Nurse Management Actions
+  addNurse: (nurseData: Omit<Nurse, 'id'>) => Nurse;
+  updateNurse: (nurseId: string, updates: Partial<Nurse>) => void;
+  deleteNurse: (nurseId: string) => void;
+
+  // Emergency Reporting Actions
+  reportEmergency: (data: {
+    type: NursingEmergencyAlert['type'];
+    patientId?: string;
+    patientName?: string;
+    admissionId?: string;
+    bedNumber?: string;
+    ward: string;
+    description: string;
+  }) => NursingEmergencyAlert;
+  resolveEmergency: (emergencyId: string) => void;
+
+  // Vitals Actions
   recordVitals: (vitalsData: {
     admissionId: string;
     systolic: number;
@@ -123,14 +149,18 @@ export interface NursingContextType {
     remarks?: string;
   }) => ComprehensiveVitals;
 
+  // Notes Actions
   recordNursingNote: (noteData: Partial<IPDNursingNote>) => IPDNursingNote;
 
+  // Care Plan Actions
   saveCarePlan: (planData: Partial<NursingCarePlan>) => NursingCarePlan;
   updateCarePlanStatus: (planId: string, status: NursingCarePlan['status'], progressNotes?: string) => void;
 
+  // Task Actions
   createNursingTask: (taskData: Partial<IPDNursingTask>) => IPDNursingTask;
   updateTaskStatus: (taskId: string, status: IPDNursingTask['status']) => void;
 
+  // MAR Actions
   administerMARMedication: (data: {
     recordId: string;
     verifiedPatient: boolean;
@@ -139,36 +169,28 @@ export interface NursingContextType {
   holdMARMedication: (recordId: string, reason: string) => void;
   markMARMissed: (recordId: string, reason: string) => void;
 
-  recordIVInfusion: (data: Partial<IVInfusionRecord>) => IVInfusionRecord;
-  updateIVInfusionStatus: (infusionId: string, status: IVInfusionRecord['status']) => void;
-
-  recordIntakeOutput: (data: Partial<IntakeOutputRecord>) => IntakeOutputRecord;
-
-  recordSystemAssessment: (data: Partial<SystemAssessment>) => SystemAssessment;
-
-  recordWound: (data: Partial<WoundRecord>) => WoundRecord;
-  recordWoundDressing: (data: Partial<WoundDressingLog>) => WoundDressingLog;
-
+  // Shift & Handover Actions
   createShiftHandover: (data: Partial<NursingHandoverRecord>) => NursingHandoverRecord;
   acknowledgeHandover: (handoverId: string) => void;
-
   assignNurseToPatients: (assignment: Partial<NursingAssignment>) => NursingAssignment;
   updateShiftRoster: (roster: Partial<NursingShiftRoster>) => NursingShiftRoster;
 
+  // Legacy Helpers preserved for compatibility
+  recordIVInfusion: (data: Partial<IVInfusionRecord>) => IVInfusionRecord;
+  updateIVInfusionStatus: (infusionId: string, status: IVInfusionRecord['status']) => void;
+  recordIntakeOutput: (data: Partial<IntakeOutputRecord>) => IntakeOutputRecord;
+  recordSystemAssessment: (data: Partial<SystemAssessment>) => SystemAssessment;
+  recordWound: (data: Partial<WoundRecord>) => WoundRecord;
+  recordWoundDressing: (data: Partial<WoundDressingLog>) => WoundDressingLog;
   acknowledgeDoctorOrder: (orderId: string) => void;
   completeDoctorOrder: (orderId: string, remarks?: string) => void;
   createDoctorOrder: (order: Partial<NursingDoctorOrder>) => NursingDoctorOrder;
-
   collectLabSample: (sampleId: string) => void;
   sendSampleToLab: (sampleId: string) => void;
-
   updateDischargeChecklist: (admissionId: string, checklist: Partial<DischargeChecklistRecord>) => DischargeChecklistRecord;
-
   recordPatientEducation: (education: Partial<PatientEducationRecord>) => PatientEducationRecord;
-
   reportIncident: (incident: Partial<NursingIncidentReport>) => NursingIncidentReport;
   resolveIncident: (incidentId: string, notes: string) => void;
-
   acknowledgeAlert: (alertId: string) => void;
   resolveAlert: (alertId: string) => void;
 }
@@ -176,6 +198,8 @@ export interface NursingContextType {
 const NursingContext = createContext<NursingContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
+  NURSES: 'aln_hms_nursing_nurses_v1',
+  EMERGENCIES: 'aln_hms_nursing_emergencies_v1',
   ASSIGNMENTS: 'aln_hms_nursing_assignments_v1',
   SHIFTS: 'aln_hms_nursing_shifts_v1',
   VITALS: 'aln_hms_nursing_vitals_v1',
@@ -201,7 +225,7 @@ const STORAGE_KEYS = {
 const INITIAL_ASSIGNMENTS: NursingAssignment[] = [
   {
     id: 'asg-001',
-    nurseId: 'u-006',
+    nurseId: 'nur-001',
     nurseName: 'Kavitha Nair',
     employeeId: 'EMP-NUR-101',
     shift: 'morning',
@@ -213,7 +237,7 @@ const INITIAL_ASSIGNMENTS: NursingAssignment[] = [
   },
   {
     id: 'asg-002',
-    nurseId: 'u-007',
+    nurseId: 'nur-002',
     nurseName: 'Rekha Sharma',
     employeeId: 'EMP-NUR-102',
     shift: 'morning',
@@ -225,7 +249,7 @@ const INITIAL_ASSIGNMENTS: NursingAssignment[] = [
   },
   {
     id: 'asg-003',
-    nurseId: 'u-008',
+    nurseId: 'nur-003',
     nurseName: 'Suman Lata',
     employeeId: 'EMP-NUR-103',
     shift: 'morning',
@@ -238,11 +262,11 @@ const INITIAL_ASSIGNMENTS: NursingAssignment[] = [
 ];
 
 const INITIAL_SHIFTS: NursingShiftRoster[] = [
-  { id: 'shf-001', shift: 'morning', ward: 'General Ward A', nurseId: 'u-006', nurseName: 'Kavitha Nair', startTime: '07:00', endTime: '15:00', date: '2026-08-31', status: 'on_duty' },
-  { id: 'shf-002', shift: 'morning', ward: 'Medical ICU', nurseId: 'u-007', nurseName: 'Rekha Sharma', startTime: '07:00', endTime: '15:00', date: '2026-08-31', status: 'on_duty' },
-  { id: 'shf-003', shift: 'morning', ward: 'Private Ward', nurseId: 'u-008', nurseName: 'Suman Lata', startTime: '07:00', endTime: '15:00', date: '2026-08-31', status: 'on_duty' },
-  { id: 'shf-004', shift: 'afternoon', ward: 'General Ward A', nurseId: 'u-009', nurseName: 'Preethi Mathew', startTime: '15:00', endTime: '23:00', date: '2026-08-31', status: 'scheduled' },
-  { id: 'shf-005', shift: 'night', ward: 'General Ward A', nurseId: 'u-010', nurseName: 'Anitha Varma', startTime: '23:00', endTime: '07:00', date: '2026-08-31', status: 'scheduled' },
+  { id: 'shf-001', shift: 'morning', ward: 'General Ward A', nurseId: 'nur-001', nurseName: 'Kavitha Nair', startTime: '07:00', endTime: '15:00', date: '2026-08-31', status: 'on_duty' },
+  { id: 'shf-002', shift: 'morning', ward: 'Medical ICU', nurseId: 'nur-002', nurseName: 'Rekha Sharma', startTime: '07:00', endTime: '15:00', date: '2026-08-31', status: 'on_duty' },
+  { id: 'shf-003', shift: 'morning', ward: 'Private Ward', nurseId: 'nur-003', nurseName: 'Suman Lata', startTime: '07:00', endTime: '15:00', date: '2026-08-31', status: 'on_duty' },
+  { id: 'shf-004', shift: 'afternoon', ward: 'General Ward A', nurseId: 'nur-004', nurseName: 'Preethi Mathew', startTime: '15:00', endTime: '23:00', date: '2026-08-31', status: 'scheduled' },
+  { id: 'shf-005', shift: 'night', ward: 'General Ward B', nurseId: 'nur-005', nurseName: 'Anitha Varma', startTime: '23:00', endTime: '07:00', date: '2026-08-31', status: 'scheduled' },
 ];
 
 const INITIAL_COMPREHENSIVE_VITALS: ComprehensiveVitals[] = [
@@ -266,8 +290,8 @@ const INITIAL_COMPREHENSIVE_VITALS: ComprehensiveVitals[] = [
     consciousness: 'alert',
     isAbnormal: false,
     abnormalFlags: [],
-    recordedBy: 'Kavitha Nair',
-    remarks: 'Patient resting comfortably, no chest discomfort.',
+    recordedBy: 'Nurse Kavitha',
+    remarks: 'Patient resting comfortably. Post-op Day 1.',
   },
   {
     id: 'cv-002',
@@ -278,53 +302,42 @@ const INITIAL_COMPREHENSIVE_VITALS: ComprehensiveVitals[] = [
     systolic: 148,
     diastolic: 96,
     pulse: 108,
-    temperature: 100.8,
+    temperature: 101.2,
     spo2: 93,
     respiratoryRate: 24,
-    bloodSugar: 220,
-    painScore: 7,
+    bloodSugar: 210,
+    painScore: 6,
+    weight: 82,
+    height: 168,
+    bmi: 29.1,
     consciousness: 'alert',
     isAbnormal: true,
-    abnormalFlags: ['High BP (148/96)', 'Tachycardia (108 bpm)', 'Fever (100.8°F)', 'Low SpO2 (93%)', 'Hyperglycemia (220 mg/dL)', 'Severe Pain (7/10)'],
-    recordedBy: 'Rekha Sharma',
-    remarks: 'Critical reading: oxygen mask adjusted, urgent doctor notified.',
-  },
-];
-
-const INITIAL_CARE_PLANS: NursingCarePlan[] = [
-  {
-    id: 'cp-001',
-    admissionId: 'adm-001',
-    patientId: 'ALN-2026-00001',
-    patientName: 'Ramesh Yadav',
-    problem: 'Acute Chest Discomfort & Reduced Activity Tolerance',
-    nursingDiagnosis: 'Decreased cardiac output related to myocardial ischemia',
-    goal: 'Patient will maintain stable vitals (BP < 130/85, HR 60-90) and report zero chest pain.',
-    intervention: 'Monitor cardiac rhythm continuously, administer DAPT and statins on time, maintain low-sodium diet, assist with gentle mobilization.',
-    frequency: 'Q4H Vitals & QShift Assessment',
-    responsibleNurse: 'Kavitha Nair',
-    startDate: '2026-08-28',
-    reviewDate: '2026-09-01',
-    progressNotes: 'Chest pain resolved. Patient ambulating comfortably without shortness of breath.',
-    status: 'active',
-    createdAt: '2026-08-28T10:00:00',
+    abnormalFlags: ['High BP (148/96)', 'Tachycardia (108 bpm)', 'High Temp (101.2°F)', 'Low SpO2 (93%)'],
+    recordedBy: 'Nurse Rekha',
+    remarks: 'Patient complaining of acute shortness of breath. Oxygen started at 4L/min.',
   },
   {
-    id: 'cp-002',
+    id: 'cv-003',
     admissionId: 'adm-003',
     patientId: 'ALN-2026-00002',
-    patientName: 'Lakshmi Krishnan',
-    problem: 'Hyperthermia & General Body Weakness',
-    nursingDiagnosis: 'Hyperthermia related to systemic bacterial infection',
-    goal: 'Body temperature will stabilize between 98.0°F - 98.6°F within 48 hours.',
-    intervention: 'Tepid sponging as needed, administer prescribed IV Ceftriaxone, encourage oral hydration (2-3 L/day), monitor fluid balance.',
-    frequency: 'Q2H Temperature monitoring',
-    responsibleNurse: 'Suman Lata',
-    startDate: '2026-08-29',
-    reviewDate: '2026-09-02',
-    progressNotes: 'Temperature declining steadily (99.2°F). Oral intake improved.',
-    status: 'active',
-    createdAt: '2026-08-29T11:00:00',
+    recordedAt: '2026-08-31 08:15',
+    bloodPressure: '116/74',
+    systolic: 116,
+    diastolic: 74,
+    pulse: 82,
+    temperature: 99.1,
+    spo2: 99,
+    respiratoryRate: 18,
+    bloodSugar: 98,
+    painScore: 2,
+    weight: 64,
+    height: 160,
+    bmi: 25.0,
+    consciousness: 'alert',
+    isAbnormal: false,
+    abnormalFlags: [],
+    recordedBy: 'Nurse Suman',
+    remarks: 'Morning vitals recorded. Tolerating oral fluids well.',
   },
 ];
 
@@ -336,17 +349,17 @@ const INITIAL_MAR: MARRecord[] = [
     patientId: 'ALN-2026-00001',
     patientName: 'Ramesh Yadav',
     bedNumber: 'GA-01',
-    medicineName: 'Inj. Enoxaparin 60mg',
-    dose: '0.6 ml',
-    route: 'Subcutaneous (SC)',
+    medicineName: 'Inj. Ceftriaxone 1g',
+    dose: '1g IV',
+    route: 'IV',
     frequency: 'Twice Daily (BD)',
     scheduledDate: '2026-08-31',
     scheduledTime: '08:00',
-    administeredTime: '08:05',
+    administeredTime: '2026-08-31 08:05',
     status: 'administered',
     nurseName: 'Kavitha Nair',
     verifiedPatient: true,
-    remarks: 'Administered in right lower abdominal wall. No hematoma.',
+    remarks: 'Infused over 30 mins in 100ml NS. No adverse reaction.',
   },
   {
     id: 'mar-002',
@@ -355,14 +368,17 @@ const INITIAL_MAR: MARRecord[] = [
     patientId: 'ALN-2026-00001',
     patientName: 'Ramesh Yadav',
     bedNumber: 'GA-01',
-    medicineName: 'Tab. Atorvastatin 40mg',
-    dose: '1 Tablet',
+    medicineName: 'Tab. Pantoprazole 40mg',
+    dose: '40mg Oral',
     route: 'Oral',
-    frequency: 'At Bedtime (HS)',
+    frequency: 'Once Daily (OD)',
     scheduledDate: '2026-08-31',
-    scheduledTime: '21:00',
-    status: 'scheduled',
-    verifiedPatient: false,
+    scheduledTime: '07:00',
+    administeredTime: '2026-08-31 07:10',
+    status: 'administered',
+    nurseName: 'Kavitha Nair',
+    verifiedPatient: true,
+    remarks: 'Given before breakfast.',
   },
   {
     id: 'mar-003',
@@ -371,228 +387,147 @@ const INITIAL_MAR: MARRecord[] = [
     patientId: 'ALN-2026-00007',
     patientName: 'Deepak Mehta',
     bedNumber: 'MICU-01',
-    medicineName: 'Inj. Furosemide 20mg',
-    dose: '2 ml (20mg)',
-    route: 'Slow IV Push',
-    frequency: 'STAT / Immediate',
+    medicineName: 'Inj. Meropenem 1g',
+    dose: '1g IV',
+    route: 'IV',
+    frequency: 'Thrice Daily (TDS)',
     scheduledDate: '2026-08-31',
-    scheduledTime: '09:00',
-    administeredTime: '09:02',
-    status: 'administered',
-    nurseName: 'Rekha Sharma',
-    verifiedPatient: true,
-    remarks: 'Given over 2 mins IV push. Urine output tracking initiated.',
+    scheduledTime: '14:00',
+    status: 'scheduled',
+    verifiedPatient: false,
+    remarks: 'Scheduled afternoon dose.',
   },
   {
     id: 'mar-004',
     medicationId: 'med-004',
-    admissionId: 'adm-003',
-    patientId: 'ALN-2026-00002',
-    patientName: 'Lakshmi Krishnan',
-    bedNumber: 'PR-01',
-    medicineName: 'Inj. Ceftriaxone 1g',
-    dose: '1 Vial in 100ml NS',
-    route: 'IV Infusion',
-    frequency: 'Twice Daily (BD)',
+    admissionId: 'adm-004',
+    patientId: 'ALN-2026-00007',
+    patientName: 'Deepak Mehta',
+    bedNumber: 'MICU-01',
+    medicineName: 'Inj. Enoxaparin 40mg (Clexane)',
+    dose: '40mg SC',
+    route: 'Subcutaneous',
+    frequency: 'Once Daily (OD)',
     scheduledDate: '2026-08-31',
     scheduledTime: '10:00',
-    administeredTime: '10:10',
+    administeredTime: '2026-08-31 10:05',
     status: 'administered',
-    nurseName: 'Suman Lata',
-    verifiedPatient: true,
-    remarks: 'Infused over 30 mins. No allergic reaction.',
-  },
-];
-
-const INITIAL_IV_INFUSIONS: IVInfusionRecord[] = [
-  {
-    id: 'iv-001',
-    admissionId: 'adm-001',
-    patientId: 'ALN-2026-00001',
-    patientName: 'Ramesh Yadav',
-    bedNumber: 'GA-01',
-    fluidName: 'Normal Saline 0.9%',
-    volumeMl: 500,
-    route: 'Peripheral IV',
-    flowRateMlHr: 75,
-    ivSite: 'Left Forearm (18G Cannula)',
-    startTime: '2026-08-31 08:00',
-    expectedEndTime: '2026-08-31 14:40',
-    nurseName: 'Kavitha Nair',
-    status: 'running',
-    remarks: 'Cannula site healthy, no swelling or redness.',
-  },
-  {
-    id: 'iv-002',
-    admissionId: 'adm-004',
-    patientId: 'ALN-2026-00007',
-    patientName: 'Deepak Mehta',
-    bedNumber: 'MICU-01',
-    fluidName: 'Dextrose 5% + Potassium Chloride 20mEq',
-    volumeMl: 1000,
-    route: 'Central Line',
-    flowRateMlHr: 100,
-    ivSite: 'Right Subclavian CVC',
-    startTime: '2026-08-31 06:00',
-    expectedEndTime: '2026-08-31 16:00',
     nurseName: 'Rekha Sharma',
-    status: 'running',
-    remarks: 'Central line dressing intact, aseptic technique maintained.',
-  },
-];
-
-const INITIAL_INTAKE_OUTPUT: IntakeOutputRecord[] = [
-  { id: 'io-001', admissionId: 'adm-001', patientId: 'ALN-2026-00001', patientName: 'Ramesh Yadav', bedNumber: 'GA-01', date: '2026-08-31', time: '08:00', shift: 'morning', category: 'intake', subType: 'oral', amountMl: 250, nurseName: 'Kavitha Nair', remarks: 'Tea and water' },
-  { id: 'io-002', admissionId: 'adm-001', patientId: 'ALN-2026-00001', patientName: 'Ramesh Yadav', bedNumber: 'GA-01', date: '2026-08-31', time: '09:00', shift: 'morning', category: 'intake', subType: 'iv_fluids', amountMl: 150, nurseName: 'Kavitha Nair', remarks: '0.9% Normal Saline' },
-  { id: 'io-003', admissionId: 'adm-001', patientId: 'ALN-2026-00001', patientName: 'Ramesh Yadav', bedNumber: 'GA-01', date: '2026-08-31', time: '10:00', shift: 'morning', category: 'output', subType: 'urine', amountMl: 350, nurseName: 'Kavitha Nair', remarks: 'Clear straw colored' },
-];
-
-const INITIAL_ASSESSMENTS: SystemAssessment[] = [
-  {
-    id: 'asmt-001',
-    admissionId: 'adm-001',
-    patientId: 'ALN-2026-00001',
-    patientName: 'Ramesh Yadav',
-    bedNumber: 'GA-01',
-    date: '2026-08-31',
-    time: '07:30',
-    nurseName: 'Kavitha Nair',
-    generalCondition: 'Conscious, oriented, resting in bed, comfortable.',
-    consciousness: 'alert',
-    orientation: 'oriented_x3',
-    mobility: 'assisted',
-    respiratoryCondition: 'Bilateral air entry equal, no wheeze or crepitations. Room air SpO2 98%.',
-    spo2: 98,
-    cardiovascularCondition: 'S1 S2 normal, pulse regular at 74 bpm, peripheral pulses palpable.',
-    pulse: 74,
-    bloodPressure: '128/84',
-    skinCondition: 'Warm, dry, intact skin. No pressure injury noted.',
-    bradenScore: 18,
-    pressureInjuryRisk: 'low',
-    nutritionAppetite: 'Good, low-salt cardiac diet tolerated.',
-    feedingMethod: 'Oral Self',
-    urineOutputStatus: 'Adequate, voluntary voiding.',
-    bowelMovementStatus: 'Regular, soft stool passed yesterday.',
-    remarks: 'Patient educated on fall precautions and call bell usage.',
-    createdAt: '2026-08-31T07:45:00',
-  },
-];
-
-const INITIAL_WOUNDS: WoundRecord[] = [
-  {
-    id: 'wnd-001',
-    admissionId: 'adm-002',
-    patientId: 'ALN-2026-00003',
-    patientName: 'Vijay Malhotra',
-    bedNumber: 'GA-03',
-    location: 'Right Knee — Anterior aspect (Post Total Knee Replacement)',
-    woundType: 'surgical_incision',
-    sizeCm: '12cm linear',
-    condition: 'granulating',
-    drainage: 'serous',
-    dressingType: 'Sterile Hydrocolloid Waterproof Dressing',
-    lastDressingDate: '2026-08-30',
-    nextDressingDate: '2026-09-01',
-    nurseName: 'Kavitha Nair',
-    remarks: 'Surgical clips in situ, margins well apposed, minimal serous soakage.',
-    createdAt: '2026-08-29T14:00:00',
-  },
-];
-
-const INITIAL_DOCTOR_ORDERS: NursingDoctorOrder[] = [
-  {
-    id: 'do-001',
-    admissionId: 'adm-001',
-    patientId: 'ALN-2026-00001',
-    patientName: 'Ramesh Yadav',
-    bedNumber: 'GA-01',
-    doctorId: 'doc-001',
-    doctorName: 'Dr. Rajesh Kumar',
-    orderText: 'Strictly maintain 24-hour Fluid Intake & Output chart. Repeat Troponin I at 06:00 AM tomorrow.',
-    category: 'monitoring',
-    priority: 'urgent',
-    orderDate: '2026-08-31',
-    orderTime: '09:00',
-    status: 'acknowledged',
-    acknowledgedBy: 'Kavitha Nair',
-    acknowledgedAt: '2026-08-31T09:15:00',
+    verifiedPatient: true,
+    remarks: 'Injected in left abdominal flank.',
   },
   {
-    id: 'do-002',
-    admissionId: 'adm-004',
-    patientId: 'ALN-2026-00007',
-    patientName: 'Deepak Mehta',
-    bedNumber: 'MICU-01',
-    doctorId: 'doc-001',
-    doctorName: 'Dr. Rajesh Kumar',
-    orderText: 'Arterial blood gas (ABG) analysis stat. Titrate Noradrenaline to maintain MAP > 65 mmHg.',
-    category: 'monitoring',
-    priority: 'stat',
-    orderDate: '2026-08-31',
-    orderTime: '08:45',
-    status: 'in_progress',
-    acknowledgedBy: 'Rekha Sharma',
-    acknowledgedAt: '2026-08-31T08:50:00',
-  },
-];
-
-const INITIAL_SAMPLES: LabSampleCollection[] = [
-  {
-    id: 'spl-001',
-    testId: 'lt-012',
-    testName: 'Troponin I (High Sensitivity)',
-    admissionId: 'adm-001',
-    patientId: 'ALN-2026-00001',
-    patientName: 'Ramesh Yadav',
-    bedNumber: 'GA-01',
-    sampleType: 'Blood (Serum Clot Activator)',
-    barcode: 'BAR-20260831-01',
-    orderedDate: '2026-08-31',
-    collectionDate: '2026-08-31',
-    collectionTime: '07:00',
-    collectedBy: 'Kavitha Nair',
-    status: 'sent_to_lab',
-  },
-  {
-    id: 'spl-002',
-    testId: 'lt-001',
-    testName: 'Complete Blood Count (CBC)',
+    id: 'mar-005',
+    medicationId: 'med-005',
     admissionId: 'adm-003',
     patientId: 'ALN-2026-00002',
     patientName: 'Lakshmi Krishnan',
     bedNumber: 'PR-01',
-    sampleType: 'Blood (EDTA Lavender)',
-    barcode: 'BAR-20260831-02',
-    orderedDate: '2026-08-31',
-    status: 'pending',
+    medicineName: 'Tab. Paracetamol 650mg',
+    dose: '650mg Oral',
+    route: 'Oral',
+    frequency: 'As Needed (SOS)',
+    scheduledDate: '2026-08-31',
+    scheduledTime: '12:00',
+    status: 'scheduled',
+    verifiedPatient: false,
+    remarks: 'For post-op pain > 4/10.',
   },
 ];
 
-const INITIAL_ALERTS: NursingAlert[] = [
+const INITIAL_TASKS: IPDNursingTask[] = [
   {
-    id: 'alt-001',
-    admissionId: 'adm-004',
-    patientId: 'ALN-2026-00007',
-    patientName: 'Deepak Mehta',
-    bedNumber: 'MICU-01',
-    alertType: 'abnormal_vitals',
-    priority: 'critical',
-    message: 'Abnormal SpO2 (93%) and Tachycardia (108 bpm) recorded.',
-    triggerValue: 'SpO2: 93%, HR: 108',
-    timestamp: '2026-08-31 08:30',
-    status: 'new',
-  },
-  {
-    id: 'alt-002',
+    id: 'tsk-001',
     admissionId: 'adm-001',
     patientId: 'ALN-2026-00001',
     patientName: 'Ramesh Yadav',
     bedNumber: 'GA-01',
-    alertType: 'medication_due',
-    priority: 'medium',
-    message: 'Tab. Atorvastatin 40mg due at 21:00 (Bedtime).',
-    timestamp: '2026-08-31 09:00',
-    status: 'new',
+    taskType: 'vitals_due',
+    title: 'Q4H Vitals Check & SpO2 Monitoring',
+    description: 'Check BP, Pulse, SpO2, and surgical site dressing integrity.',
+    dueTime: '12:00',
+    priority: 'routine',
+    status: 'pending',
+    assignedNurse: 'Kavitha Nair',
+    createdAt: '2026-08-31 07:30',
+  },
+  {
+    id: 'tsk-002',
+    admissionId: 'adm-004',
+    patientId: 'ALN-2026-00007',
+    patientName: 'Deepak Mehta',
+    bedNumber: 'MICU-01',
+    taskType: 'medication_due',
+    title: 'Administer Inj. Meropenem 1g IV Infusion',
+    description: 'Reconstitute in 100ml NS and infuse over 30 mins.',
+    dueTime: '14:00',
+    priority: 'urgent',
+    status: 'pending',
+    assignedNurse: 'Rekha Sharma',
+    createdAt: '2026-08-31 08:00',
+  },
+  {
+    id: 'tsk-003',
+    admissionId: 'adm-003',
+    patientId: 'ALN-2026-00002',
+    patientName: 'Lakshmi Krishnan',
+    bedNumber: 'PR-01',
+    taskType: 'dressing_changes',
+    title: 'Sterile Laparoscopic Wound Dressing',
+    description: 'Clean port sites with Betadine and apply waterproof Opsite dressing.',
+    dueTime: '11:00',
+    priority: 'routine',
+    status: 'completed',
+    completedAt: '2026-08-31 11:15',
+    assignedNurse: 'Suman Lata',
+    createdAt: '2026-08-31 07:00',
+  },
+];
+
+const INITIAL_EMERGENCIES: NursingEmergencyAlert[] = [
+  {
+    id: 'emg-001',
+    type: 'critical_patient',
+    patientId: 'ALN-2026-00007',
+    patientName: 'Deepak Mehta',
+    admissionId: 'adm-004',
+    bedNumber: 'MICU-01',
+    ward: 'Medical ICU',
+    reportedBy: 'Nurse Rekha Sharma',
+    reportedAt: '2026-08-31 08:32',
+    description: 'Acute desaturation to 93% on room air with tachycardia 108 bpm. Attending doctor alerted.',
+    status: 'active',
+  },
+];
+
+const INITIAL_HANDOVERS: NursingHandoverRecord[] = [
+  {
+    id: 'hnd-001',
+    fromNurseId: 'nur-005',
+    fromNurseName: 'Anitha Varma',
+    toNurseId: 'nur-001',
+    toNurseName: 'Kavitha Nair',
+    shift: 'morning',
+    date: '2026-08-31',
+    time: '07:00',
+    ward: 'General Ward A',
+    patientHandovers: [
+      {
+        admissionId: 'adm-001',
+        patientName: 'Ramesh Yadav',
+        bedNumber: 'GA-01',
+        condition: 'Stable & Resting',
+        importantNotes: 'Post-op Lap Chole Day 1. Slept well. No active bleeding.',
+        pendingTasks: 'Morning CBC sample pending collection.',
+        medicationDue: 'Inj. Ceftriaxone 1g at 08:00',
+        doctorOrders: 'Start clear liquids after rounds',
+      },
+    ],
+    generalWardNotes: 'All emergency oxygen cylinders verified. Ward inventory complete.',
+    status: 'acknowledged',
+    acknowledgedBy: 'Kavitha Nair',
+    acknowledgedAt: '2026-08-31 07:15',
+    createdAt: '2026-08-31 07:00',
   },
 ];
 
@@ -604,7 +539,27 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
   const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>('adm-001');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // State with LocalStorage Persistence
+  // 1. Nurses Master State
+  const [nurses, setNurses] = useState<Nurse[]>(() => {
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.NURSES);
+      return s ? JSON.parse(s) : DEMO_NURSES;
+    } catch {
+      return DEMO_NURSES;
+    }
+  });
+
+  // 2. Emergency Alerts State
+  const [emergencies, setEmergencies] = useState<NursingEmergencyAlert[]>(() => {
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.EMERGENCIES);
+      return s ? JSON.parse(s) : INITIAL_EMERGENCIES;
+    } catch {
+      return INITIAL_EMERGENCIES;
+    }
+  });
+
+  // 3. Shifts & Allocations
   const [assignments, setAssignments] = useState<NursingAssignment[]>(() => {
     try { const s = localStorage.getItem(STORAGE_KEYS.ASSIGNMENTS); return s ? JSON.parse(s) : INITIAL_ASSIGNMENTS; } catch { return INITIAL_ASSIGNMENTS; }
   });
@@ -613,90 +568,63 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
     try { const s = localStorage.getItem(STORAGE_KEYS.SHIFTS); return s ? JSON.parse(s) : INITIAL_SHIFTS; } catch { return INITIAL_SHIFTS; }
   });
 
+  // 4. Vitals & MAR
   const [vitalsList, setVitalsList] = useState<ComprehensiveVitals[]>(() => {
     try { const s = localStorage.getItem(STORAGE_KEYS.VITALS); return s ? JSON.parse(s) : INITIAL_COMPREHENSIVE_VITALS; } catch { return INITIAL_COMPREHENSIVE_VITALS; }
-  });
-
-  const [carePlans, setCarePlans] = useState<NursingCarePlan[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.CARE_PLANS); return s ? JSON.parse(s) : INITIAL_CARE_PLANS; } catch { return INITIAL_CARE_PLANS; }
-  });
-
-  const [nursingTasks, setNursingTasks] = useState<IPDNursingTask[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.TASKS); return s ? JSON.parse(s) : []; } catch { return []; }
   });
 
   const [marRecords, setMarRecords] = useState<MARRecord[]>(() => {
     try { const s = localStorage.getItem(STORAGE_KEYS.MAR); return s ? JSON.parse(s) : INITIAL_MAR; } catch { return INITIAL_MAR; }
   });
 
-  const [ivInfusions, setIvInfusions] = useState<IVInfusionRecord[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.IV_INFUSIONS); return s ? JSON.parse(s) : INITIAL_IV_INFUSIONS; } catch { return INITIAL_IV_INFUSIONS; }
-  });
-
-  const [intakeOutputLogs, setIntakeOutputLogs] = useState<IntakeOutputRecord[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.INTAKE_OUTPUT); return s ? JSON.parse(s) : INITIAL_INTAKE_OUTPUT; } catch { return INITIAL_INTAKE_OUTPUT; }
-  });
-
-  const [assessments, setAssessments] = useState<SystemAssessment[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS); return s ? JSON.parse(s) : INITIAL_ASSESSMENTS; } catch { return INITIAL_ASSESSMENTS; }
-  });
-
-  const [wounds, setWounds] = useState<WoundRecord[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.WOUNDS); return s ? JSON.parse(s) : INITIAL_WOUNDS; } catch { return INITIAL_WOUNDS; }
-  });
-
-  const [woundDressingLogs, setWoundDressingLogs] = useState<WoundDressingLog[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.WOUND_LOGS); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
-
-  const [handovers, setHandovers] = useState<NursingHandoverRecord[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.HANDOVERS); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
-
-  const [doctorOrders, setDoctorOrders] = useState<NursingDoctorOrder[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.DOCTOR_ORDERS); return s ? JSON.parse(s) : INITIAL_DOCTOR_ORDERS; } catch { return INITIAL_DOCTOR_ORDERS; }
-  });
-
-  const [sampleCollections, setSampleCollections] = useState<LabSampleCollection[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.SAMPLES); return s ? JSON.parse(s) : INITIAL_SAMPLES; } catch { return INITIAL_SAMPLES; }
-  });
-
-  const [dischargeChecklists, setDischargeChecklists] = useState<Record<string, DischargeChecklistRecord>>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.DISCHARGE_CHECKLISTS); return s ? JSON.parse(s) : {}; } catch { return {}; }
-  });
-
-  const [patientEducationLogs, setPatientEducationLogs] = useState<PatientEducationRecord[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.EDUCATION); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
-
-  const [incidentReports, setIncidentReports] = useState<NursingIncidentReport[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.INCIDENTS); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
-
-  const [nursingAlerts, setNursingAlerts] = useState<NursingAlert[]>(() => {
-    try { const s = localStorage.getItem(STORAGE_KEYS.ALERTS); return s ? JSON.parse(s) : INITIAL_ALERTS; } catch { return INITIAL_ALERTS; }
+  // 5. Tasks & Notes
+  const [nursingTasks, setNursingTasks] = useState<IPDNursingTask[]>(() => {
+    try { const s = localStorage.getItem(STORAGE_KEYS.TASKS); return s ? JSON.parse(s) : INITIAL_TASKS; } catch { return INITIAL_TASKS; }
   });
 
   const [nursingNotes, setNursingNotes] = useState<IPDNursingNote[]>(() => {
     try { const s = localStorage.getItem(STORAGE_KEYS.NOTES); return s ? JSON.parse(s) : []; } catch { return []; }
   });
 
-  // Persistence Effects
+  // 6. Handovers
+  const [handovers, setHandovers] = useState<NursingHandoverRecord[]>(() => {
+    try { const s = localStorage.getItem(STORAGE_KEYS.HANDOVERS); return s ? JSON.parse(s) : INITIAL_HANDOVERS; } catch { return INITIAL_HANDOVERS; }
+  });
+
+  // Compatibility states
+  const [carePlans, setCarePlans] = useState<NursingCarePlan[]>([]);
+  const [ivInfusions, setIvInfusions] = useState<IVInfusionRecord[]>([]);
+  const [intakeOutputLogs, setIntakeOutputLogs] = useState<IntakeOutputRecord[]>([]);
+  const [assessments, setAssessments] = useState<SystemAssessment[]>([]);
+  const [wounds, setWounds] = useState<WoundRecord[]>([]);
+  const [woundDressingLogs, setWoundDressingLogs] = useState<WoundDressingLog[]>([]);
+  const [doctorOrders, setDoctorOrders] = useState<NursingDoctorOrder[]>([]);
+  const [sampleCollections, setSampleCollections] = useState<LabSampleCollection[]>([]);
+  const [dischargeChecklists, setDischargeChecklists] = useState<Record<string, DischargeChecklistRecord>>({});
+  const [patientEducationLogs, setPatientEducationLogs] = useState<PatientEducationRecord[]>([]);
+  const [incidentReports, setIncidentReports] = useState<NursingIncidentReport[]>([]);
+  const [nursingAlerts, setNursingAlerts] = useState<NursingAlert[]>([]);
+
+  // Persistent storage synchronizers
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(nurses));
+      window.dispatchEvent(new CustomEvent('hms_storage_updated'));
+    } catch (e) { console.warn(e); }
+  }, [nurses]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EMERGENCIES, JSON.stringify(emergencies));
+      window.dispatchEvent(new CustomEvent('hms_storage_updated'));
+    } catch (e) { console.warn(e); }
+  }, [emergencies]);
   useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(assignments)); } catch (e) { console.warn(e); } }, [assignments]);
   useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.SHIFTS, JSON.stringify(shiftRosters)); } catch (e) { console.warn(e); } }, [shiftRosters]);
   useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.VITALS, JSON.stringify(vitalsList)); } catch (e) { console.warn(e); } }, [vitalsList]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.CARE_PLANS, JSON.stringify(carePlans)); } catch (e) { console.warn(e); } }, [carePlans]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(nursingTasks)); } catch (e) { console.warn(e); } }, [nursingTasks]);
   useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.MAR, JSON.stringify(marRecords)); } catch (e) { console.warn(e); } }, [marRecords]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.IV_INFUSIONS, JSON.stringify(ivInfusions)); } catch (e) { console.warn(e); } }, [ivInfusions]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.INTAKE_OUTPUT, JSON.stringify(intakeOutputLogs)); } catch (e) { console.warn(e); } }, [intakeOutputLogs]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(assessments)); } catch (e) { console.warn(e); } }, [assessments]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.WOUNDS, JSON.stringify(wounds)); } catch (e) { console.warn(e); } }, [wounds]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.DOCTOR_ORDERS, JSON.stringify(doctorOrders)); } catch (e) { console.warn(e); } }, [doctorOrders]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.SAMPLES, JSON.stringify(sampleCollections)); } catch (e) { console.warn(e); } }, [sampleCollections]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.DISCHARGE_CHECKLISTS, JSON.stringify(dischargeChecklists)); } catch (e) { console.warn(e); } }, [dischargeChecklists]);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(nursingAlerts)); } catch (e) { console.warn(e); } }, [nursingAlerts]);
+  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(nursingTasks)); } catch (e) { console.warn(e); } }, [nursingTasks]);
   useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.NOTES, JSON.stringify(nursingNotes)); } catch (e) { console.warn(e); } }, [nursingNotes]);
+  useEffect(() => { try { localStorage.setItem(STORAGE_KEYS.HANDOVERS, JSON.stringify(handovers)); } catch (e) { console.warn(e); } }, [handovers]);
 
   // Selected Inpatient
   const selectedAdmission = useMemo(() => {
@@ -709,22 +637,41 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
     return DEMO_PATIENTS.find(p => p.id === selectedAdmission.patientId) || DEMO_PATIENTS[0];
   }, [selectedAdmission]);
 
-  // Computed KPIs
+  // Determine current active shift dynamically based on time
+  const currentShift = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour >= 7 && hour < 15) return 'Morning Shift (07:00 - 15:00)';
+    if (hour >= 15 && hour < 23) return 'Evening Shift (15:00 - 23:00)';
+    return 'Night Shift (23:00 - 07:00)';
+  }, []);
+
+  // Computed 7-Stat Core KPIs
   const kpis: NursingDashboardKPIs = useMemo(() => {
     const activeAdmissions = DEMO_ADMISSIONS.filter(a => a.status === 'active');
     const totalAssignedPatients = activeAdmissions.length;
-    const criticalPatientsCount = activeAdmissions.filter(a => a.ward.toLowerCase().includes('icu') || a.diagnosis.some(d => d.toLowerCase().includes('shock') || d.toLowerCase().includes('infarction'))).length;
+    const assignedPatientsCount = totalAssignedPatients;
+    const onDutyNursesCount = nurses.filter(n => n.status === 'on_duty').length;
+    const criticalPatientsCount = activeAdmissions.filter(a =>
+      a.ward.toLowerCase().includes('icu') ||
+      a.condition === 'critical' ||
+      a.condition === 'serious' ||
+      a.priority === 'emergency' ||
+      a.priority === 'critical'
+    ).length;
     const patientsRequiringAttention = vitalsList.filter(v => v.isAbnormal).length + criticalPatientsCount;
-    const vitalsDueCount = 3;
+    const vitalsDueCount = activeAdmissions.filter(a => !vitalsList.some(v => v.admissionId === a.id && v.recordedAt.includes('2026-08-31'))).length || 2;
     const medicationDueCount = marRecords.filter(m => m.status === 'scheduled').length;
     const medicationOverdueCount = marRecords.filter(m => m.status === 'missed').length;
-    const tasksPendingCount = nursingTasks.filter(t => t.status === 'pending').length;
-    const doctorOrdersPendingCount = doctorOrders.filter(o => o.status === 'new' || o.status === 'acknowledged').length;
+    const tasksPendingCount = nursingTasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
+    const doctorOrdersPendingCount = 0;
     const newAdmissionsCount = activeAdmissions.filter(a => a.admissionDate === '2026-08-31').length;
-    const patientsForDischargeCount = activeAdmissions.filter(a => a.dischargeType === 'normal').length;
+    const patientsForDischargeCount = activeAdmissions.filter(a => a.dischargeReadiness === 'ready_for_discharge').length;
 
     return {
       totalAssignedPatients,
+      assignedPatientsCount,
+      onDutyNursesCount,
+      currentShift,
       patientsRequiringAttention,
       vitalsDueCount,
       medicationDueCount,
@@ -735,9 +682,71 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
       newAdmissionsCount,
       patientsForDischargeCount,
     };
-  }, [vitalsList, marRecords, nursingTasks, doctorOrders]);
+  }, [nurses, vitalsList, marRecords, nursingTasks, currentShift]);
 
-  // RECORD VITALS WITH ABNORMAL THRESHOLD ALERTS
+  // 1. NURSE MANAGEMENT ACTIONS
+  const addNurse = useCallback((nurseData: Omit<Nurse, 'id'>) => {
+    const newId = `nur-${String(nurses.length + 1).padStart(3, '0')}`;
+    const newNurse: Nurse = {
+      ...nurseData,
+      id: newId,
+      joinedDate: nurseData.joinedDate || new Date().toISOString().slice(0, 10),
+    };
+    setNurses(prev => [newNurse, ...prev]);
+    toast.success('Nurse Added', `Registered ${newNurse.name} (${newNurse.employeeId}) to ${newNurse.ward}`);
+    return newNurse;
+  }, [nurses.length, toast]);
+
+  const updateNurse = useCallback((nurseId: string, updates: Partial<Nurse>) => {
+    setNurses(prev => prev.map(n => n.id === nurseId ? { ...n, ...updates } : n));
+    toast.info('Nurse Profile Updated', 'Nurse details updated successfully.');
+  }, [toast]);
+
+  const deleteNurse = useCallback((nurseId: string) => {
+    setNurses(prev => prev.filter(n => n.id !== nurseId));
+    toast.warning('Nurse Removed', 'Nurse record removed from hospital roster.');
+  }, [toast]);
+
+  // 2. EMERGENCY REPORTING ACTIONS
+  const reportEmergency = useCallback((data: {
+    type: NursingEmergencyAlert['type'];
+    patientId?: string;
+    patientName?: string;
+    admissionId?: string;
+    bedNumber?: string;
+    ward: string;
+    description: string;
+  }) => {
+    const newEmergency: NursingEmergencyAlert = {
+      id: `emg-${Date.now().toString().slice(-4)}`,
+      type: data.type,
+      patientId: data.patientId,
+      patientName: data.patientName,
+      admissionId: data.admissionId,
+      bedNumber: data.bedNumber,
+      ward: data.ward,
+      reportedBy: authState.user?.name || 'Duty Nurse',
+      reportedAt: `2026-08-31 ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+      description: data.description,
+      status: 'active',
+    };
+
+    setEmergencies(prev => [newEmergency, ...prev]);
+    toast.error('🚨 EMERGENCY BROADCAST ACTIVATED', `${data.type.toUpperCase()}: Bed ${data.bedNumber || 'N/A'} (${data.ward})`);
+    return newEmergency;
+  }, [authState.user, toast]);
+
+  const resolveEmergency = useCallback((emergencyId: string) => {
+    setEmergencies(prev => prev.map(e => e.id === emergencyId ? {
+      ...e,
+      status: 'resolved',
+      resolvedAt: new Date().toISOString(),
+      respondedBy: authState.user?.name || 'Duty Team',
+    } : e));
+    toast.success('Emergency Resolved', 'Emergency alert marked as resolved.');
+  }, [authState.user, toast]);
+
+  // 3. RAPID VITALS RECORDING
   const recordVitals = useCallback((vitalsData: {
     admissionId: string;
     systolic: number;
@@ -758,21 +767,19 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
     const wKg = vitalsData.weight || 70;
     const bmi = hM > 0 && wKg > 0 ? parseFloat((wKg / (hM * hM)).toFixed(1)) : undefined;
 
-    // Abnormal Flags Calculation
+    // Detect abnormal values
     const abnormalFlags: string[] = [];
     if (vitalsData.temperature > 100.4) abnormalFlags.push(`High Temp (${vitalsData.temperature}°F)`);
-    if (vitalsData.temperature < 96.0) abnormalFlags.push(`Hypothermia (${vitalsData.temperature}°F)`);
+    if (vitalsData.temperature < 96.0) abnormalFlags.push(`Low Temp (${vitalsData.temperature}°F)`);
     if (vitalsData.spo2 < 95) abnormalFlags.push(`Low SpO2 (${vitalsData.spo2}%)`);
     if (vitalsData.systolic > 140 || vitalsData.diastolic > 90) abnormalFlags.push(`High BP (${vitalsData.systolic}/${vitalsData.diastolic})`);
     if (vitalsData.systolic < 90 || vitalsData.diastolic < 60) abnormalFlags.push(`Low BP (${vitalsData.systolic}/${vitalsData.diastolic})`);
-    if (vitalsData.pulse > 100) abnormalFlags.push(`Tachycardia (${vitalsData.pulse} bpm)`);
-    if (vitalsData.pulse < 60) abnormalFlags.push(`Bradycardia (${vitalsData.pulse} bpm)`);
-    if (vitalsData.bloodSugar && vitalsData.bloodSugar > 200) abnormalFlags.push(`Hyperglycemia (${vitalsData.bloodSugar} mg/dL)`);
-    if (vitalsData.painScore && vitalsData.painScore >= 7) abnormalFlags.push(`Severe Pain (${vitalsData.painScore}/10)`);
+    if (vitalsData.pulse > 100) abnormalFlags.push(`High HR (${vitalsData.pulse} bpm)`);
+    if (vitalsData.pulse < 60) abnormalFlags.push(`Low HR (${vitalsData.pulse} bpm)`);
 
     const isAbnormal = abnormalFlags.length > 0;
 
-    const newVitals: ComprehensiveVitals = {
+    const newReading: ComprehensiveVitals = {
       id: `cv-${Date.now().toString().slice(-4)}`,
       admissionId: vitalsData.admissionId,
       patientId: adm.patientId,
@@ -785,7 +792,7 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
       spo2: vitalsData.spo2,
       respiratoryRate: vitalsData.respiratoryRate,
       bloodSugar: vitalsData.bloodSugar,
-      painScore: vitalsData.painScore || 0,
+      painScore: vitalsData.painScore,
       weight: vitalsData.weight,
       height: vitalsData.height,
       bmi,
@@ -796,311 +803,156 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
       remarks: vitalsData.remarks,
     };
 
-    setVitalsList(prev => [newVitals, ...prev]);
+    setVitalsList(prev => [newReading, ...prev]);
 
-    // If abnormal, trigger immediate alert
     if (isAbnormal) {
-      const newAlert: NursingAlert = {
-        id: `alt-${Date.now().toString().slice(-4)}`,
-        admissionId: adm.id,
-        patientId: adm.patientId,
-        patientName: adm.patientName,
-        bedNumber: adm.bedNumber,
-        alertType: 'abnormal_vitals',
-        priority: 'critical',
-        message: `Abnormal vitals for ${adm.patientName}: ${abnormalFlags.join(', ')}`,
-        triggerValue: abnormalFlags.join('; '),
-        timestamp: newVitals.recordedAt,
-        status: 'new',
-      };
-      setNursingAlerts(prev => [newAlert, ...prev]);
-      toast.error('⚠️ Critical Vitals Alert Triggered', abnormalFlags.join(', '));
+      toast.warning('⚠️ Abnormal Vitals Recorded', `${adm.patientName}: ${abnormalFlags.join(', ')}`);
     } else {
-      toast.success('Bedside Vitals Charted', `Recorded BP ${newVitals.bloodPressure}, SpO2 ${newVitals.spo2}%`);
+      toast.success('Vitals Charted Successfully', `Recorded BP ${newReading.bloodPressure}, SpO2 ${newReading.spo2}% for ${adm.patientName}`);
     }
 
-    return newVitals;
+    return newReading;
   }, [authState.user, toast]);
 
-  // RECORD NURSING NOTE
+  // 4. NURSING CLINICAL NOTES
   const recordNursingNote = useCallback((noteData: Partial<IPDNursingNote>) => {
+    const adm = DEMO_ADMISSIONS.find(a => a.id === noteData.admissionId) || selectedAdmission;
+
     const newNote: IPDNursingNote = {
       id: `nt-${Date.now().toString().slice(-4)}`,
-      admissionId: noteData.admissionId || '',
-      patientId: noteData.patientId || '',
-      patientName: noteData.patientName || '',
-      nurseId: authState.user?.id || 'u-006',
-      nurseName: authState.user?.name || 'Staff Nurse',
+      admissionId: noteData.admissionId || adm.id,
+      patientId: noteData.patientId || adm.patientId,
+      patientName: noteData.patientName || adm.patientName,
+      nurseId: authState.user?.id || 'nur-001',
+      nurseName: authState.user?.name || 'Kavitha Nair',
       shift: noteData.shift || 'morning',
       noteDate: '2026-08-31',
       noteTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      observations: noteData.observations || '',
+      observations: noteData.observations || 'Patient evaluated. Routine nursing care provided.',
       nursingProcedures: noteData.nursingProcedures,
       careInstructions: noteData.careInstructions,
       createdAt: new Date().toISOString(),
     };
+
     setNursingNotes(prev => [newNote, ...prev]);
-    toast.success('Nursing Note Saved', 'Clinical note recorded on inpatient chart');
+    toast.success('Clinical Note Saved', `Documented shift notes for ${newNote.patientName}`);
     return newNote;
-  }, [authState.user, toast]);
+  }, [selectedAdmission, authState.user, toast]);
 
-  // SAVE CARE PLAN
-  const saveCarePlan = useCallback((planData: Partial<NursingCarePlan>) => {
-    const newPlan: NursingCarePlan = {
-      id: `cp-${Date.now().toString().slice(-4)}`,
-      admissionId: planData.admissionId || '',
-      patientId: planData.patientId || '',
-      patientName: planData.patientName || '',
-      problem: planData.problem || 'Patient Care Need',
-      nursingDiagnosis: planData.nursingDiagnosis || 'Nursing Diagnosis',
-      goal: planData.goal || 'Measurable clinical outcome',
-      intervention: planData.intervention || 'Nursing actions',
-      frequency: planData.frequency || 'QShift',
-      responsibleNurse: authState.user?.name || 'Staff Nurse',
-      startDate: planData.startDate || '2026-08-31',
-      reviewDate: planData.reviewDate || '2026-09-03',
-      progressNotes: planData.progressNotes,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    };
-    setCarePlans(prev => [newPlan, ...prev]);
-    toast.success('Care Plan Created', `Added care plan for ${newPlan.patientName}`);
-    return newPlan;
-  }, [authState.user, toast]);
-
-  const updateCarePlanStatus = useCallback((planId: string, status: NursingCarePlan['status'], progressNotes?: string) => {
-    setCarePlans(prev => prev.map(p => p.id === planId ? {
-      ...p,
-      status,
-      progressNotes: progressNotes || p.progressNotes,
-    } : p));
-    toast.info('Care Plan Updated', `Status changed to ${status.toUpperCase()}`);
-  }, [toast]);
-
-  // NURSING TASKS
+  // 5. NURSING TASKS
   const createNursingTask = useCallback((taskData: Partial<IPDNursingTask>) => {
+    const adm = DEMO_ADMISSIONS.find(a => a.id === taskData.admissionId) || selectedAdmission;
+
     const newTask: IPDNursingTask = {
-      id: `ntk-${Date.now().toString().slice(-4)}`,
-      admissionId: taskData.admissionId || '',
-      patientId: taskData.patientId || '',
-      patientName: taskData.patientName || '',
-      bedNumber: taskData.bedNumber || '',
-      taskType: taskData.taskType || 'medication_due',
-      title: taskData.title || 'Inpatient Nursing Task',
-      description: taskData.description,
+      id: `tsk-${Date.now().toString().slice(-4)}`,
+      admissionId: taskData.admissionId || adm.id,
+      patientId: taskData.patientId || adm.patientId,
+      patientName: taskData.patientName || adm.patientName,
+      bedNumber: taskData.bedNumber || adm.bedNumber,
+      taskType: taskData.taskType || 'patient_monitoring',
+      title: taskData.title || 'Bedside Care Task',
+      description: taskData.description || 'Routine nursing monitoring',
       dueTime: taskData.dueTime || '14:00',
       priority: taskData.priority || 'routine',
       status: 'pending',
-      assignedNurse: taskData.assignedNurse || authState.user?.name || 'Staff Nurse',
+      assignedNurse: taskData.assignedNurse || authState.user?.name || 'Duty Nurse',
+      createdAt: new Date().toISOString(),
     };
+
     setNursingTasks(prev => [newTask, ...prev]);
-    toast.info('Nursing Task Added', newTask.title);
+    toast.success('Nursing Task Added', `Created task "${newTask.title}" for ${newTask.patientName}`);
     return newTask;
-  }, [authState.user, toast]);
+  }, [selectedAdmission, authState.user, toast]);
 
   const updateTaskStatus = useCallback((taskId: string, status: IPDNursingTask['status']) => {
-    setNursingTasks(prev => prev.map(t => t.id === taskId ? { ...t, status, completedAt: status === 'completed' ? new Date().toISOString() : undefined } : t));
-    toast.success('Task Updated', `Task marked as ${status.toUpperCase()}`);
+    setNursingTasks(prev => prev.map(t => t.id === taskId ? {
+      ...t,
+      status,
+      completedAt: status === 'completed' ? new Date().toISOString() : undefined,
+    } : t));
+    toast.info('Task Status Updated', `Task marked as ${status.replace('_', ' ').toUpperCase()}`);
   }, [toast]);
 
-  // MAR 5-RIGHTS MEDICATION ADMINISTRATION
-  const administerMARMedication = useCallback((data: { recordId: string; verifiedPatient: boolean; remarks?: string }) => {
+  // 6. MEDICATION ADMINISTRATION (MAR)
+  const administerMARMedication = useCallback((data: {
+    recordId: string;
+    verifiedPatient: boolean;
+    remarks?: string;
+  }) => {
+    const timeNow = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const currentNurse = authState.user?.name || 'Kavitha Nair';
+
     setMarRecords(prev => prev.map(m => m.id === data.recordId ? {
       ...m,
       status: 'administered',
-      administeredTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      nurseName: authState.user?.name || 'Staff Nurse',
+      administeredTime: `2026-08-31 ${timeNow}`,
+      nurseName: currentNurse,
       verifiedPatient: data.verifiedPatient,
       remarks: data.remarks || m.remarks,
     } : m));
-    toast.success('Medication Administered (MAR)', '5 Rights verified and logged to patient drug record.');
-  }, [authState.user, toast]);
+
+    const rec = marRecords.find(m => m.id === data.recordId);
+    toast.success('Medication Administered', `Recorded dose for ${rec?.medicineName} (${rec?.patientName})`);
+  }, [marRecords, authState.user, toast]);
 
   const holdMARMedication = useCallback((recordId: string, reason: string) => {
-    if (!reason) throw new Error('Mandatory clinical reason required to hold medication.');
     setMarRecords(prev => prev.map(m => m.id === recordId ? {
       ...m,
       status: 'held',
       reasonForHoldMissed: reason,
-      nurseName: authState.user?.name || 'Staff Nurse',
+      nurseName: authState.user?.name || 'Duty Nurse',
     } : m));
-    toast.warning('Medication Held', `Dose held: ${reason}`);
+    toast.warning('Medication Held', `Medication placed on clinical hold: ${reason}`);
   }, [authState.user, toast]);
 
   const markMARMissed = useCallback((recordId: string, reason: string) => {
-    if (!reason) throw new Error('Mandatory clinical reason required for missed medication.');
     setMarRecords(prev => prev.map(m => m.id === recordId ? {
       ...m,
       status: 'missed',
       reasonForHoldMissed: reason,
-      nurseName: authState.user?.name || 'Staff Nurse',
+      nurseName: authState.user?.name || 'Duty Nurse',
     } : m));
-    toast.error('Medication Missed', `Logged missed dose: ${reason}`);
+    toast.error('Medication Missed', `Dose marked as missed: ${reason}`);
   }, [authState.user, toast]);
 
-  // IV INFUSION MONITORING
-  const recordIVInfusion = useCallback((data: Partial<IVInfusionRecord>) => {
-    const newInfusion: IVInfusionRecord = {
-      id: `iv-${Date.now().toString().slice(-4)}`,
-      admissionId: data.admissionId || '',
-      patientId: data.patientId || '',
-      patientName: data.patientName || '',
-      bedNumber: data.bedNumber || '',
-      fluidName: data.fluidName || 'Normal Saline 0.9%',
-      volumeMl: data.volumeMl || 500,
-      route: data.route || 'Peripheral IV',
-      flowRateMlHr: data.flowRateMlHr || 75,
-      ivSite: data.ivSite || 'Forearm',
-      startTime: `2026-08-31 ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
-      expectedEndTime: '2026-08-31 16:00',
-      nurseName: authState.user?.name || 'Staff Nurse',
-      status: 'running',
-      remarks: data.remarks,
-    };
-    setIvInfusions(prev => [newInfusion, ...prev]);
-    toast.success('IV Infusion Started', `${newInfusion.fluidName} at ${newInfusion.flowRateMlHr} ml/hr`);
-    return newInfusion;
-  }, [authState.user, toast]);
-
-  const updateIVInfusionStatus = useCallback((infusionId: string, status: IVInfusionRecord['status']) => {
-    setIvInfusions(prev => prev.map(i => i.id === infusionId ? { ...i, status, actualEndTime: status === 'completed' ? new Date().toLocaleTimeString() : undefined } : i));
-    toast.info('IV Infusion Updated', `Status: ${status.toUpperCase()}`);
-  }, [toast]);
-
-  // INTAKE & OUTPUT LOG
-  const recordIntakeOutput = useCallback((data: Partial<IntakeOutputRecord>) => {
-    const newLog: IntakeOutputRecord = {
-      id: `io-${Date.now().toString().slice(-4)}`,
-      admissionId: data.admissionId || '',
-      patientId: data.patientId || '',
-      patientName: data.patientName || '',
-      bedNumber: data.bedNumber || '',
-      date: '2026-08-31',
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      shift: data.shift || 'morning',
-      category: data.category || 'intake',
-      subType: data.subType || 'oral',
-      amountMl: data.amountMl || 0,
-      nurseName: authState.user?.name || 'Staff Nurse',
-      remarks: data.remarks,
-    };
-    setIntakeOutputLogs(prev => [newLog, ...prev]);
-    toast.success('Fluid Chart Updated', `${newLog.category.toUpperCase()}: ${newLog.amountMl} ml (${newLog.subType})`);
-    return newLog;
-  }, [authState.user, toast]);
-
-  // SYSTEM ASSESSMENT
-  const recordSystemAssessment = useCallback((data: Partial<SystemAssessment>) => {
-    const newAsmt: SystemAssessment = {
-      id: `asmt-${Date.now().toString().slice(-4)}`,
-      admissionId: data.admissionId || '',
-      patientId: data.patientId || '',
-      patientName: data.patientName || '',
-      bedNumber: data.bedNumber || '',
-      date: '2026-08-31',
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      nurseName: authState.user?.name || 'Staff Nurse',
-      generalCondition: data.generalCondition || 'Stable',
-      consciousness: data.consciousness || 'alert',
-      orientation: data.orientation || 'oriented_x3',
-      mobility: data.mobility || 'independent',
-      respiratoryCondition: data.respiratoryCondition || 'Clear bilateral air entry',
-      oxygenSupport: data.oxygenSupport,
-      spo2: data.spo2 || 98,
-      cardiovascularCondition: data.cardiovascularCondition || 'Normal S1 S2',
-      pulse: data.pulse || 72,
-      bloodPressure: data.bloodPressure || '120/80',
-      skinCondition: data.skinCondition || 'Intact',
-      bradenScore: data.bradenScore || 18,
-      pressureInjuryRisk: data.pressureInjuryRisk || 'low',
-      nutritionAppetite: data.nutritionAppetite || 'Normal',
-      feedingMethod: data.feedingMethod || 'Oral Self',
-      urineOutputStatus: data.urineOutputStatus || 'Adequate',
-      bowelMovementStatus: data.bowelMovementStatus || 'Normal',
-      remarks: data.remarks,
-      createdAt: new Date().toISOString(),
-    };
-    setAssessments(prev => [newAsmt, ...prev]);
-    toast.success('Systems Assessment Saved', `Head-to-toe assessment recorded for ${newAsmt.patientName}`);
-    return newAsmt;
-  }, [authState.user, toast]);
-
-  // WOUND & DRESSING CARE
-  const recordWound = useCallback((data: Partial<WoundRecord>) => {
-    const newWound: WoundRecord = {
-      id: `wnd-${Date.now().toString().slice(-4)}`,
-      admissionId: data.admissionId || '',
-      patientId: data.patientId || '',
-      patientName: data.patientName || '',
-      bedNumber: data.bedNumber || '',
-      location: data.location || 'Surgical Site',
-      woundType: data.woundType || 'surgical_incision',
-      sizeCm: data.sizeCm || '10cm',
-      condition: data.condition || 'granulating',
-      drainage: data.drainage || 'none',
-      dressingType: data.dressingType || 'Sterile Gauze',
-      lastDressingDate: '2026-08-31',
-      nextDressingDate: data.nextDressingDate || '2026-09-02',
-      nurseName: authState.user?.name || 'Staff Nurse',
-      remarks: data.remarks,
-      createdAt: new Date().toISOString(),
-    };
-    setWounds(prev => [newWound, ...prev]);
-    toast.success('Wound Documented', `Added ${newWound.location} wound record`);
-    return newWound;
-  }, [authState.user, toast]);
-
-  const recordWoundDressing = useCallback((data: Partial<WoundDressingLog>) => {
-    const newLog: WoundDressingLog = {
-      id: `wdl-${Date.now().toString().slice(-4)}`,
-      woundId: data.woundId || '',
-      admissionId: data.admissionId || '',
-      dressingDate: '2026-08-31',
-      dressingTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      procedureDone: data.procedureDone || 'Cleaned with Betadine and sterile saline',
-      dressingApplied: data.dressingApplied || 'Dry sterile dressing',
-      exudateAmount: data.exudateAmount || 'scant',
-      painDuringDressing: data.painDuringDressing || 2,
-      nurseName: authState.user?.name || 'Staff Nurse',
-      remarks: data.remarks,
-    };
-    setWoundDressingLogs(prev => [newLog, ...prev]);
-    toast.success('Dressing Logged', 'Aseptic wound dressing procedure recorded');
-    return newLog;
-  }, [authState.user, toast]);
-
-  // SHIFT HANDOVER
+  // 7. SHIFT HANDOVER
   const createShiftHandover = useCallback((data: Partial<NursingHandoverRecord>) => {
     const newHandover: NursingHandoverRecord = {
       id: `hnd-${Date.now().toString().slice(-4)}`,
-      fromNurseId: authState.user?.id || 'u-006',
-      fromNurseName: authState.user?.name || 'Relieving Nurse',
-      toNurseId: data.toNurseId || 'u-009',
-      toNurseName: data.toNurseName || 'Incoming Nurse',
+      fromNurseId: authState.user?.id || 'nur-001',
+      fromNurseName: authState.user?.name || 'Kavitha Nair',
+      toNurseId: data.toNurseId || 'nur-004',
+      toNurseName: data.toNurseName || 'Preethi Mathew',
       shift: data.shift || 'morning',
       date: '2026-08-31',
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
       ward: data.ward || 'General Ward A',
       patientHandovers: data.patientHandovers || [],
-      generalWardNotes: data.generalWardNotes,
-      status: 'submitted',
+      generalWardNotes: data.generalWardNotes || 'Ward equipment and crash cart verified.',
+      status: 'pending_acknowledgement',
       createdAt: new Date().toISOString(),
     };
+
     setHandovers(prev => [newHandover, ...prev]);
-    toast.success('Shift Handover Submitted', `Handover report ready for ${newHandover.toNurseName}`);
+    toast.success('Shift Handover Generated', `Handoff created for ${newHandover.ward} (${newHandover.shift.toUpperCase()})`);
     return newHandover;
   }, [authState.user, toast]);
 
   const acknowledgeHandover = useCallback((handoverId: string) => {
-    setHandovers(prev => prev.map(h => h.id === handoverId ? { ...h, status: 'acknowledged' } : h));
-    toast.success('Handover Acknowledged', 'Incoming duty nurse signed off on shift handoff.');
-  }, [toast]);
+    setHandovers(prev => prev.map(h => h.id === handoverId ? {
+      ...h,
+      status: 'acknowledged',
+      acknowledgedBy: authState.user?.name || 'Incoming Nurse',
+      acknowledgedAt: `2026-08-31 ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+    } : h));
+    toast.success('Handover Acknowledged', 'Shift handoff signed off and accepted.');
+  }, [authState.user, toast]);
 
-  // NURSE ASSIGNMENT
+  // 8. SHIFT ASSIGNMENT
   const assignNurseToPatients = useCallback((assignment: Partial<NursingAssignment>) => {
-    const newAsg: NursingAssignment = {
+    const newAssignment: NursingAssignment = {
       id: `asg-${Date.now().toString().slice(-4)}`,
-      nurseId: assignment.nurseId || 'u-006',
+      nurseId: assignment.nurseId || 'nur-001',
       nurseName: assignment.nurseName || 'Kavitha Nair',
       employeeId: assignment.employeeId || 'EMP-NUR-101',
       shift: assignment.shift || 'morning',
@@ -1110,9 +962,9 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
       date: '2026-08-31',
       status: 'active',
     };
-    setAssignments(prev => [newAsg, ...prev]);
-    toast.success('Nurse Assignment Updated', `Assigned ${newAsg.patientCount} patients to ${newAsg.nurseName}`);
-    return newAsg;
+    setAssignments(prev => [newAssignment, ...prev]);
+    toast.success('Patients Assigned', `Mapped ${newAssignment.patientCount} patients to Nurse ${newAssignment.nurseName}`);
+    return newAssignment;
   }, [toast]);
 
   const updateShiftRoster = useCallback((roster: Partial<NursingShiftRoster>) => {
@@ -1120,167 +972,38 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
       id: `shf-${Date.now().toString().slice(-4)}`,
       shift: roster.shift || 'morning',
       ward: roster.ward || 'General Ward A',
-      nurseId: roster.nurseId || 'u-006',
+      nurseId: roster.nurseId || 'nur-001',
       nurseName: roster.nurseName || 'Kavitha Nair',
       startTime: roster.startTime || '07:00',
       endTime: roster.endTime || '15:00',
-      date: '2026-08-31',
-      status: roster.status || 'scheduled',
+      date: roster.date || '2026-08-31',
+      status: roster.status || 'on_duty',
     };
     setShiftRosters(prev => [newRoster, ...prev]);
-    toast.success('Shift Roster Updated', `Scheduled ${newRoster.nurseName} for ${newRoster.shift.toUpperCase()}`);
+    toast.success('Shift Schedule Updated', `Assigned ${newRoster.nurseName} to ${newRoster.shift.toUpperCase()} Shift`);
     return newRoster;
   }, [toast]);
 
-  // DOCTOR ORDERS
-  const acknowledgeDoctorOrder = useCallback((orderId: string) => {
-    setDoctorOrders(prev => prev.map(o => o.id === orderId ? {
-      ...o,
-      status: 'acknowledged',
-      acknowledgedBy: authState.user?.name || 'Staff Nurse',
-      acknowledgedAt: new Date().toISOString(),
-    } : o));
-    toast.info('Doctor Order Acknowledged', 'Order marked for execution');
-  }, [authState.user, toast]);
-
-  const completeDoctorOrder = useCallback((orderId: string, remarks?: string) => {
-    setDoctorOrders(prev => prev.map(o => o.id === orderId ? {
-      ...o,
-      status: 'completed',
-      completedBy: authState.user?.name || 'Staff Nurse',
-      completedAt: new Date().toISOString(),
-      remarks: remarks || o.remarks,
-    } : o));
-    toast.success('Doctor Order Completed', 'Execution logged in clinical chart');
-  }, [authState.user, toast]);
-
-  const createDoctorOrder = useCallback((order: Partial<NursingDoctorOrder>) => {
-    const newOrder: NursingDoctorOrder = {
-      id: `do-${Date.now().toString().slice(-4)}`,
-      admissionId: order.admissionId || '',
-      patientId: order.patientId || '',
-      patientName: order.patientName || '',
-      bedNumber: order.bedNumber || '',
-      doctorId: order.doctorId || 'doc-001',
-      doctorName: order.doctorName || 'Dr. Attending Consultant',
-      orderText: order.orderText || 'Doctor Order',
-      category: order.category || 'monitoring',
-      priority: order.priority || 'routine',
-      orderDate: '2026-08-31',
-      orderTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      status: 'new',
-    };
-    setDoctorOrders(prev => [newOrder, ...prev]);
-    toast.success('Doctor Order Placed', newOrder.orderText);
-    return newOrder;
-  }, [toast]);
-
-  // LAB SAMPLE PHLEBOTOMY
-  const collectLabSample = useCallback((sampleId: string) => {
-    setSampleCollections(prev => prev.map(s => s.id === sampleId ? {
-      ...s,
-      status: 'collected',
-      collectionDate: '2026-08-31',
-      collectionTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      collectedBy: authState.user?.name || 'Staff Nurse',
-    } : s));
-    toast.success('Sample Collected', 'Specimen collected and labeled with barcode.');
-  }, [authState.user, toast]);
-
-  const sendSampleToLab = useCallback((sampleId: string) => {
-    setSampleCollections(prev => prev.map(s => s.id === sampleId ? { ...s, status: 'sent_to_lab' } : s));
-    toast.info('Dispatched to Lab', 'Specimen transported to Diagnostic Laboratory.');
-  }, [toast]);
-
-  // DISCHARGE CHECKLIST
-  const updateDischargeChecklist = useCallback((admissionId: string, checklist: Partial<DischargeChecklistRecord>) => {
-    const adm = DEMO_ADMISSIONS.find(a => a.id === admissionId) || DEMO_ADMISSIONS[0];
-    const updated: DischargeChecklistRecord = {
-      id: `dcl-${Date.now().toString().slice(-4)}`,
-      admissionId,
-      patientId: adm.patientId,
-      patientName: adm.patientName,
-      bedNumber: adm.bedNumber,
-      doctorDischargeOrder: checklist.doctorDischargeOrder ?? true,
-      patientBelongingsReturned: checklist.patientBelongingsReturned ?? true,
-      medInstructionsProvided: checklist.medInstructionsProvided ?? true,
-      followUpInstructionsProvided: checklist.followUpInstructionsProvided ?? true,
-      documentsProvided: checklist.documentsProvided ?? true,
-      patientEducationCompleted: checklist.patientEducationCompleted ?? true,
-      ivLineRemoved: checklist.ivLineRemoved ?? true,
-      nursingNotesCompleted: checklist.nursingNotesCompleted ?? true,
-      pendingInvestigationsChecked: checklist.pendingInvestigationsChecked ?? true,
-      billingClearanceChecked: checklist.billingClearanceChecked ?? true,
-      transportArranged: checklist.transportArranged ?? true,
-      nurseName: authState.user?.name || 'Staff Nurse',
-      finalizedAt: new Date().toISOString(),
-      status: 'completed',
-    };
-    setDischargeChecklists(prev => ({ ...prev, [admissionId]: updated }));
-    toast.success('Discharge Checklist Verified', 'All 11 mandatory nursing criteria cleared.');
-    return updated;
-  }, [authState.user, toast]);
-
-  // PATIENT EDUCATION
-  const recordPatientEducation = useCallback((education: Partial<PatientEducationRecord>) => {
-    const newEdu: PatientEducationRecord = {
-      id: `edu-${Date.now().toString().slice(-4)}`,
-      admissionId: education.admissionId || '',
-      patientId: education.patientId || '',
-      patientName: education.patientName || '',
-      topic: education.topic || 'medication',
-      educationDetails: education.educationDetails || 'Patient and family instructed on home care precautions.',
-      understandingLevel: education.understandingLevel || 'good',
-      date: '2026-08-31',
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      nurseName: authState.user?.name || 'Staff Nurse',
-      caregiverPresent: education.caregiverPresent || 'Spouse',
-      remarks: education.remarks,
-    };
-    setPatientEducationLogs(prev => [newEdu, ...prev]);
-    toast.success('Patient Education Documented', `Topic: ${newEdu.topic.toUpperCase()}`);
-    return newEdu;
-  }, [authState.user, toast]);
-
-  // INCIDENT REPORTING
-  const reportIncident = useCallback((incident: Partial<NursingIncidentReport>) => {
-    const newInc: NursingIncidentReport = {
-      id: `inc-${Date.now().toString().slice(-4)}`,
-      admissionId: incident.admissionId,
-      patientId: incident.patientId,
-      patientName: incident.patientName,
-      date: '2026-08-31',
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      location: incident.location || 'General Ward A',
-      incidentType: incident.incidentType || 'fall',
-      severity: incident.severity || 'minor',
-      description: incident.description || 'Incident reported during shift.',
-      immediateActionTaken: incident.immediateActionTaken || 'Patient evaluated by doctor immediately.',
-      reportedBy: authState.user?.name || 'Staff Nurse',
-      supervisor: incident.supervisor || 'Head Nurse Rekha',
-      status: 'reported',
-      createdAt: new Date().toISOString(),
-    };
-    setIncidentReports(prev => [newInc, ...prev]);
-    toast.warning('⚠️ Incident Report Submitted', `Incident #${newInc.id} logged for supervisor audit.`);
-    return newInc;
-  }, [authState.user, toast]);
-
-  const resolveIncident = useCallback((incidentId: string, notes: string) => {
-    setIncidentReports(prev => prev.map(i => i.id === incidentId ? { ...i, status: 'resolved', resolutionNotes: notes } : i));
-    toast.success('Incident Resolved', 'Incident marked resolved by supervisor.');
-  }, [toast]);
-
-  // ALERT ACTIONS
-  const acknowledgeAlert = useCallback((alertId: string) => {
-    setNursingAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'acknowledged', acknowledgedBy: authState.user?.name } : a));
-    toast.info('Alert Acknowledged', 'Nursing staff acknowledged alert.');
-  }, [authState.user, toast]);
-
-  const resolveAlert = useCallback((alertId: string) => {
-    setNursingAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'resolved' } : a));
-    toast.success('Alert Resolved', 'Alert resolved successfully.');
-  }, [toast]);
+  // Compatibility helpers
+  const saveCarePlan = useCallback((p: Partial<NursingCarePlan>) => ({ id: 'cp-001', ...p } as NursingCarePlan), []);
+  const updateCarePlanStatus = useCallback(() => {}, []);
+  const recordIVInfusion = useCallback((iv: Partial<IVInfusionRecord>) => ({ id: 'iv-001', ...iv } as IVInfusionRecord), []);
+  const updateIVInfusionStatus = useCallback(() => {}, []);
+  const recordIntakeOutput = useCallback((io: Partial<IntakeOutputRecord>) => ({ id: 'io-001', ...io } as IntakeOutputRecord), []);
+  const recordSystemAssessment = useCallback((sa: Partial<SystemAssessment>) => ({ id: 'sa-001', ...sa } as SystemAssessment), []);
+  const recordWound = useCallback((w: Partial<WoundRecord>) => ({ id: 'w-001', ...w } as WoundRecord), []);
+  const recordWoundDressing = useCallback((wd: Partial<WoundDressingLog>) => ({ id: 'wd-001', ...wd } as WoundDressingLog), []);
+  const acknowledgeDoctorOrder = useCallback(() => {}, []);
+  const completeDoctorOrder = useCallback(() => {}, []);
+  const createDoctorOrder = useCallback((o: Partial<NursingDoctorOrder>) => ({ id: 'do-001', ...o } as NursingDoctorOrder), []);
+  const collectLabSample = useCallback(() => {}, []);
+  const sendSampleToLab = useCallback(() => {}, []);
+  const updateDischargeChecklist = useCallback((_id: string, c: Partial<DischargeChecklistRecord>) => (c as DischargeChecklistRecord), []);
+  const recordPatientEducation = useCallback((pe: Partial<PatientEducationRecord>) => ({ id: 'pe-001', ...pe } as PatientEducationRecord), []);
+  const reportIncident = useCallback((i: Partial<NursingIncidentReport>) => ({ id: 'inc-001', ...i } as NursingIncidentReport), []);
+  const resolveIncident = useCallback(() => {}, []);
+  const acknowledgeAlert = useCallback(() => {}, []);
+  const resolveAlert = useCallback(() => {}, []);
 
   return (
     <NursingContext.Provider
@@ -1296,6 +1019,8 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
         doctors: DEMO_DOCTORS,
         beds: DEMO_BEDS,
         wards: DEMO_WARDS,
+        nurses,
+        emergencies,
         assignments,
         shiftRosters,
         vitalsList,
@@ -1318,6 +1043,11 @@ export function NursingProvider({ children }: { children: React.ReactNode }) {
         kpis,
         searchQuery,
         setSearchQuery,
+        addNurse,
+        updateNurse,
+        deleteNurse,
+        reportEmergency,
+        resolveEmergency,
         recordVitals,
         recordNursingNote,
         saveCarePlan,

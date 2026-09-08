@@ -5,7 +5,7 @@ import RecordVitalsModal from './modals/RecordVitalsModal';
 import PrintVitalsChartModal from './modals/PrintVitalsChartModal';
 
 export default function VitalsManagement() {
-  const { admissions, patients, vitalsList } = useNursing();
+  const { admissions, patients, vitalsList, wards } = useNursing();
 
   const [search, setSearch] = useState('');
   const [selectedWard, setSelectedWard] = useState('ALL');
@@ -43,7 +43,7 @@ export default function VitalsManagement() {
           <div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>Inpatient Vital Signs Monitoring & Alerts</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              Real-time bedside vitals, AVPU consciousness, pain scores, and automated abnormal threshold flags
+              Rapid vital recording: Temperature, BP, Pulse, SpO2, Respiratory Rate & abnormal threshold flags
             </div>
           </div>
         </div>
@@ -71,10 +71,10 @@ export default function VitalsManagement() {
           </div>
 
           <select className="form-select" value={selectedWard} onChange={e => setSelectedWard(e.target.value)}>
-            <option value="ALL">All Wards</option>
-            <option value="General Ward A">General Ward A</option>
-            <option value="Medical ICU">Medical ICU</option>
-            <option value="Private Ward">Private Ward</option>
+            <option value="ALL">All Clinical Wards</option>
+            {wards.map(w => (
+              <option key={w.id} value={w.name}>{w.name}</option>
+            ))}
           </select>
 
           <select className="form-select" value={selectedStatus} onChange={e => setSelectedStatus(e.target.value as any)}>
@@ -89,7 +89,7 @@ export default function VitalsManagement() {
         <div className="card-header" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Activity size={18} style={{ color: 'var(--color-primary)' }} />
-            <span className="card-title">Chronological Vitals Log</span>
+            <span className="card-title">Chronological Inpatient Vitals Log</span>
             <span className="badge badge-primary">{filteredVitals.length} Records</span>
           </div>
         </div>
@@ -99,77 +99,115 @@ export default function VitalsManagement() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Patient Name & Bed</th>
+                  <th>Patient & Ward</th>
                   <th>Recorded Time</th>
                   <th>BP (mmHg)</th>
-                  <th>Pulse (bpm)</th>
-                  <th>Temp (°F)</th>
+                  <th>Heart Rate (bpm)</th>
                   <th>SpO2 (%)</th>
-                  <th>RR (/min)</th>
-                  <th>Blood Sugar</th>
-                  <th>Pain (0-10)</th>
-                  <th>Consciousness</th>
+                  <th>Temperature (°F)</th>
+                  <th>Resp. Rate</th>
                   <th>Abnormal Alerts</th>
-                  <th>Nurse</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>Recorded By</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredVitals.map(v => {
-                  const adm = admissions.find(a => a.id === v.admissionId);
-                  return (
-                    <tr key={v.id} style={{ background: v.isAbnormal ? 'rgba(255,69,58,0.06)' : undefined }}>
-                      <td>
-                        <strong>{adm?.patientName || 'Inpatient'}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Bed {adm?.bedNumber} ({adm?.ward})</div>
-                      </td>
-                      <td><strong>{v.recordedAt}</strong></td>
-                      <td><strong style={{ color: v.systolic > 140 ? 'var(--color-danger)' : undefined }}>{v.bloodPressure}</strong></td>
-                      <td><span style={{ color: v.pulse > 100 ? 'var(--color-danger)' : undefined }}>{v.pulse}</span></td>
-                      <td><span style={{ color: v.temperature > 100.4 ? 'var(--color-danger)' : undefined }}>{v.temperature}°F</span></td>
-                      <td><strong style={{ color: v.spo2 < 95 ? 'var(--color-danger)' : 'var(--color-success)' }}>{v.spo2}%</strong></td>
-                      <td>{v.respiratoryRate}</td>
-                      <td>{v.bloodSugar ? `${v.bloodSugar} mg/dL` : '—'}</td>
-                      <td>{v.painScore ?? 0} / 10</td>
-                      <td><span className="badge badge-neutral">{v.consciousness.toUpperCase()}</span></td>
-                      <td>
-                        {v.isAbnormal ? (
-                          <span className="badge badge-danger" title={v.abnormalFlags.join(', ')}>
-                            ⚠️ {v.abnormalFlags[0]}
+                {filteredVitals.length > 0 ? (
+                  filteredVitals.map(v => {
+                    const adm = admissions.find(a => a.id === v.admissionId);
+
+                    return (
+                      <tr key={v.id}>
+                        <td>
+                          <strong>{adm?.patientName || 'Inpatient'}</strong>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                            Bed {adm?.bedNumber} · {adm?.ward}
+                          </div>
+                        </td>
+
+                        <td>
+                          <div style={{ fontSize: 12 }}>{v.recordedAt.slice(0, 10)}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{v.recordedAt.slice(11) || '08:00'}</div>
+                        </td>
+
+                        <td>
+                          <strong style={{ fontSize: 13, color: v.systolic > 140 || v.diastolic > 90 ? 'var(--color-danger)' : undefined }}>
+                            {v.bloodPressure}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <strong style={{ fontSize: 13, color: v.pulse > 100 || v.pulse < 60 ? 'var(--color-danger)' : undefined }}>
+                            {v.pulse} bpm
+                          </strong>
+                        </td>
+
+                        <td>
+                          <span className={`badge ${v.spo2 < 95 ? 'badge-danger' : 'badge-success'}`} style={{ fontWeight: 800 }}>
+                            {v.spo2}%
                           </span>
-                        ) : (
-                          <span className="badge badge-success">NORMAL</span>
-                        )}
-                      </td>
-                      <td>{v.recordedBy}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setPrintAdm(adm)}
-                        >
-                          <Printer size={12} /> Chart
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+
+                        <td>
+                          <strong style={{ fontSize: 13, color: v.temperature > 100.4 ? 'var(--color-danger)' : undefined }}>
+                            {v.temperature}°F
+                          </strong>
+                        </td>
+
+                        <td>
+                          <span>{v.respiratoryRate}/min</span>
+                        </td>
+
+                        <td>
+                          {v.isAbnormal ? (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {v.abnormalFlags.map((flag, idx) => (
+                                <span key={idx} className="badge badge-danger" style={{ fontSize: 9 }}>
+                                  {flag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="badge badge-success" style={{ fontSize: 10 }}>Normal</span>
+                          )}
+                        </td>
+
+                        <td>
+                          <div style={{ fontSize: 12 }}>{v.recordedBy}</div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={9}>
+                      <div className="empty-state" style={{ padding: '30px' }}>
+                        <div className="empty-state-icon"><Activity size={28} /></div>
+                        <div className="empty-state-title">No Vitals Readings Found</div>
+                        <div className="empty-state-desc">Click "Record New Vitals" to log bedside readings.</div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      {/* Record Modal */}
+      {/* Record Vitals Modal */}
       {activeVitalsAdm && (
-        <RecordVitalsModal admission={activeVitalsAdm} onClose={() => setActiveVitalsAdm(null)} />
+        <RecordVitalsModal
+          admission={activeVitalsAdm}
+          onClose={() => setActiveVitalsAdm(null)}
+        />
       )}
 
-      {/* Print Modal */}
+      {/* Print Chart Modal */}
       {printAdm && (
         <PrintVitalsChartModal
+          admission={printAdm}
           vitals={vitalsList.filter(v => v.admissionId === printAdm.id)}
           patient={patients.find(p => p.id === printAdm.patientId) || null}
-          admission={printAdm}
           onClose={() => setPrintAdm(null)}
         />
       )}

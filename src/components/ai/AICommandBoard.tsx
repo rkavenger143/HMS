@@ -20,15 +20,15 @@ export interface AICommandBoardProps {
   autoStartVoice?: boolean;
 }
 
-const EXAMPLE_PROMPTS = [
-  { en: "Open OPD", te: "OPD ఓపెన్ చేయి", mixed: "OPD section open cheyyi" },
-  { en: "Open IPD", te: "IPD ఓపెన్ చేయండి", mixed: "IPD beds chupinchu" },
-  { en: "Available beds", te: "ఖాళీ బెడ్లు చూపించు", mixed: "Available beds chupinchu" },
-  { en: "Open Pharmacy", te: "ఫార్మసీ ఓపెన్ చేయి", mixed: "Pharmacy stock chupinchu" },
-  { en: "Open Laboratory", te: "ల్యాబ్ ఓపెన్ చేయి", mixed: "Pending lab reports chupinchu" },
-  { en: "Open Blood Bank", te: "బ్లడ్ బ్యాంక్ ఓపెన్ చేయి", mixed: "Blood bank inventory chupinchu" },
-  { en: "Open Billing", te: "బిల్లింగ్ ఓపెన్ చేయి", mixed: "Billing outstanding chupinchu" },
-  { en: "Show today's OPD patients", te: "ఈరోజు OPD patients చూపించు", mixed: "Today OPD queue chupinchu" },
+const QUICK_SUGGESTIONS = [
+  { label: 'Available Beds', command: 'Show available beds' },
+  { label: "Today's OPD Queue", command: 'Show today opd queue' },
+  { label: 'Open OPD', command: 'Open OPD' },
+  { label: 'Open Nursing', command: 'Open nursing section' },
+  { label: 'ICU Beds (తెలుగు)', command: 'ICU beds chupinchu' },
+  { label: 'Pharmacy Stock', command: 'Pharmacy stock chupinchu' },
+  { label: 'Critical Alerts', command: 'Show critical alerts' },
+  { label: 'Today Admissions', command: 'Show today admissions' },
 ];
 
 export default function AICommandBoard({
@@ -40,7 +40,6 @@ export default function AICommandBoard({
   const navigate = useNavigate();
   const { state } = useAuth();
   const [query, setQuery] = useState(initialQuery);
-  const [selectedLang, setSelectedLang] = useState<'auto' | 'en' | 'te'>('auto');
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing' | 'navigating' | 'error' | 'permission_error'>('idle');
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
@@ -81,7 +80,7 @@ export default function AICommandBoard({
         } else if (autoStartVoice) {
           startListening();
         }
-      }, 100);
+      }, 80);
     } else {
       stopListening();
       stopSpeaking();
@@ -99,14 +98,15 @@ export default function AICommandBoard({
     setNavCountdown(null);
   };
 
-  // Setup Web Speech Recognition
+  // Setup Web Speech Recognition with Automatic Multilingual Detection
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = selectedLang === 'te' ? 'te-IN' : 'en-IN';
+      // Default to en-IN / te-IN auto speech stream
+      recognition.lang = 'en-IN';
 
       recognition.onstart = () => {
         setVoiceStatus('listening');
@@ -131,14 +131,12 @@ export default function AICommandBoard({
         if (!streamText) return;
         setQuery(streamText);
 
-        // If already executed for this speech burst, don't execute repeatedly
         if (hasExecutedRef.current) return;
 
-        // REAL-TIME STREAMING INTENT EVALUATION (0ms lag)
-        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin', selectedLang);
+        // REAL-TIME STREAMING INTENT EVALUATION (Automatic Language Detection)
+        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin');
 
         if (evalResult.isConfident && evalResult.confidence === 'HIGH' && evalResult.response) {
-          // High-confidence intent matched in real time without waiting for sentence completion!
           hasExecutedRef.current = true;
           stopListening();
           stopSpeaking();
@@ -146,25 +144,21 @@ export default function AICommandBoard({
 
           const res = evalResult.response;
           setResponse(res);
-
-          // Save history
           saveCommandHistory(streamText);
 
-          // If navigation command -> Instant Fast Route Execution
+          // Fast direct execution
           if (res.intentType === 'NAVIGATE' && res.targetRoute) {
             setVoiceStatus('navigating');
             if (res.voiceText) {
               speakText(res.voiceText, res.detectedLanguage);
             }
-            // Navigate immediately with clean visual transition
             navTimerRef.current = setTimeout(() => {
               onClose();
               navigate(res.targetRoute!);
-            }, 180);
+            }, 150);
             return;
           }
 
-          // If sensitive write action -> Show confirmation modal immediately
           if (res.intentType === 'ACTION_CONFIRMATION') {
             setVoiceStatus('idle');
             if (res.voiceText) {
@@ -173,7 +167,6 @@ export default function AICommandBoard({
             return;
           }
 
-          // If live stat query / information -> Display live cards instantly
           if (res.intentType === 'STAT_QUERY' || res.intentType === 'DENIED' || res.intentType === 'SEARCH') {
             setVoiceStatus('idle');
             if (res.voiceText) {
@@ -195,12 +188,12 @@ export default function AICommandBoard({
         console.warn('Speech recognition error:', event.error);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           setVoiceStatus('permission_error');
-          setSpeechError('Microphone permission is required for voice commands. Please allow microphone access.');
+          setSpeechError('Microphone permission is required. Please allow microphone access in your browser.');
         } else if (event.error === 'no-speech') {
           setVoiceStatus('idle');
         } else {
           setVoiceStatus('error');
-          setSpeechError(`Voice recognition error (${event.error}). Speak again or type your command.`);
+          setSpeechError(`Voice recognition: ${event.error}. Please speak clearly or type your command.`);
         }
       };
 
@@ -214,7 +207,7 @@ export default function AICommandBoard({
     } else {
       recognitionRef.current = null;
     }
-  }, [selectedLang, voiceStatus, state.user?.role]);
+  }, [voiceStatus, state.user?.role]);
 
   const saveCommandHistory = (cmdText: string) => {
     const newHistory = [cmdText, ...history.filter(h => h !== cmdText)].slice(0, 8);
@@ -242,7 +235,6 @@ export default function AICommandBoard({
       try {
         setSpeechError(null);
         setVoiceStatus('listening');
-        recognitionRef.current.lang = selectedLang === 'te' ? 'te-IN' : 'en-IN';
         recognitionRef.current.start();
       } catch (err) {
         console.warn('Recognition start exception:', err);
@@ -271,7 +263,7 @@ export default function AICommandBoard({
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang === 'te' ? 'te-IN' : 'en-IN';
-      utterance.rate = 1.0;
+      utterance.rate = 1.05;
       utterance.pitch = 1.0;
 
       utterance.onstart = () => setIsSpeaking(true);
@@ -291,6 +283,7 @@ export default function AICommandBoard({
     setIsSpeaking(false);
   };
 
+  // Automatic Command Execution (Quick & Near-Instant)
   const executeCommand = (cmdText: string, isFromVoice = false) => {
     if (!cmdText.trim()) return;
     stopListening();
@@ -299,7 +292,8 @@ export default function AICommandBoard({
     setActionConfirmed(false);
 
     const userRole = state.user?.role || 'super_admin';
-    const res = processAICommand(cmdText, userRole, selectedLang);
+    // Auto-detect language behind the scenes
+    const res = processAICommand(cmdText, userRole);
     setResponse(res);
     saveCommandHistory(cmdText);
 
@@ -312,24 +306,17 @@ export default function AICommandBoard({
     if (res.intentType === 'NAVIGATE' && res.targetRoute) {
       setVoiceStatus('navigating');
       if (isFromVoice) {
-        // Fast instant jump
         navTimerRef.current = setTimeout(() => {
           onClose();
           navigate(res.targetRoute!);
-        }, 180);
+        }, 150);
       } else {
-        // Direct jump on text enter
         onClose();
         navigate(res.targetRoute);
       }
     } else {
       setVoiceStatus('idle');
     }
-  };
-
-  const cancelAutoNav = () => {
-    clearNavTimer();
-    setVoiceStatus('idle');
   };
 
   const jumpNow = (route: string) => {
@@ -340,6 +327,7 @@ export default function AICommandBoard({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       executeCommand(query);
     } else if (e.key === 'Escape') {
       clearNavTimer();
@@ -374,27 +362,28 @@ export default function AICommandBoard({
         className="modal modal-lg"
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: 840,
-          background: 'var(--bg-card)',
+          maxWidth: 820,
+          background: '#ffffff',
           borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(5, 150, 105, 0.25)',
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(37, 99, 235, 0.2)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '90vh',
+          maxHeight: '88vh',
         }}
       >
-        {/* Top Header Bar */}
+        {/* ============================================================
+            1. CLEAN TOP HEADER BAR (No Language Switcher Buttons)
+            ============================================================ */}
         <div
           style={{
             padding: '14px 20px',
-            background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.12), rgba(16, 185, 129, 0.05))',
-            borderBottom: '1px solid var(--border-default)',
+            background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.08), rgba(37, 99, 235, 0.04))',
+            borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 10,
+            gap: 12,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -402,96 +391,81 @@ export default function AICommandBoard({
               style={{
                 width: 36,
                 height: 36,
-                background: 'linear-gradient(135deg, var(--color-primary), #10b981)',
+                background: 'linear-gradient(135deg, #1e40af, #2563eb)',
                 borderRadius: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
+                boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)',
               }}
             >
-              <Brain size={20} style={{ color: 'white' }} />
+              <Brain size={20} style={{ color: '#ffffff' }} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                ALN Cure AI Command Center
-                <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>
-                  Live Voice & NLP
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                ALN Cure Clinical AI Assistant
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    background: '#ecfdf5',
+                    color: '#059669',
+                    padding: '1px 6px',
+                    borderRadius: 999,
+                    border: '1px solid #a7f3d0',
+                  }}
+                >
+                  Active Telemetry
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                English · తెలుగు · Tanglish | Auto-Navigation & RBAC Protection
+              <div style={{ fontSize: 11.5, color: '#64748b' }}>
+                Automatic Language Detection (English • తెలుగు • Mixed)
               </div>
             </div>
           </div>
 
-          {/* Controls: Language Selector, TTS, Close */}
+          {/* Right Header Controls: Audio Toggle & Close */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Language Selector */}
-            <div style={{ display: 'flex', background: 'var(--bg-surface)', padding: 2, borderRadius: 8, border: '1px solid var(--border-default)' }}>
-              <button
-                className={`btn btn-sm ${selectedLang === 'auto' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: 11, padding: '3px 8px', height: 26 }}
-                onClick={() => setSelectedLang('auto')}
-                title="Auto-detect English / Telugu / Mixed"
-              >
-                Auto (ఆటో)
-              </button>
-              <button
-                className={`btn btn-sm ${selectedLang === 'en' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: 11, padding: '3px 8px', height: 26 }}
-                onClick={() => setSelectedLang('en')}
-              >
-                English
-              </button>
-              <button
-                className={`btn btn-sm ${selectedLang === 'te' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: 11, padding: '3px 8px', height: 26 }}
-                onClick={() => setSelectedLang('te')}
-              >
-                తెలుగు
-              </button>
-            </div>
-
-            {/* Audio Voice Readout Toggle */}
             <button
               className={`btn btn-sm ${isAudioEnabled ? 'btn-secondary' : 'btn-ghost'}`}
-              style={{ height: 28, width: 28, padding: 0, justifyContent: 'center' }}
+              style={{ height: 32, width: 32, padding: 0, justifyContent: 'center', borderRadius: 8 }}
               onClick={() => {
                 if (isSpeaking) stopSpeaking();
                 setIsAudioEnabled(!isAudioEnabled);
               }}
               title={isAudioEnabled ? 'Voice readout enabled' : 'Voice readout muted'}
             >
-              {isAudioEnabled ? <Volume2 size={14} style={{ color: 'var(--color-primary)' }} /> : <VolumeX size={14} style={{ color: 'var(--text-tertiary)' }} />}
+              {isAudioEnabled ? <Volume2 size={15} style={{ color: '#1e40af' }} /> : <VolumeX size={15} style={{ color: '#94a3b8' }} />}
             </button>
 
-            {/* Close */}
             <button
               className="btn btn-ghost btn-icon btn-icon-sm"
               onClick={() => { clearNavTimer(); onClose(); }}
+              style={{ borderRadius: 8, height: 32, width: 32 }}
             >
               <X size={16} />
             </button>
           </div>
         </div>
 
-        {/* Search & Voice Input Box */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-card)' }}>
+        {/* ============================================================
+            2. CLEAN COMMAND INPUT CONTAINER (NO RUN BUTTON)
+            ============================================================ */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              background: 'var(--bg-surface)',
-              border: voiceStatus === 'listening' ? '2px solid #ef4444' : '1.5px solid var(--border-default)',
+              background: '#f8fafc',
+              border: voiceStatus === 'listening' ? '2px solid #ef4444' : '1.5px solid #cbd5e1',
               borderRadius: 12,
-              padding: '8px 14px',
+              padding: '6px 14px',
               transition: 'all 0.2s ease',
               boxShadow: voiceStatus === 'listening' ? '0 0 16px rgba(239, 68, 68, 0.25)' : 'none',
             }}
           >
-            <Search size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+            <Search size={18} style={{ color: '#1e40af', flexShrink: 0 }} />
             <input
               ref={inputRef}
               type="text"
@@ -500,24 +474,29 @@ export default function AICommandBoard({
                 border: 'none',
                 background: 'transparent',
                 boxShadow: 'none',
-                padding: 0,
-                fontSize: 15,
+                padding: '6px 0',
+                fontSize: 14.5,
                 fontWeight: 500,
+                color: '#0f172a',
                 flex: 1,
               }}
-              placeholder="Speak or type (e.g., 'Open OPD', 'ICU beds enni unnayi?', 'ఫార్మసీ ఓపెన్ చేయి')..."
+              placeholder="Speak or type a command and press Enter (e.g. 'Show available beds', 'Open OPD', 'ICU beds chupinchu')..."
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
             />
 
             {query && (
-              <button className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', height: 24 }} onClick={() => setQuery('')}>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '2px 8px', height: 26, fontSize: 11, color: '#64748b' }}
+                onClick={() => setQuery('')}
+              >
                 Clear
               </button>
             )}
 
-            {/* Microphone Voice Button */}
+            {/* Microphone Voice Button (No Run Button) */}
             <button
               id="ai-board-mic-btn"
               className={`btn btn-sm ${voiceStatus === 'listening' ? 'btn-danger' : 'btn-primary'}`}
@@ -528,7 +507,9 @@ export default function AICommandBoard({
                 alignItems: 'center',
                 gap: 6,
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: 700,
+                height: 34,
+                flexShrink: 0,
               }}
               onClick={toggleListening}
               aria-label="Start voice command"
@@ -540,17 +521,9 @@ export default function AICommandBoard({
                 </>
               ) : (
                 <>
-                  <Mic size={14} /> Speak (మాట్లాడండి)
+                  <Mic size={14} /> Voice Input
                 </>
               )}
-            </button>
-
-            <button
-              className="btn btn-secondary btn-sm"
-              style={{ borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600 }}
-              onClick={() => executeCommand(query)}
-            >
-              Run
             </button>
           </div>
 
@@ -570,7 +543,7 @@ export default function AICommandBoard({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#dc2626', fontWeight: 600, fontSize: 13 }}>
                 <span className="pulse-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
-                <span>Listening... Speak your command in English or Telugu</span>
+                <span>Listening... Speak in English or Telugu naturally</span>
               </div>
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <span style={{ width: 3, height: 14, background: '#ef4444', animation: 'pulse 0.8s infinite' }} />
@@ -588,10 +561,11 @@ export default function AICommandBoard({
               style={{
                 marginTop: 8,
                 padding: '8px 12px',
-                background: 'var(--color-danger-muted)',
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
                 borderRadius: 8,
                 fontSize: 12,
-                color: 'var(--color-danger)',
+                color: '#be123c',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -601,75 +575,48 @@ export default function AICommandBoard({
             </div>
           )}
 
-          {/* Example Prompt Chips */}
+          {/* Quick Suggestion Chips */}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginTop: 10, paddingBottom: 2 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-              <Sparkles size={12} style={{ color: 'var(--color-primary)' }} /> Quick Commands:
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+              <Sparkles size={12} style={{ color: '#2563eb' }} /> Suggestions:
             </span>
-            {EXAMPLE_PROMPTS.map((p, idx) => {
-              const text = selectedLang === 'te' ? p.te : selectedLang === 'en' ? p.en : p.mixed;
-              return (
-                <button
-                  key={idx}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: 11, padding: '3px 10px', height: 24, whiteSpace: 'nowrap', borderRadius: 20 }}
-                  onClick={() => {
-                    setQuery(text);
-                    executeCommand(text);
-                  }}
-                >
-                  {text}
-                </button>
-              );
-            })}
+            {QUICK_SUGGESTIONS.map((s, idx) => (
+              <button
+                key={idx}
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: 11,
+                  padding: '3px 10px',
+                  height: 24,
+                  whiteSpace: 'nowrap',
+                  borderRadius: 20,
+                  background: '#f1f5f9',
+                  border: '1px solid #e2e8f0',
+                  color: '#334155',
+                  fontWeight: 600,
+                }}
+                onClick={() => {
+                  setQuery(s.command);
+                  executeCommand(s.command);
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Modal Body: Active Response / Auto-Navigation / History */}
+        {/* ============================================================
+            3. MODAL BODY: ACTIVE RESPONSE / INSTANT TELEMETRY / HISTORY
+            ============================================================ */}
         <div className="modal-body" style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Automatic Navigation Banner */}
-          {navCountdown !== null && response?.targetRoute && (
-            <div
-              style={{
-                padding: '14px 18px',
-                background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.15), rgba(16, 185, 129, 0.1))',
-                border: '1.5px solid var(--color-primary)',
-                borderRadius: 12,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.15)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="spin" style={{ width: 16, height: 16, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%' }} />
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)' }}>
-                    🚀 Automatically opening {response.displayText} in {navCountdown}s...
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Destination: <strong>{response.targetRoute}</strong>
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-secondary btn-sm" onClick={cancelAutoNav}>
-                  Cancel
-                </button>
-                <button className="btn btn-primary btn-sm" onClick={() => jumpNow(response.targetRoute!)}>
-                  Go Now <ArrowRight size={13} />
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Active AI Response Section */}
           {response && (
             <div
               style={{
                 padding: '14px 18px',
-                background: response.intentType === 'DENIED' ? 'var(--color-danger-muted)' : 'var(--bg-surface)',
-                border: response.intentType === 'DENIED' ? '1px solid rgba(220,38,38,0.3)' : '1px solid var(--border-default)',
+                background: response.intentType === 'DENIED' ? '#fff1f2' : '#f8fafc',
+                border: response.intentType === 'DENIED' ? '1px solid rgba(220,38,38,0.3)' : '1px solid #e2e8f0',
                 borderRadius: 12,
                 display: 'flex',
                 flexDirection: 'column',
@@ -678,9 +625,9 @@ export default function AICommandBoard({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <MedicalIcon name="dashboard" size={16} color="var(--color-primary)" />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                    Command Interpretation ({response.detectedLanguage.toUpperCase()})
+                  <MedicalIcon name="dashboard" size={16} color="#1e40af" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                    Interpretation ({response.detectedLanguage === 'te' ? 'Telugu' : response.detectedLanguage === 'te-mixed' ? 'Telugu-English' : 'English'})
                   </span>
                 </div>
                 <span className={`badge ${response.intentType === 'DENIED' ? 'badge-danger' : 'badge-success'}`}>
@@ -688,7 +635,7 @@ export default function AICommandBoard({
                 </span>
               </div>
 
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', lineHeight: 1.5 }}>
                 {response.displayText}
               </div>
 
@@ -697,8 +644,8 @@ export default function AICommandBoard({
                 <div
                   style={{
                     padding: '12px 16px',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-default)',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
                     borderRadius: 10,
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -706,12 +653,12 @@ export default function AICommandBoard({
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{response.statSummary.label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary)', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{response.statSummary.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1e40af', marginTop: 2 }}>
                       {response.statSummary.value}
                     </div>
                     {response.statSummary.subtitle && (
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                         {response.statSummary.subtitle}
                       </div>
                     )}
@@ -729,7 +676,7 @@ export default function AICommandBoard({
                 <div
                   style={{
                     padding: '14px 16px',
-                    background: 'var(--color-warning-muted)',
+                    background: '#fffbeb',
                     border: '1px solid rgba(217,119,6,0.3)',
                     borderRadius: 10,
                     display: 'flex',
@@ -737,16 +684,16 @@ export default function AICommandBoard({
                     gap: 10,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-warning-dark)', fontWeight: 700, fontSize: 13 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontWeight: 700, fontSize: 13 }}>
                     <AlertTriangle size={16} /> {response.pendingAction.title}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: 12, color: '#475569' }}>
                     {response.pendingAction.description}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12, background: 'white', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-default)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12, background: 'white', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
                     {Object.entries(response.pendingAction.details).map(([k, v]) => (
                       <div key={k}>
-                        <strong style={{ color: 'var(--text-tertiary)' }}>{k}:</strong> {v}
+                        <strong style={{ color: '#64748b' }}>{k}:</strong> {v}
                       </div>
                     ))}
                   </div>
@@ -768,7 +715,7 @@ export default function AICommandBoard({
               )}
 
               {actionConfirmed && (
-                <div style={{ padding: '10px 14px', background: 'var(--color-success-muted)', borderRadius: 8, color: 'var(--color-success)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ padding: '10px 14px', background: '#ecfdf5', borderRadius: 8, color: '#059669', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <CheckCircle2 size={16} /> Action successfully confirmed and recorded in audit log.
                 </div>
               )}
@@ -778,7 +725,7 @@ export default function AICommandBoard({
           {/* Search Results List */}
           {response && response.results.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                 <span>Matching Hospital Records ({response.results.length})</span>
                 <span>Click to Open Section</span>
               </div>
@@ -789,8 +736,8 @@ export default function AICommandBoard({
                     onClick={() => handleResultClick(res)}
                     style={{
                       padding: '10px 14px',
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border-default)',
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
                       borderRadius: 8,
                       display: 'flex',
                       alignItems: 'center',
@@ -798,16 +745,16 @@ export default function AICommandBoard({
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
                       <MedicalIcon name={res.category as any} size={16} badge variant={res.badgeVariant || 'primary'} />
                       <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {res.title}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {res.subtitle}
                         </div>
                       </div>
@@ -819,7 +766,7 @@ export default function AICommandBoard({
                           {res.badgeText}
                         </span>
                       )}
-                      <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                      <ChevronRight size={14} style={{ color: '#94a3b8' }} />
                     </div>
                   </div>
                 ))}
@@ -827,34 +774,34 @@ export default function AICommandBoard({
             </div>
           )}
 
-          {/* Initial State / Snapshot & History */}
+          {/* Initial State: Telemetry Snapshot & Recent Command History */}
           {!response && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Real-Time Hospital Intelligence Snapshot */}
-              <div style={{ padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-default)' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Activity size={14} style={{ color: 'var(--color-primary)' }} /> Live Hospital Intelligence Snapshot
+              <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Activity size={14} style={{ color: '#1e40af' }} /> Live Hospital Intelligence Snapshot
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, textAlign: 'center' }}>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show OPD queue')}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-primary)' }}>{liveMetrics.waitingOPD}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>OPD Waiting</div>
+                  <div style={{ padding: '8px 4px', background: '#ffffff', borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => executeCommand('Show OPD queue')}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#1e40af' }}>{liveMetrics.waitingOPD}</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>OPD Waiting</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show available beds')}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#d97706' }}>{liveMetrics.availableBeds}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Available Beds</div>
+                  <div style={{ padding: '8px 4px', background: '#ffffff', borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => executeCommand('Show available beds')}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#059669' }}>{liveMetrics.availableBeds}</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Available Beds</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show ICU beds')}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#dc2626' }}>{liveMetrics.availableIcuBeds}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>ICU Vacancies</div>
+                  <div style={{ padding: '8px 4px', background: '#ffffff', borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => executeCommand('Show ICU beds')}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#e11d48' }}>{liveMetrics.availableIcuBeds}</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>ICU Vacancies</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show pending lab tests')}>
+                  <div style={{ padding: '8px 4px', background: '#ffffff', borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => executeCommand('Show pending lab tests')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#7c3aed' }}>{liveMetrics.pendingLab}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Pending Lab</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Pending Lab</div>
                   </div>
-                  <div style={{ padding: '8px 4px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-default)', cursor: 'pointer' }} onClick={() => executeCommand('Show low stock medicines')}>
+                  <div style={{ padding: '8px 4px', background: '#ffffff', borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => executeCommand('Show low stock medicines')}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#0d9488' }}>{liveMetrics.lowStockCount}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Low Stock Meds</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Low Stock Meds</div>
                   </div>
                 </div>
               </div>
@@ -863,8 +810,8 @@ export default function AICommandBoard({
               {history.length > 0 && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
-                      Recent Voice & Text Commands
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                      Recent Commands
                     </span>
                     <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: 0 }} onClick={clearHistory}>
                       Clear
@@ -880,20 +827,20 @@ export default function AICommandBoard({
                         }}
                         style={{
                           padding: '8px 12px',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-default)',
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
                           borderRadius: 6,
                           fontSize: 12,
-                          color: 'var(--text-secondary)',
+                          color: '#334155',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 8,
                           cursor: 'pointer',
                         }}
                       >
-                        <Clock size={12} style={{ color: 'var(--text-muted)' }} />
+                        <Clock size={12} style={{ color: '#94a3b8' }} />
                         <span style={{ flex: 1 }}>{h}</span>
-                        <ArrowRight size={12} style={{ color: 'var(--text-muted)' }} />
+                        <ArrowRight size={12} style={{ color: '#94a3b8' }} />
                       </div>
                     ))}
                   </div>
@@ -903,27 +850,29 @@ export default function AICommandBoard({
           )}
         </div>
 
-        {/* Footer info & shortcut hints */}
+        {/* ============================================================
+            4. CLEAN FOOTER
+            ============================================================ */}
         <div
           style={{
             padding: '10px 20px',
-            background: 'var(--bg-surface)',
-            borderTop: '1px solid var(--border-default)',
+            background: '#f8fafc',
+            borderTop: '1px solid #e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            fontSize: 11,
-            color: 'var(--text-tertiary)',
+            fontSize: 11.5,
+            color: '#64748b',
             flexWrap: 'wrap',
             gap: 8,
           }}
         >
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border-default)' }}>↵ Enter</kbd> to run</span>
-            <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border-default)' }}>ESC</kbd> to close</span>
+            <span>Press <kbd style={{ background: '#ffffff', padding: '2px 6px', borderRadius: 4, border: '1px solid #cbd5e1', fontWeight: 700 }}>↵ Enter</kbd> to execute</span>
+            <span><kbd style={{ background: '#ffffff', padding: '2px 6px', borderRadius: 4, border: '1px solid #cbd5e1' }}>ESC</kbd> to close</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ShieldCheck size={13} style={{ color: 'var(--color-primary)' }} /> Role: <strong>{state.user?.role?.replace(/_/g, ' ')}</strong> (RBAC Active)
+            <ShieldCheck size={13} style={{ color: '#1e40af' }} /> Role: <strong>{state.user?.role?.replace(/_/g, ' ')}</strong> (RBAC Active)
           </div>
         </div>
       </div>

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import {
   ReceiptText, Search, User, CheckCircle2, Plus, DollarSign,
-  Building2, Activity, Pill, Microscope, Radio, FileText, ArrowRight
+  Building2, Activity, Pill, Microscope, Radio, FileText, ArrowRight,
+  ShieldCheck, Zap
 } from 'lucide-react';
 import { useBilling } from '../context/BillingContext';
 import { DEMO_PATIENTS, DEMO_DOCTORS } from '../../../data/seedData';
+import { storageService } from '../../../services/storageService';
 import PrintInvoiceModal from './modals/PrintInvoiceModal';
 import RecordPaymentModal from './modals/RecordPaymentModal';
 import type { CentralInvoiceItem, DepartmentChargeItem } from '../../../types';
@@ -339,18 +341,55 @@ export default function CentralBillingWorkspace() {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: 11 }}>Insurance / TPA Pre-Auth Claim (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max={newGross}
-                  className="form-input"
-                  style={{ height: 32, fontSize: 12 }}
-                  value={insuranceAmount}
-                  onChange={e => setInsuranceAmount(Number(e.target.value))}
-                />
-              </div>
+              {/* Insurance / Policy Status & Auto-Calculation */}
+              {(() => {
+                const patientPolicy = storageService.getPatientPolicies().find(p => p.patientId === selectedPatientId && p.status === 'active');
+                const activePreAuth = storageService.getPreAuthRequests().find(pa => pa.patientId === selectedPatientId && (pa.status === 'approved' || pa.status === 'partially_approved'));
+                return (
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label className="form-label" style={{ fontSize: 11, margin: 0 }}>Insurance / TPA Coverage (₹)</label>
+                      {patientPolicy && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ fontSize: 10, padding: '2px 6px', height: 'auto', color: '#2563eb' }}
+                          onClick={() => {
+                            const copayPct = patientPolicy.coPayPercentage || 10;
+                            const deductible = patientPolicy.deductible || 0;
+                            const afterDeduct = Math.max(0, newGross - deductible);
+                            const insShare = activePreAuth
+                              ? Math.min(activePreAuth.approvedAmount, newGross)
+                              : Math.min(patientPolicy.remainingCoverage, Math.round(afterDeduct * (1 - copayPct / 100)));
+                            setInsuranceAmount(insShare);
+                          }}
+                        >
+                          <Zap size={11} /> Auto-Calculate ({patientPolicy.coPayPercentage}% Copay)
+                        </button>
+                      )}
+                    </div>
+                    {patientPolicy && (
+                      <div style={{ padding: '6px 8px', borderRadius: 4, background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)', fontSize: 11, color: '#1e40af', marginBottom: 6 }}>
+                        <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <ShieldCheck size={12} /> {patientPolicy.providerName}
+                        </div>
+                        <div style={{ fontSize: 10, opacity: 0.85, marginTop: 2 }}>
+                          Policy #{patientPolicy.policyNumber} · Remaining: ₹{patientPolicy.remainingCoverage.toLocaleString()} {activePreAuth ? `· Pre-Auth Approved: ₹${activePreAuth.approvedAmount.toLocaleString()}` : ''}
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      type="number"
+                      min="0"
+                      max={newGross}
+                      className="form-input"
+                      style={{ height: 32, fontSize: 12 }}
+                      value={insuranceAmount}
+                      onChange={e => setInsuranceAmount(Number(e.target.value))}
+                    />
+                  </div>
+                );
+              })()}
 
               {totalAvailableAdvance > 0 && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>

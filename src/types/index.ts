@@ -2,6 +2,8 @@
 // ALN Cure HMS — Core TypeScript Types
 // ============================================================
 
+export * from './insurance';
+
 // ---- AUTH & ROLES ----
 export type UserRole =
   | 'super_admin'
@@ -228,6 +230,10 @@ export interface Ward {
   phone?: string;
 }
 
+export type PatientCondition = 'stable' | 'improving' | 'critical' | 'deteriorating' | 'observation' | 'guarded' | 'serious';
+export type AdmissionPriority = 'routine' | 'urgent' | 'critical' | 'emergency' | 'normal';
+export type DischargeReadiness = 'under_treatment' | 'planned_discharge' | 'medically_cleared' | 'ready_for_discharge' | 'pending_clearance';
+
 export interface Admission {
   id: string;
   patientId: string;
@@ -237,11 +243,16 @@ export interface Admission {
   bedId: string;
   bedNumber: string;
   ward: string;
+  roomNumber?: string;
   admissionDate: string;
   admissionTime: string;
+  expectedDischargeDate?: string;
   dischargeDate?: string;
   dischargeTime?: string;
   status: AdmissionStatus;
+  condition?: PatientCondition;
+  priority?: AdmissionPriority;
+  dischargeReadiness?: DischargeReadiness;
   diagnosis: string[];
   admissionNotes: string;
   attendantName?: string;
@@ -848,11 +859,26 @@ export interface BedTransferRecord {
   toBedNumber: string;
   reason: string;
   requestedBy: string;
-  approvedBy: string;
+  approvedBy?: string;
   transferDate: string;
   transferTime: string;
   status: 'completed' | 'pending' | 'cancelled';
   createdAt: string;
+}
+
+export interface BedAllocationRecord {
+  id: string;
+  admissionId: string;
+  patientId: string;
+  patientName: string;
+  bedId: string;
+  bedNumber: string;
+  ward: string;
+  roomNumber?: string;
+  action: 'admitted' | 'transferred_in' | 'transferred_out' | 'discharged';
+  timestamp: string;
+  performedBy: string;
+  notes?: string;
 }
 
 export interface IPDDoctorRound {
@@ -884,15 +910,16 @@ export interface IPDNursingTask {
   patientId: string;
   patientName: string;
   bedNumber: string;
-  taskType: 'medication_due' | 'vitals_due' | 'doctor_round_pending' | 'investigation_pending' | 'procedure_pending' | 'care_instruction';
+  taskType: 'vitals_due' | 'medication_due' | 'patient_monitoring' | 'dressing_changes' | 'other' | 'doctor_round_pending' | 'investigation_pending' | 'procedure_pending' | 'care_instruction';
   title: string;
   description?: string;
   dueTime: string;
   priority: 'routine' | 'urgent' | 'stat';
-  status: 'pending' | 'completed' | 'skipped';
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped';
   assignedNurse?: string;
   completedAt?: string;
   completedBy?: string;
+  createdAt?: string;
 }
 
 export interface IPDNursingNote {
@@ -1023,7 +1050,7 @@ export interface IPDDischargeRecord {
   createdAt: string;
 }
 
-export interface InsuranceClaimRecord {
+export interface IPDInsuranceClaim {
   id: string;
   admissionId: string;
   patientId: string;
@@ -1082,10 +1109,11 @@ export interface IPDBill {
     date: string;
     receivedBy: string;
   }[];
-  insuranceClaim?: InsuranceClaimRecord;
+  insuranceClaim?: IPDInsuranceClaim;
   createdAt: string;
   updatedAt: string;
 }
+
 
 export interface IPDDashboardKPIs {
   totalInpatients: number;
@@ -1113,6 +1141,38 @@ export interface IPDDashboardKPIs {
 
 export type NursingPatientPriority = 'normal' | 'high' | 'urgent' | 'stat';
 export type NursingPatientStatus = 'stable' | 'critical' | 'improving' | 'deteriorating' | 'post_op' | 'discharge_planned';
+
+export interface Nurse {
+  id: string;
+  userId?: string;
+  name: string;
+  employeeId: string;
+  department: string;
+  ward: string;
+  phone: string;
+  email?: string;
+  qualification: string;
+  experienceYears: number;
+  status: 'active' | 'on_duty' | 'on_leave' | 'inactive';
+  shift?: 'morning' | 'afternoon' | 'night';
+  joinedDate?: string;
+}
+
+export interface NursingEmergencyAlert {
+  id: string;
+  type: 'critical_patient' | 'medical_emergency' | 'code_blue' | 'other';
+  patientId?: string;
+  patientName?: string;
+  admissionId?: string;
+  bedNumber?: string;
+  ward: string;
+  reportedBy: string;
+  reportedAt: string;
+  description: string;
+  status: 'active' | 'responded' | 'resolved';
+  respondedBy?: string;
+  resolvedAt?: string;
+}
 
 export interface NursingAssignment {
   id: string;
@@ -1306,7 +1366,7 @@ export interface NursingHandoverRecord {
   fromNurseName: string;
   toNurseId: string;
   toNurseName: string;
-  shift: 'morning' | 'afternoon' | 'night';
+  shift: 'morning' | 'evening' | 'night' | 'afternoon';
   date: string;
   time: string;
   ward: string;
@@ -1319,10 +1379,12 @@ export interface NursingHandoverRecord {
     pendingTasks: string;
     medicationDue: string;
     doctorOrders: string;
-    criticalAlerts: string;
+    criticalAlerts?: string;
   }[];
   generalWardNotes?: string;
-  status: 'draft' | 'submitted' | 'acknowledged';
+  status: 'draft' | 'submitted' | 'acknowledged' | 'pending_acknowledgement';
+  acknowledgedBy?: string;
+  acknowledgedAt?: string;
   createdAt: string;
 }
 
@@ -1438,6 +1500,9 @@ export interface NursingAlert {
 
 export interface NursingDashboardKPIs {
   totalAssignedPatients: number;
+  assignedPatientsCount?: number;
+  onDutyNursesCount?: number;
+  currentShift?: string;
   patientsRequiringAttention: number;
   vitalsDueCount: number;
   medicationDueCount: number;
@@ -1492,11 +1557,15 @@ export type MealType =
   | 'bedtime';
 
 export type MealStatus =
+  | 'scheduled'
   | 'pending'
   | 'preparing'
   | 'ready'
   | 'delivered'
   | 'served'
+  | 'consumed'
+  | 'partially_consumed'
+  | 'missed'
   | 'refused'
   | 'cancelled';
 
@@ -1555,6 +1624,8 @@ export interface ComprehensiveDietChart {
   restrictions: string[];
   allergies: string[];
   specialInstructions?: string;
+  startDate?: string;
+  reviewDate?: string;
   status: DietStatus;
   version: number;
   previousVersionId?: string;
@@ -1620,6 +1691,9 @@ export interface MealDeliveryRecord {
   deliveredTime?: string;
   kitchenStaff?: string;
   deliveryStaff?: string;
+  consumptionStatus?: 'fully_consumed' | 'partially_consumed' | 'not_consumed';
+  patientFeedback?: string;
+  foodProblem?: string;
   refusalReason?: string;
   remarks?: string;
 }
@@ -1654,6 +1728,12 @@ export interface DietAlert {
 }
 
 export interface DietDashboardKPIs {
+  activeDietPlans: number;
+  todayScheduledMeals: number;
+  pendingMeals: number;
+  missedMeals: number;
+  specialDietPatients: number;
+  patientsRequiringReview: number;
   totalInpatients: number;
   patientsWithDiet: number;
   dietPendingApproval: number;
@@ -2614,10 +2694,172 @@ export interface CentralBillingKPIs {
   unpaidInvoicesCount: number;
 }
 
+// ==========================================
+// UNIFIED DIAGNOSTIC SERVICES TYPES
+// ==========================================
 
+export type DiagnosticCategory = 'laboratory' | 'radiology' | 'other';
 
+export type DiagnosticSubCategory =
+  | 'blood'
+  | 'urine'
+  | 'stool'
+  | 'other_lab'
+  | 'xray'
+  | 'ultrasound'
+  | 'ct'
+  | 'mri'
+  | 'ecg'
+  | 'other_diag';
 
+export type DiagnosticPriority = 'normal' | 'urgent' | 'emergency';
 
+export type DiagnosticRequestStatus =
+  | 'requested'
+  | 'sample_collected'
+  | 'processing'
+  | 'result_ready'
+  | 'completed'
+  | 'cancelled';
 
+export type DiagnosticSampleStatus =
+  | 'pending_collection'
+  | 'collected'
+  | 'received'
+  | 'rejected';
 
+export type DiagnosticResultStatus = 'normal' | 'abnormal' | 'critical';
+
+export type DiagnosticReportStatus = 'draft' | 'ready' | 'released';
+
+export type DiagnosticEquipmentStatus = 'available' | 'maintenance' | 'unavailable';
+
+export interface DiagnosticTestParameter {
+  id: string;
+  name: string;
+  unit: string;
+  referenceRange: string;
+  criticalLow?: number;
+  criticalHigh?: number;
+  defaultValue?: string;
+  format?: 'numeric' | 'text' | 'selectable';
+  options?: string[];
+}
+
+export interface DiagnosticTestMasterItem {
+  id: string;
+  code: string;
+  name: string;
+  category: DiagnosticCategory;
+  subCategory: DiagnosticSubCategory;
+  department: string;
+  sampleType?: string;
+  containerType?: string;
+  preparationInstructions?: string;
+  turnaroundHours: number;
+  price: number;
+  parameters: DiagnosticTestParameter[];
+  isActive: boolean;
+}
+
+export interface DiagnosticResultParameter {
+  parameterId: string;
+  parameterName: string;
+  value: string | number;
+  unit: string;
+  referenceRange: string;
+  status: DiagnosticResultStatus;
+  isCritical: boolean;
+  remarks?: string;
+}
+
+export interface DiagnosticRequest {
+  id: string;
+  requestId: string; // e.g. DIA-2026-0001
+  patientId: string;
+  patientName: string;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  encounterType: 'opd' | 'ipd' | 'emergency';
+  admissionId?: string;
+  bedNumber?: string;
+  ward?: string;
+  doctorId: string;
+  doctorName: string;
+  department: string;
+  testId: string;
+  testCode: string;
+  testName: string;
+  category: DiagnosticCategory;
+  subCategory: DiagnosticSubCategory;
+  requestDate: string;
+  priority: DiagnosticPriority;
+  clinicalNotes?: string;
+  diagnosis?: string;
+  price: number;
+  status: DiagnosticRequestStatus;
+  sampleStatus: DiagnosticSampleStatus;
+  sampleType?: string;
+  sampleId?: string;
+  barcode?: string;
+  sampleCollectedAt?: string;
+  sampleCollectedBy?: string;
+  technicianName?: string;
+  technicianAt?: string;
+  results: DiagnosticResultParameter[];
+  overallResultStatus?: DiagnosticResultStatus;
+  reportStatus: DiagnosticReportStatus;
+  reportDate?: string;
+  authorizedBy?: string;
+  findingsText?: string;
+  impressionText?: string;
+  criticalNotified?: boolean;
+}
+
+export interface DiagnosticCriticalAlert {
+  id: string;
+  requestId: string;
+  patientId: string;
+  patientName: string;
+  bedNumber?: string;
+  ward?: string;
+  doctorName: string;
+  testName: string;
+  parameterName: string;
+  resultValue: string | number;
+  criticalThreshold: string;
+  detectedAt: string;
+  status: 'new' | 'notified' | 'acknowledged';
+  notifiedTo?: string;
+  acknowledgedBy?: string;
+  acknowledgedAt?: string;
+}
+
+export interface DiagnosticEquipmentItem {
+  id: string;
+  name: string;
+  category: DiagnosticCategory;
+  department: string;
+  modelNumber: string;
+  serialNumber: string;
+  location: string;
+  status: DiagnosticEquipmentStatus;
+  lastMaintenanceDate: string;
+  nextMaintenanceDate: string;
+  dailyCapacity: number;
+  currentTestsQueued: number;
+}
+
+export interface DiagnosticDashboardKPIs {
+  todayRequests: number;
+  pendingTests: number;
+  samplesCollected: number;
+  inProgress: number;
+  reportsReady: number;
+  criticalResults: number;
+  completedTests: number;
+}
+
+// ---- INSURANCE MANAGEMENT TYPES ----
+export * from './insurance';
 

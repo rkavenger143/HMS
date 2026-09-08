@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types';
-import { LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  LogOut, ChevronLeft, ChevronRight, Bell, Shield, ShieldCheck,
+  LayoutDashboard, Users, CalendarCheck, BedDouble,
+  Stethoscope, HeartPulse, FlaskConical, UtensilsCrossed,
+  Pill, ReceiptText, BarChart3, Settings as SettingsIcon,
+  Sparkles
+} from 'lucide-react';
 import MedicalIcon, { MedicalBrandLogo } from '../common/MedicalIcons';
+import { storageService } from '../../services/storageService';
 
 interface NavItem {
   id: string;
@@ -11,62 +18,174 @@ interface NavItem {
   icon: React.ReactNode;
   path: string;
   badge?: number;
+  badgeVariant?: 'primary' | 'danger' | 'warning' | 'success';
   allowedRoles?: UserRole[];
   section?: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  // OVERVIEW
-  { id: 'dashboard', label: 'Dashboard', icon: <MedicalIcon name="dashboard" size={19} strokeWidth={2} />, path: '/dashboard', section: 'Overview' },
-  { id: 'ai', label: 'ALN Cure AI', icon: <MedicalIcon name="ai" size={19} strokeWidth={2} />, path: '/ai', section: 'Overview', allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management'] },
-  // PATIENTS
-  { id: 'patients', label: 'Patients', icon: <MedicalIcon name="patients" size={19} strokeWidth={2} />, path: '/patients', section: 'Patient Care', allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'billing_staff', 'management'] },
-  { id: 'appointments', label: 'Appointments', icon: <MedicalIcon name="appointments" size={19} strokeWidth={2} />, path: '/appointments', section: 'Patient Care', allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'management'] },
-  // CLINICAL CARE
-  { id: 'opd', label: 'OPD', icon: <MedicalIcon name="opd" size={19} strokeWidth={2} />, path: '/opd', section: 'Clinical Care', allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'management'] },
-  { id: 'ipd', label: 'IPD & Beds', icon: <MedicalIcon name="ipd" size={19} strokeWidth={2} />, path: '/ipd', section: 'Clinical Care', allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management'] },
-  { id: 'nursing', label: 'Nursing', icon: <MedicalIcon name="nursing" size={19} strokeWidth={2} />, path: '/nursing', section: 'Clinical Care', allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management'] },
-  { id: 'diet', label: 'Diet Charts', icon: <MedicalIcon name="diet" size={19} strokeWidth={2} />, path: '/diet', section: 'Clinical Care', allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'dietitian', 'management'] },
-  // DIAGNOSTIC SERVICES
-  { id: 'lab', label: 'Laboratory', icon: <MedicalIcon name="laboratory" size={19} strokeWidth={2} />, path: '/laboratory', section: 'Diagnostic Services', allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'lab_technician', 'nurse', 'management'] },
-  { id: 'radiology', label: 'Radiology', icon: <MedicalIcon name="radiology" size={19} strokeWidth={2} />, path: '/radiology', section: 'Diagnostic Services', allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'radiology_technician', 'management'] },
-  // MEDICATION & PHARMACY
-  { id: 'pharmacy', label: 'Pharmacy', icon: <MedicalIcon name="pharmacy" size={19} strokeWidth={2} />, path: '/pharmacy', section: 'Medication & Pharmacy', allowedRoles: ['super_admin', 'hospital_admin', 'pharmacist', 'doctor', 'management'] },
-  // FINANCE
-  { id: 'billing', label: 'Billing', icon: <MedicalIcon name="billing" size={19} strokeWidth={2} />, path: '/billing', section: 'Finance', allowedRoles: ['super_admin', 'hospital_admin', 'billing_staff', 'management'] },
-  // STAFF
-  { id: 'doctors', label: 'Doctors', icon: <MedicalIcon name="doctors" size={19} strokeWidth={2} />, path: '/doctors', section: 'Staff', allowedRoles: ['super_admin', 'hospital_admin', 'management'] },
-  // EMERGENCY
-  { id: 'ambulance', label: 'Ambulance', icon: <MedicalIcon name="ambulance" size={19} strokeWidth={2} />, path: '/ambulance', section: 'Emergency', allowedRoles: ['super_admin', 'hospital_admin', 'ambulance_staff', 'receptionist', 'management'] },
-  // BLOOD BANK
-  { id: 'bloodbank', label: 'Blood Bank', icon: <MedicalIcon name="bloodbank" size={19} strokeWidth={2} />, path: '/blood-bank', section: 'Blood Bank', allowedRoles: ['super_admin', 'hospital_admin', 'blood_bank_staff', 'doctor', 'management'] },
-  // ANALYTICS
-  { id: 'reports', label: 'Reports', icon: <MedicalIcon name="reports" size={19} strokeWidth={2} />, path: '/reports', section: 'Analytics', allowedRoles: ['super_admin', 'hospital_admin', 'management', 'billing_staff'] },
-  // ADMIN
-  { id: 'admin', label: 'Admin Panel', icon: <MedicalIcon name="admin" size={19} strokeWidth={2} />, path: '/admin', section: 'Admin', allowedRoles: ['super_admin', 'hospital_admin'] },
-  { id: 'settings', label: 'Settings', icon: <MedicalIcon name="settings" size={19} strokeWidth={2} />, path: '/settings', section: 'Admin', allowedRoles: ['super_admin', 'hospital_admin'] },
-];
-
-// Patient portal nav items
-const PATIENT_NAV: NavItem[] = [
-  { id: 'portal-dashboard', label: 'My Dashboard', icon: <MedicalIcon name="dashboard" size={19} strokeWidth={2} />, path: '/portal', section: 'Portal' },
-  { id: 'portal-appointments', label: 'Appointments', icon: <MedicalIcon name="appointments" size={19} strokeWidth={2} />, path: '/portal/appointments', section: 'Portal' },
-  { id: 'portal-reports', label: 'Lab Reports', icon: <MedicalIcon name="laboratory" size={19} strokeWidth={2} />, path: '/portal/reports', section: 'Portal' },
-  { id: 'portal-prescriptions', label: 'Prescriptions', icon: <MedicalIcon name="pharmacy" size={19} strokeWidth={2} />, path: '/portal/prescriptions', section: 'Portal' },
-  { id: 'portal-bills', label: 'Bills', icon: <MedicalIcon name="billing" size={19} strokeWidth={2} />, path: '/portal/bills', section: 'Portal' },
-  { id: 'portal-profile', label: 'My Profile', icon: <MedicalIcon name="patients" size={19} strokeWidth={2} />, path: '/portal/profile', section: 'Portal' },
-];
-
-interface SidebarProps {
+export default function Sidebar({
+  collapsed,
+  onToggle,
+  emergencyCount = 0
+}: {
   collapsed: boolean;
   onToggle: () => void;
   emergencyCount?: number;
-}
-
-export default function Sidebar({ collapsed, onToggle, emergencyCount = 0 }: SidebarProps) {
+}) {
   const { state, logout } = useAuth();
   const location = useLocation();
   const isPatient = state.user?.role === 'patient';
+  const [liveStats, setLiveStats] = useState(() => storageService.getDashboardMetrics());
+  const [liveInsMetrics, setLiveInsMetrics] = useState(() => storageService.getInsuranceMetrics());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setLiveStats(storageService.getDashboardMetrics());
+      setLiveInsMetrics(storageService.getInsuranceMetrics());
+    };
+    window.addEventListener('hms_storage_updated', handleUpdate);
+    return () => window.removeEventListener('hms_storage_updated', handleUpdate);
+  }, []);
+
+
+  // Standard Organized Hospital Order (1 to 13)
+  const NAV_ITEMS: NavItem[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard size={18} />,
+      path: '/dashboard',
+      section: 'Overview'
+    },
+    {
+      id: 'patients',
+      label: 'Patient Management',
+      icon: <Users size={18} />,
+      path: '/patients',
+      badge: liveStats.totalPatients,
+      badgeVariant: 'primary',
+      section: 'Clinical Services',
+      allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'billing_staff', 'management']
+    },
+    {
+      id: 'opd',
+      label: 'Appointments / OPD',
+      icon: <CalendarCheck size={18} />,
+      path: '/opd',
+      badge: liveStats.pendingAppointments > 0 ? liveStats.pendingAppointments : undefined,
+      badgeVariant: 'warning',
+      section: 'Clinical Services',
+      allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'management']
+    },
+    {
+      id: 'ipd',
+      label: 'IPD & Bed Management',
+      icon: <BedDouble size={18} />,
+      path: '/ipd',
+      badge: liveStats.ipdPatients > 0 ? liveStats.ipdPatients : undefined,
+      badgeVariant: 'primary',
+      section: 'Clinical Services',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management']
+    },
+    {
+      id: 'doctors',
+      label: 'Doctors',
+      icon: <Stethoscope size={18} />,
+      path: '/doctors',
+      badge: liveStats.doctorsOnDuty > 0 ? liveStats.doctorsOnDuty : undefined,
+      badgeVariant: 'success',
+      section: 'Staff & Care',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'management']
+    },
+    {
+      id: 'nursing',
+      label: 'Nursing',
+      icon: <HeartPulse size={18} />,
+      path: '/nursing',
+      section: 'Staff & Care',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management']
+    },
+    {
+      id: 'diagnostics',
+      label: 'Diagnostic Services',
+      icon: <FlaskConical size={18} />,
+      path: '/diagnostics',
+      section: 'Diagnostics & Pharmacy',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'lab_technician', 'radiology_technician', 'nurse', 'management']
+    },
+    {
+      id: 'diet',
+      label: 'Diet Charts',
+      icon: <UtensilsCrossed size={18} />,
+      path: '/diet',
+      section: 'Diagnostics & Pharmacy',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'dietitian', 'management']
+    },
+    {
+      id: 'pharmacy',
+      label: 'Pharmacy',
+      icon: <Pill size={18} />,
+      path: '/pharmacy',
+      badge: liveStats.lowStockCount > 0 ? liveStats.lowStockCount : undefined,
+      badgeVariant: 'danger',
+      section: 'Diagnostics & Pharmacy',
+      allowedRoles: ['super_admin', 'hospital_admin', 'pharmacist', 'doctor', 'management']
+    },
+    {
+      id: 'billing',
+      label: 'Billing',
+      icon: <ReceiptText size={18} />,
+      path: '/billing',
+      section: 'Finance & Analytics',
+      allowedRoles: ['super_admin', 'hospital_admin', 'billing_staff', 'management']
+    },
+    {
+      id: 'insurance',
+      label: 'Insurance Management',
+      icon: <ShieldCheck size={18} />,
+      path: '/insurance',
+      badge: liveInsMetrics.pendingPreAuths + liveInsMetrics.pendingClaims > 0 ? liveInsMetrics.pendingPreAuths + liveInsMetrics.pendingClaims : undefined,
+      badgeVariant: 'warning',
+      section: 'Finance & Analytics',
+      allowedRoles: ['super_admin', 'hospital_admin', 'insurance_coordinator', 'billing_staff', 'management', 'doctor']
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: <BarChart3 size={18} />,
+      path: '/reports',
+      section: 'Finance & Analytics',
+      allowedRoles: ['super_admin', 'hospital_admin', 'management', 'billing_staff']
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: <Bell size={18} />,
+      path: '/notifications',
+      badge: liveStats.alerts.length > 0 ? liveStats.alerts.length : undefined,
+      badgeVariant: 'danger',
+      section: 'Administration',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management', 'billing_staff', 'receptionist', 'pharmacist', 'lab_technician']
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: <SettingsIcon size={18} />,
+      path: '/settings',
+      section: 'Administration',
+      allowedRoles: ['super_admin', 'hospital_admin']
+    },
+  ];
+
+  // Patient portal nav items
+  const PATIENT_NAV: NavItem[] = [
+    { id: 'portal-dashboard', label: 'My Dashboard', icon: <LayoutDashboard size={18} />, path: '/portal', section: 'Patient Portal' },
+    { id: 'portal-appointments', label: 'Appointments', icon: <CalendarCheck size={18} />, path: '/portal/appointments', section: 'Patient Portal' },
+    { id: 'portal-reports', label: 'Lab Reports', icon: <FlaskConical size={18} />, path: '/portal/reports', section: 'Patient Portal' },
+    { id: 'portal-prescriptions', label: 'Prescriptions', icon: <Pill size={18} />, path: '/portal/prescriptions', section: 'Patient Portal' },
+    { id: 'portal-bills', label: 'Bills & Payments', icon: <ReceiptText size={18} />, path: '/portal/bills', section: 'Patient Portal' },
+    { id: 'portal-profile', label: 'My Profile', icon: <Users size={18} />, path: '/portal/profile', section: 'Patient Portal' },
+  ];
 
   const filteredNav = isPatient
     ? PATIENT_NAV
@@ -87,26 +206,26 @@ export default function Sidebar({ collapsed, onToggle, emergencyCount = 0 }: Sid
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-      {/* Logo with Medical Heart Brand */}
+      {/* Brand Header */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon" style={{ background: 'transparent', padding: 0 }}>
           <MedicalBrandLogo size={26} />
         </div>
         {!collapsed && (
           <div className="sidebar-logo-text">
-            <div className="sidebar-logo-title">ALN Cure HMS</div>
-            <div className="sidebar-logo-sub">✦ AI Medical Suite</div>
+            <div className="sidebar-logo-title" style={{ color: '#1e3a8a', fontWeight: 800 }}>ALN Cure HMS</div>
+            <div className="sidebar-logo-sub" style={{ color: '#2563eb' }}>Enterprise Health System</div>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation List */}
       <nav className="sidebar-nav">
         {Object.entries(sections).map(([section, items]) => (
           <div key={section} className="sidebar-section">
             {!collapsed && <div className="sidebar-section-label">{section}</div>}
             {items.map(item => {
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
               return (
                 <NavLink
                   key={item.id}
@@ -118,8 +237,19 @@ export default function Sidebar({ collapsed, onToggle, emergencyCount = 0 }: Sid
                   {!collapsed && (
                     <>
                       <span className="sidebar-item-label">{item.label}</span>
-                      {item.id === 'ambulance' && emergencyCount > 0 && (
-                        <span className="sidebar-badge">{emergencyCount}</span>
+                      {item.badge !== undefined && item.badge > 0 && (
+                        <span
+                          className={`sidebar-badge badge-${item.badgeVariant || 'primary'}`}
+                          style={{
+                            marginLeft: 'auto',
+                            padding: '2px 7px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            borderRadius: '999px',
+                          }}
+                        >
+                          {item.badge}
+                        </span>
                       )}
                     </>
                   )}
@@ -130,13 +260,15 @@ export default function Sidebar({ collapsed, onToggle, emergencyCount = 0 }: Sid
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Footer / Profile */}
       <div className="sidebar-footer">
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>{initials}</div>
+            <div className="avatar avatar-sm" style={{ flexShrink: 0, background: '#2563eb', color: 'white', fontWeight: 700 }}>
+              {initials}
+            </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              <div className="truncate" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
                 {state.user?.name}
               </div>
               <div className="truncate" style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>
@@ -145,6 +277,7 @@ export default function Sidebar({ collapsed, onToggle, emergencyCount = 0 }: Sid
             </div>
           </div>
         )}
+
         <button
           className="sidebar-item"
           onClick={logout}
@@ -152,8 +285,9 @@ export default function Sidebar({ collapsed, onToggle, emergencyCount = 0 }: Sid
           title={collapsed ? 'Logout' : undefined}
         >
           <span className="sidebar-item-icon"><LogOut size={16} /></span>
-          {!collapsed && <span className="sidebar-item-label">Logout</span>}
+          {!collapsed && <span className="sidebar-item-label">Sign Out</span>}
         </button>
+
         <button
           className="sidebar-item"
           onClick={onToggle}

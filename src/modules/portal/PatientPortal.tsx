@@ -1,17 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Calendar, FlaskConical, ClipboardList, ReceiptText, UserRound, Phone, Activity, Heart } from 'lucide-react';
+import { Calendar, FlaskConical, ClipboardList, ReceiptText, UserRound, Phone, Activity, Heart, ShieldCheck } from 'lucide-react';
 import { DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_LAB_REQUESTS, DEMO_BILLS, DEMO_PRESCRIPTIONS } from '../../data/seedData';
+import { storageService } from '../../services/storageService';
 import { format } from 'date-fns';
 
 export default function PatientPortal() {
   const { state } = useAuth();
   const phone = state.user?.phone;
   const patient = DEMO_PATIENTS.find(p => p.phone === phone);
+
+  const [policies, setPolicies] = useState(() => storageService.getPatientPolicies());
+  const [claims, setClaims] = useState(() => storageService.getInsuranceClaims());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setPolicies(storageService.getPatientPolicies());
+      setClaims(storageService.getInsuranceClaims());
+    };
+    window.addEventListener('hms_storage_updated', handleUpdate);
+    return () => window.removeEventListener('hms_storage_updated', handleUpdate);
+  }, []);
+
   const myAppointments = DEMO_APPOINTMENTS.filter(a => a.patientId === patient?.id);
   const myLab = DEMO_LAB_REQUESTS.filter(r => r.patientId === patient?.id);
   const myBills = DEMO_BILLS.filter(b => b.patientId === patient?.id);
   const myPrescriptions = DEMO_PRESCRIPTIONS.filter(rx => rx.patientId === patient?.id);
+  const myPolicies = policies.filter(p => p.patientId === patient?.id);
+  const myClaims = claims.filter(c => c.patientId === patient?.id);
 
   if (!patient) {
     return (
@@ -113,6 +129,59 @@ export default function PatientPortal() {
 
           <div className="card">
             <div className="card-header">
+              <ShieldCheck size={16} style={{ color: '#2563eb' }} />
+              <span className="card-title">Insurance & Claims</span>
+            </div>
+            <div className="card-body">
+              {myPolicies.length > 0 ? (
+                myPolicies.map(pol => (
+                  <div key={pol.id} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-muted)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1e40af' }}>{pol.providerName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      Policy: <span style={{ fontFamily: 'monospace' }}>{pol.policyNumber}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      Coverage: <strong>₹{pol.remainingCoverage?.toLocaleString()}</strong> of ₹{pol.sumInsured?.toLocaleString()}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                      <span className={`badge ${pol.status === 'active' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: 10 }}>
+                        {pol.status.replace(/_/g, ' ')}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{pol.coPayPercentage}% Co-pay</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                  No active insurance policy linked. Contact hospital desk.
+                </div>
+              )}
+
+              {/* Patient's claims */}
+              {myClaims.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Recent Claims ({myClaims.length})
+                  </div>
+                  {myClaims.map(clm => (
+                    <div key={clm.id} style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg-base)', marginBottom: 6, fontSize: 11 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                        <span>{clm.claimNumber}</span>
+                        <span style={{ color: clm.status === 'settled' ? '#059669' : '#2563eb' }}>{clm.status.toUpperCase()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', marginTop: 2 }}>
+                        <span>Apprv: ₹{clm.approvedAmount?.toLocaleString()}</span>
+                        <span>My Share: ₹{clm.patientPayableAmount?.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
               <Heart size={16} style={{ color: 'var(--color-danger)' }} />
               <span className="card-title">Quick Actions</span>
             </div>
@@ -136,3 +205,4 @@ export default function PatientPortal() {
     </div>
   );
 }
+

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   Users, Search, Filter, Activity, ClipboardList, Pill,
-  HeartPulse, User, ArrowRight, Download, CheckCircle2
+  HeartPulse, User, ArrowRight, Download, CheckCircle2, Siren
 } from 'lucide-react';
 import { useNursing } from '../context/NursingContext';
 import RecordVitalsModal from './modals/RecordVitalsModal';
 import RecordNoteModal from './modals/RecordNoteModal';
+import EmergencyReportingModal from './modals/EmergencyReportingModal';
 
 export default function NursingPatientList() {
   const {
@@ -13,8 +14,8 @@ export default function NursingPatientList() {
     patients,
     doctors,
     wards,
-    vitalsList,
-    marRecords,
+    assignments,
+    nurses,
     setSelectedAdmissionId,
     setActiveTab,
   } = useNursing();
@@ -22,17 +23,16 @@ export default function NursingPatientList() {
   const [search, setSearch] = useState('');
   const [selectedWard, setSelectedWard] = useState('ALL');
   const [selectedDoctor, setSelectedDoctor] = useState('ALL');
-  const [selectedPriority, setSelectedPriority] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedCondition, setSelectedCondition] = useState('ALL');
 
   const [vitalsModalAdm, setVitalsModalAdm] = useState<any | null>(null);
   const [notesModalAdm, setNotesModalAdm] = useState<any | null>(null);
+  const [emergencyModalAdm, setEmergencyModalAdm] = useState<string | null>(null);
 
   const activeAdmissions = admissions.filter(a => a.status === 'active');
 
-  // Multi-Criteria Filtering
+  // Filtered assigned patients
   const filtered = activeAdmissions.filter(adm => {
-    const patient = patients.find(p => p.id === adm.patientId);
     const q = search.toLowerCase();
 
     const matchesSearch =
@@ -41,40 +41,32 @@ export default function NursingPatientList() {
       adm.patientId.toLowerCase().includes(q) ||
       adm.id.toLowerCase().includes(q) ||
       adm.bedNumber.toLowerCase().includes(q) ||
-      (patient?.phone && patient.phone.includes(q));
+      (adm.roomNumber && adm.roomNumber.toLowerCase().includes(q)) ||
+      adm.admittingDoctorName.toLowerCase().includes(q);
 
     const matchesWard = selectedWard === 'ALL' || adm.ward === selectedWard;
     const matchesDoctor = selectedDoctor === 'ALL' || adm.admittingDoctorId === selectedDoctor;
-    const isCritical = adm.ward.toLowerCase().includes('icu');
-    const priority = isCritical ? 'high' : 'normal';
-    const matchesPriority = selectedPriority === 'ALL' || priority === selectedPriority;
-    const matchesStatus = selectedStatus === 'ALL' || adm.status === selectedStatus;
+    const matchesCondition = selectedCondition === 'ALL' || (adm.condition || 'stable') === selectedCondition;
 
-    return matchesSearch && matchesWard && matchesDoctor && matchesPriority && matchesStatus;
+    return matchesSearch && matchesWard && matchesDoctor && matchesCondition;
   });
 
-  const handleOpenEHR = (admId: string, subTab?: string) => {
-    setSelectedAdmissionId(admId);
-    setActiveTab('patient_profile');
-  };
-
   const handleExportCSV = () => {
-    const headers = ['Adm ID', 'UHID', 'Patient Name', 'Age/Gender', 'Ward', 'Bed', 'Doctor', 'Admission Date', 'Status'];
+    const headers = ['UHID', 'Patient Name', 'Ward', 'Room', 'Bed Number', 'Doctor', 'Patient Condition', 'Admission Date'];
     const rows = filtered.map(a => [
-      a.id,
       a.patientId,
       `"${a.patientName}"`,
-      '45/M',
       `"${a.ward}"`,
+      a.roomNumber || '—',
       a.bedNumber,
       `"${a.admittingDoctorName}"`,
+      a.condition || 'stable',
       a.admissionDate,
-      a.status,
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const link = document.createElement('a');
     link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', `nursing_patient_list_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `assigned_patients_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -82,8 +74,29 @@ export default function NursingPatientList() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header Banner */}
+      <div className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 'var(--radius-md)', background: 'var(--color-primary-muted)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Users size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Assigned Inpatient Care Roster</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Bedside patient list: Patient, Ward, Room, Bed, Attending Doctor, Condition, and direct care actions
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
+            <Download size={13} /> Export CSV
+          </button>
+        </div>
+      </div>
+
       {/* Search & Filters Bar */}
-      <div className="card" style={{ padding: '16px 20px' }}>
+      <div className="card" style={{ padding: '14px 20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, alignItems: 'center' }}>
           {/* Universal Search */}
           <div style={{ position: 'relative', gridColumn: 'span 2' }}>
@@ -91,7 +104,7 @@ export default function NursingPatientList() {
             <input
               type="text"
               className="form-input"
-              placeholder="Search Patient Name, UHID, Adm ID, Mobile, or Bed #..."
+              placeholder="Search Patient Name, UHID, Room, Bed #, Doctor..."
               style={{ paddingLeft: 36 }}
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -110,27 +123,24 @@ export default function NursingPatientList() {
             {doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
 
-          {/* Priority Filter */}
-          <select className="form-select" value={selectedPriority} onChange={e => setSelectedPriority(e.target.value)}>
-            <option value="ALL">All Priorities</option>
-            <option value="normal">Normal</option>
-            <option value="high">High / Urgent</option>
+          {/* Condition Filter */}
+          <select className="form-select" value={selectedCondition} onChange={e => setSelectedCondition(e.target.value)}>
+            <option value="ALL">All Conditions</option>
+            <option value="stable">Stable</option>
+            <option value="guarded">Guarded</option>
+            <option value="serious">Serious</option>
+            <option value="critical">Critical</option>
           </select>
-
-          {/* Export Button */}
-          <button className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
-            <Download size={13} /> Export CSV
-          </button>
         </div>
       </div>
 
-      {/* Patients Roster Table */}
+      {/* Patients Table */}
       <div className="card">
         <div className="card-header" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Users size={18} style={{ color: 'var(--color-primary)' }} />
-            <span className="card-title">Inpatient Nursing Care Roster</span>
-            <span className="badge badge-primary">{filtered.length} Inpatients</span>
+            <span className="card-title">Assigned Inpatients Roster</span>
+            <span className="badge badge-primary">{filtered.length} Patients</span>
           </div>
         </div>
 
@@ -140,21 +150,19 @@ export default function NursingPatientList() {
               <thead>
                 <tr>
                   <th>Patient Name & UHID</th>
-                  <th>Age / Sex</th>
                   <th>Ward & Bed</th>
+                  <th>Room #</th>
                   <th>Attending Doctor</th>
-                  <th>Admission Date</th>
-                  <th>Clinical Diagnosis</th>
-                  <th>Patient Status</th>
+                  <th>Patient Condition</th>
                   <th>Assigned Nurse</th>
-                  <th style={{ textAlign: 'right' }}>Nursing Actions</th>
+                  <th style={{ textAlign: 'right' }}>Bedside Nursing Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(adm => {
-                  const patient = patients.find(p => p.id === adm.patientId);
-                  const isCritical = adm.ward.toLowerCase().includes('icu');
-                  const days = Math.floor((new Date().getTime() - new Date(adm.admissionDate).getTime()) / 86400000) + 1;
+                  const isICU = adm.ward.toLowerCase().includes('icu');
+                  const assignedAsg = assignments.find(a => a.assignedPatientIds.includes(adm.patientId));
+                  const nurseName = assignedAsg?.nurseName || (isICU ? 'Rekha Sharma' : 'Kavitha Nair');
 
                   return (
                     <tr key={adm.id}>
@@ -165,64 +173,57 @@ export default function NursingPatientList() {
                             {adm.patientName[0]}
                           </div>
                           <div>
-                            <div
-                              style={{ fontWeight: 800, color: 'var(--color-primary)', cursor: 'pointer' }}
-                              onClick={() => handleOpenEHR(adm.id)}
-                            >
-                              {adm.patientName}
-                            </div>
-                            <div className="patient-id" style={{ fontSize: 10 }}>{adm.patientId} · Adm: {adm.id}</div>
+                            <strong style={{ fontSize: 14 }}>{adm.patientName}</strong>
+                            <div className="patient-id" style={{ fontSize: 10, marginTop: 2 }}>{adm.patientId}</div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Age / Sex */}
-                      <td>
-                        <span style={{ fontSize: 12 }}>
-                          {patient ? `${new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear()}Y / ${patient.gender[0].toUpperCase()}` : '48Y / M'}
-                        </span>
-                      </td>
-
                       {/* Ward & Bed */}
                       <td>
-                        <div style={{ fontWeight: 700 }}>
-                          <span className="badge badge-primary">{adm.bedNumber}</span> {adm.ward}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Day {days} of Stay</div>
+                        <span className={`badge ${isICU ? 'badge-danger' : 'badge-primary'}`} style={{ fontWeight: 800 }}>
+                          {adm.bedNumber}
+                        </span>
+                        <span style={{ fontSize: 12, marginLeft: 6 }}>{adm.ward}</span>
+                      </td>
+
+                      {/* Room # */}
+                      <td>
+                        <strong style={{ fontSize: 13 }}>{adm.roomNumber || '—'}</strong>
                       </td>
 
                       {/* Doctor */}
                       <td>
-                        <div style={{ fontWeight: 600, fontSize: 12 }}>{adm.admittingDoctorName}</div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{adm.admittingDoctorName}</div>
                       </td>
 
-                      {/* Admission Date */}
+                      {/* Patient Condition */}
                       <td>
-                        <div style={{ fontSize: 12 }}>{adm.admissionDate}</div>
-                      </td>
-
-                      {/* Diagnosis */}
-                      <td>
-                        <div style={{ fontSize: 12, maxWidth: 180 }}>{adm.diagnosis.join(', ') || 'Under evaluation'}</div>
-                      </td>
-
-                      {/* Status */}
-                      <td>
-                        <span className={`badge ${isCritical ? 'badge-danger' : 'badge-success'}`}>
-                          {isCritical ? 'CRITICAL' : 'STABLE'}
+                        <span
+                          className={`badge ${
+                            adm.condition === 'critical'
+                              ? 'badge-danger'
+                              : adm.condition === 'serious'
+                              ? 'badge-warning'
+                              : 'badge-success'
+                          }`}
+                          style={{ textTransform: 'capitalize', fontSize: 11, fontWeight: 700 }}
+                        >
+                          <span className="badge-dot" /> {adm.condition || 'Stable'}
                         </span>
                       </td>
 
                       {/* Assigned Nurse */}
                       <td>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>Kavitha Nair</span>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{nurseName}</span>
                       </td>
 
-                      {/* Actions */}
+                      {/* Bedside Actions */}
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: 4 }}>
                           <button
                             className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: 11 }}
                             title="Chart Vitals"
                             onClick={() => setVitalsModalAdm(adm)}
                           >
@@ -230,16 +231,27 @@ export default function NursingPatientList() {
                           </button>
                           <button
                             className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: 11 }}
                             title="Add Clinical Note"
                             onClick={() => setNotesModalAdm(adm)}
                           >
                             <ClipboardList size={12} /> Note
                           </button>
                           <button
-                            className="btn btn-primary btn-sm"
-                            onClick={() => handleOpenEHR(adm.id)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: 11 }}
+                            title="Administer Medication"
+                            onClick={() => setActiveTab('medication')}
                           >
-                            View EHR
+                            <Pill size={12} /> MAR
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '3px 6px', color: 'var(--color-danger)' }}
+                            title="Report Emergency"
+                            onClick={() => setEmergencyModalAdm(adm.id)}
+                          >
+                            <Siren size={13} />
                           </button>
                         </div>
                       </td>
@@ -260,6 +272,14 @@ export default function NursingPatientList() {
       {/* Nursing Note Modal */}
       {notesModalAdm && (
         <RecordNoteModal admission={notesModalAdm} onClose={() => setNotesModalAdm(null)} />
+      )}
+
+      {/* Emergency Modal */}
+      {emergencyModalAdm && (
+        <EmergencyReportingModal
+          defaultAdmissionId={emergencyModalAdm}
+          onClose={() => setEmergencyModalAdm(null)}
+        />
       )}
     </div>
   );

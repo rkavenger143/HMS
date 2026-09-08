@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Plus, Search, Filter, CheckCircle2, Clock, DollarSign, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, Plus, Search, Filter, CheckCircle2, Clock, DollarSign, Building2, ExternalLink } from 'lucide-react';
 import { useBilling } from '../context/BillingContext';
 import { DEMO_PATIENTS } from '../../../data/seedData';
 import type { CentralClaimStatus } from '../../../types';
 
 export default function InsuranceTPAManagement() {
+  const navigate = useNavigate();
   const { insuranceClaims, invoices, submitInsuranceClaim, updateClaimStatus } = useBilling();
 
   const [search, setSearch] = useState('');
@@ -80,6 +82,10 @@ export default function InsuranceTPAManagement() {
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Total Approved Claims:</div>
             <strong style={{ fontSize: 16, color: 'var(--color-primary)' }}>₹{totalApprovedClaims.toLocaleString()}</strong>
           </div>
+
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/insurance')}>
+            <ExternalLink size={13} /> Full Insurance Center
+          </button>
 
           <button className="btn btn-primary btn-sm" onClick={() => setShowNewModal(true)}>
             <Plus size={13} /> Submit Pre-Auth Claim

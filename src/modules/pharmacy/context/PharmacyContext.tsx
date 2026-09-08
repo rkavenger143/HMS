@@ -974,6 +974,7 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Sync with LocalStorage
   useEffect(() => {
     localStorage.setItem('hms_pharmacy_medicines', JSON.stringify(medicines));
+    window.dispatchEvent(new CustomEvent('hms_storage_updated'));
   }, [medicines]);
 
   useEffect(() => {

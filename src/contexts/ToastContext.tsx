@@ -29,7 +29,7 @@ function toastReducer(state: ToastState, action: ToastAction): ToastState {
   }
 }
 
-interface ToastContextValue {
+export interface ToastContextValue {
   toasts: Toast[];
   toast: {
     success: (title: string, message?: string) => void;
@@ -37,6 +37,7 @@ interface ToastContextValue {
     warning: (title: string, message?: string) => void;
     info: (title: string, message?: string) => void;
   };
+  showToast: (message: string, type?: ToastType) => void;
   removeToast: (id: string) => void;
 }
 
@@ -64,8 +65,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     info: (title: string, message?: string) => addToast('info', title, message),
   };
 
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    addToast(type, message);
+  }, [addToast]);
+
   return (
-    <ToastContext.Provider value={{ toasts: state.toasts, toast, removeToast }}>
+    <ToastContext.Provider value={{ toasts: state.toasts, toast, showToast, removeToast }}>
       {children}
     </ToastContext.Provider>
   );

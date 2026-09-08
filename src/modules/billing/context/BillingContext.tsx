@@ -547,10 +547,12 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => {
     localStorage.setItem('hms_billing_invoices', JSON.stringify(invoices));
+    window.dispatchEvent(new CustomEvent('hms_storage_updated'));
   }, [invoices]);
 
   useEffect(() => {
     localStorage.setItem('hms_billing_payments', JSON.stringify(payments));
+    window.dispatchEvent(new CustomEvent('hms_storage_updated'));
   }, [payments]);
 
   useEffect(() => {

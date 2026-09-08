@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   FileText, CheckCircle2, AlertTriangle, Printer, Plus,
-  Sparkles, Stethoscope, User, Calendar, Clock, Pill, Trash2
+  Sparkles, Stethoscope, User, Calendar, Clock, Pill, Trash2,
+  BedDouble, Check
 } from 'lucide-react';
 import { useIPD } from '../context/IPDContext';
 import type { Admission, DischargeType, IPDDischargeRecord } from '../../../types';
@@ -10,13 +11,16 @@ import PrintDischargeSummaryModal from './modals/PrintDischargeSummaryModal';
 export default function DischargeManagement() {
   const {
     admissions,
+    beds,
     dischargeRecords,
     processDischarge,
+    markBedCleaned,
     doctors,
     patients,
   } = useIPD();
 
   const activeAdmissions = admissions.filter(a => a.status === 'active');
+  const cleaningBeds = beds.filter(b => b.status === 'cleaning');
 
   const [selectedAdmissionId, setSelectedAdmissionId] = useState(activeAdmissions[0]?.id || '');
   const [dischargeType, setDischargeType] = useState<DischargeType>('normal');
@@ -97,13 +101,44 @@ export default function DischargeManagement() {
             <FileText size={22} />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Inpatient Discharge Management & Summaries</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Inpatient Discharge Management & Bed Release</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              Discharge clearance, automated bed sanitization transition (Cleaning), and summary generation
+              Clinical discharge clearance, automatic bed transition to Cleaning, and discharge summary generation
             </div>
           </div>
         </div>
       </div>
+
+      {/* Housekeeping Bed Sanitization Quick Queue (if any beds cleaning) */}
+      {cleaningBeds.length > 0 && (
+        <div className="card" style={{ borderLeft: '4px solid var(--color-info)', background: 'var(--bg-card)' }}>
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sparkles size={16} style={{ color: 'var(--color-info)' }} />
+              <span className="card-title">Housekeeping Bed Release Queue ({cleaningBeds.length} Beds in Cleaning)</span>
+            </div>
+          </div>
+          <div className="card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+              {cleaningBeds.map(b => (
+                <div key={b.id} style={{ padding: '10px 12px', background: 'var(--color-info-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ fontSize: 13, color: 'var(--color-info)' }}>{b.bedNumber}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{b.ward} · {b.type}</div>
+                  </div>
+                  <button
+                    className="btn btn-success btn-sm"
+                    style={{ fontSize: 10, padding: '3px 8px' }}
+                    onClick={() => markBedCleaned(b.id)}
+                  >
+                    <Check size={11} /> Mark Ready
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Discharge Form */}
       {activeAdmissions.length > 0 ? (
@@ -190,7 +225,7 @@ export default function DischargeManagement() {
                 <div className="card-body">
                   <div className="form-grid" style={{ gap: 12 }}>
                     <div className="form-group">
-                      <label className="form-label">Final Clinical Diagnosis (ICD-10) <span className="required">*</span></label>
+                      <label className="form-label">Final Clinical Diagnosis <span className="required">*</span></label>
                       <input
                         type="text"
                         className="form-input"
@@ -321,14 +356,14 @@ export default function DischargeManagement() {
               {/* Action Button */}
               <div className="card" style={{ padding: '16px 20px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
-                  ℹ️ Confirming discharge will automatically transition Bed <strong>{selectedAdm?.bedNumber}</strong> to <strong>CLEANING</strong> status.
+                  ℹ️ Confirming discharge will automatically transition Bed <strong>{selectedAdm?.bedNumber}</strong> to <strong>CLEANING</strong> status for housekeeping sanitization.
                 </div>
                 <button
                   type="submit"
                   className="btn btn-primary"
                   style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 14 }}
                 >
-                  <CheckCircle2 size={16} /> Finalize Discharge & Generate Summary
+                  <CheckCircle2 size={16} /> Finalize Discharge & Release Bed
                 </button>
               </div>
             </div>

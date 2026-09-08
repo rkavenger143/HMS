@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
 import {
-  UtensilsCrossed, Users, CheckCircle2, Clock, AlertTriangle, ShieldAlert,
-  ChefHat, Truck, Ban, Plus, Printer, Search, ArrowRight, Activity, Eye, FileText
+  UtensilsCrossed,
+  Clock,
+  AlertCircle,
+  ChefHat,
+  UserCheck,
+  Plus,
+  Printer,
+  Search,
+  ArrowRight,
+  Eye,
+  CheckCircle2,
+  FileText,
+  AlertTriangle,
+  Scale,
+  XCircle,
 } from 'lucide-react';
 import { useDiet } from '../context/DietContext';
 import PrintDietChartModal from './modals/PrintDietChartModal';
@@ -14,8 +27,9 @@ export default function DietDashboard() {
     kpis,
     admissions,
     dietCharts,
-    dietAlerts,
-    npoPatients,
+    mealDeliveries,
+    doctorOrders,
+    assessments,
     setSelectedAdmissionId,
     setActiveTab,
   } = useDiet();
@@ -25,13 +39,14 @@ export default function DietDashboard() {
   const [printChart, setPrintChart] = useState<ComprehensiveDietChart | null>(null);
   const [printBedsideCard, setPrintBedsideCard] = useState<ComprehensiveDietChart | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createAdmId, setCreateAdmId] = useState<string | undefined>(undefined);
 
   const activeAdmissions = admissions.filter(a => a.status === 'active');
-  const unackAlerts = dietAlerts.filter(a => a.status === 'new');
-  const activeNPOList = npoPatients.filter(n => n.status === 'active');
 
+  // Filter admissions
   const filteredAdmissions = activeAdmissions.filter(adm => {
     const q = search.toLowerCase();
+    const chart = dietCharts.find(c => c.admissionId === adm.id && c.status === 'active');
     const matchesSearch =
       !search ||
       adm.patientName.toLowerCase().includes(q) ||
@@ -43,155 +58,271 @@ export default function DietDashboard() {
     return matchesSearch && matchesWard;
   });
 
-  const handleOpenProfile = (admId: string) => {
+  // Patients requiring review list
+  const reviewPatients = activeAdmissions.filter(adm => {
+    const chart = dietCharts.find(c => c.admissionId === adm.id && c.status === 'active');
+    const hasNewOrder = doctorOrders.some(o => o.admissionId === adm.id && o.status === 'new');
+    const hasAssessment = assessments.some(a => a.admissionId === adm.id);
+    return !chart || hasNewOrder || !hasAssessment;
+  });
+
+  const handleOpenDietPlan = (admId: string) => {
     setSelectedAdmissionId(admId);
-    setActiveTab('patient_profile');
+    setActiveTab('diet_plans');
+  };
+
+  const handleOpenDailyChart = (admId: string) => {
+    setSelectedAdmissionId(admId);
+    setActiveTab('daily_diet_chart');
+  };
+
+  const handlePrescribe = (admId?: string) => {
+    setCreateAdmId(admId || activeAdmissions[0]?.id);
+    setShowCreateModal(true);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Active High-Priority Alerts Callout */}
-      {unackAlerts.length > 0 && (
+      {/* 6 Essential Required KPI Cards in Clean Spaced Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+        {/* 1. Active Diet Plans */}
         <div
-          className="card"
-          style={{
-            background: 'rgba(255, 69, 58, 0.08)',
-            border: '1px solid var(--color-danger)',
-            padding: '12px 18px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 10,
-          }}
+          className="stat-card"
+          style={{ cursor: 'pointer', borderLeft: '4px solid var(--color-primary)' }}
+          onClick={() => setActiveTab('diet_plans')}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldAlert size={18} style={{ color: 'var(--color-danger)' }} />
-            <div>
-              <span style={{ fontWeight: 800, color: 'var(--color-danger)', fontSize: 13 }}>
-                {unackAlerts.length} Active Nutrition & Allergen Alert{unackAlerts.length > 1 ? 's' : ''}:
-              </span>
-              <span style={{ color: 'var(--text-primary)', marginLeft: 6, fontSize: 12 }}>
-                {unackAlerts[0].message}
-              </span>
-            </div>
-          </div>
-          <button className="btn btn-danger btn-sm" onClick={() => setActiveTab('alerts')}>
-            View Alert Center <ArrowRight size={12} />
-          </button>
-        </div>
-      )}
-
-      {/* 10 Standardized Summary KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-        {/* 1. Total Inpatients */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('patient_diets')}>
           <div className="stat-icon" style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}>
-            <Users size={17} />
+            <UtensilsCrossed size={20} />
           </div>
-          <div className="stat-value">{kpis.totalInpatients}</div>
-          <div className="stat-label">Total Inpatients</div>
+          <div className="stat-value" style={{ color: 'var(--color-primary)' }}>
+            {kpis.activeDietPlans}
+          </div>
+          <div className="stat-label">Active Diet Plans</div>
         </div>
 
-        {/* 2. Active Diet Charts */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('patient_diets')}>
-          <div className="stat-icon" style={{ background: 'rgba(50,215,75,0.1)', color: 'var(--color-success)' }}>
-            <UtensilsCrossed size={17} />
+        {/* 2. Today's Scheduled Meals */}
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer', borderLeft: '4px solid var(--color-success)' }}
+          onClick={() => setActiveTab('meal_schedule')}
+        >
+          <div className="stat-icon" style={{ background: 'rgba(50,215,75,0.12)', color: 'var(--color-success)' }}>
+            <ChefHat size={20} />
           </div>
-          <div className="stat-value" style={{ color: 'var(--color-success)' }}>{kpis.patientsWithDiet}</div>
-          <div className="stat-label">Active Diet Charts</div>
+          <div className="stat-value" style={{ color: 'var(--color-success)' }}>
+            {kpis.todayScheduledMeals}
+          </div>
+          <div className="stat-label">Today's Scheduled Meals</div>
         </div>
 
-        {/* 3. Pending Diet Orders */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('doctor_orders')}>
+        {/* 3. Pending Meals */}
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer', borderLeft: '4px solid var(--color-warning)' }}
+          onClick={() => setActiveTab('meal_schedule')}
+        >
           <div className="stat-icon" style={{ background: 'var(--color-warning-muted)', color: 'var(--color-warning)' }}>
-            <Clock size={17} />
+            <Clock size={20} />
           </div>
-          <div className="stat-value" style={{ color: 'var(--color-warning)' }}>{kpis.dietPendingApproval}</div>
-          <div className="stat-label">Pending Diet Orders</div>
+          <div className="stat-value" style={{ color: 'var(--color-warning)' }}>
+            {kpis.pendingMeals}
+          </div>
+          <div className="stat-label">Pending Meals</div>
         </div>
 
-        {/* 4. Approved Diet Charts */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('patient_diets')}>
-          <div className="stat-icon" style={{ background: 'rgba(50,215,75,0.1)', color: 'var(--color-success)' }}>
-            <CheckCircle2 size={17} />
+        {/* 4. Missed Meals */}
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer', borderLeft: '4px solid #ef4444' }}
+          onClick={() => setActiveTab('diet_monitoring')}
+        >
+          <div className="stat-icon" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444' }}>
+            <XCircle size={20} />
           </div>
-          <div className="stat-value">{kpis.dietApproved}</div>
-          <div className="stat-label">Approved Diet Charts</div>
+          <div className="stat-value" style={{ color: '#ef4444' }}>
+            {kpis.missedMeals}
+          </div>
+          <div className="stat-label">Missed Meals</div>
         </div>
 
-        {/* 5. Diet Changes */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('diet_history')}>
-          <div className="stat-icon" style={{ background: 'rgba(10,132,255,0.1)', color: 'var(--color-primary)' }}>
-            <Activity size={17} />
+        {/* 5. Special Diet Patients */}
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer', borderLeft: '4px solid #8b5cf6' }}
+          onClick={() => setActiveTab('special_diets')}
+        >
+          <div className="stat-icon" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>
+            <FileText size={20} />
           </div>
-          <div className="stat-value">{kpis.dietChangesToday}</div>
-          <div className="stat-label">Diet Changes</div>
-        </div>
-
-        {/* 6. Special Diet Patients */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('patient_diets')}>
-          <div className="stat-icon" style={{ background: 'rgba(255,159,10,0.1)', color: 'var(--color-warning)' }}>
-            <ChefHat size={17} />
+          <div className="stat-value" style={{ color: '#8b5cf6' }}>
+            {kpis.specialDietPatients}
           </div>
-          <div className="stat-value">{kpis.specialDietCount}</div>
           <div className="stat-label">Special Diet Patients</div>
         </div>
 
-        {/* 7. Allergy Alerts */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('allergies_restrictions')}>
-          <div className="stat-icon" style={{ background: 'rgba(255,69,58,0.1)', color: 'var(--color-danger)' }}>
-            <AlertTriangle size={17} />
+        {/* 6. Patients Requiring Diet Review */}
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer', borderLeft: '4px solid #f97316' }}
+          onClick={() => setActiveTab('diet_plans')}
+        >
+          <div className="stat-icon" style={{ background: 'rgba(249, 115, 22, 0.12)', color: '#f97316' }}>
+            <AlertCircle size={20} />
           </div>
-          <div className="stat-value" style={{ color: 'var(--color-danger)' }}>{kpis.allergyCount}</div>
-          <div className="stat-label">Allergy Alerts</div>
-        </div>
-
-        {/* 8. NPO Patients */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('npo_management')}>
-          <div className="stat-icon" style={{ background: 'rgba(255,69,58,0.1)', color: 'var(--color-danger)' }}>
-            <Ban size={17} />
+          <div className="stat-value" style={{ color: '#f97316' }}>
+            {kpis.patientsRequiringReview}
           </div>
-          <div className="stat-value" style={{ color: 'var(--color-danger)' }}>{activeNPOList.length}</div>
-          <div className="stat-label">NPO Patients</div>
-        </div>
-
-        {/* 9. Meals Pending */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('daily_meal_plans')}>
-          <div className="stat-icon" style={{ background: 'var(--color-warning-muted)', color: 'var(--color-warning)' }}>
-            <Clock size={17} />
-          </div>
-          <div className="stat-value" style={{ color: 'var(--color-warning)' }}>{kpis.mealsPending}</div>
-          <div className="stat-label">Meals Pending</div>
-        </div>
-
-        {/* 10. Meals Served */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('meal_delivery')}>
-          <div className="stat-icon" style={{ background: 'rgba(50,215,75,0.1)', color: 'var(--color-success)' }}>
-            <Truck size={17} />
-          </div>
-          <div className="stat-value" style={{ color: 'var(--color-success)' }}>{kpis.mealsServed}</div>
-          <div className="stat-label">Meals Served</div>
+          <div className="stat-label">Patients Requiring Review</div>
         </div>
       </div>
 
-      {/* Active Inpatients Diet Roster */}
+      {/* 2-Column Action & Summary Section */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+        {/* Today's Meal Service Status */}
+        <div className="card">
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ChefHat size={16} style={{ color: 'var(--color-primary)' }} />
+              <span className="card-title">Today's Meal Service Status</span>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('meal_schedule')}>
+              Meal Workflow <ArrowRight size={12} />
+            </button>
+          </div>
+          <div className="card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, textAlign: 'center' }}>
+              <div style={{ background: 'var(--bg-surface)', padding: '12px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-warning)' }}>
+                  {mealDeliveries.filter(m => m.status === 'scheduled' || m.status === 'pending' || m.status === 'preparing').length}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>In Preparation</div>
+              </div>
+              <div style={{ background: 'var(--bg-surface)', padding: '12px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-primary)' }}>
+                  {mealDeliveries.filter(m => m.status === 'ready' || m.status === 'delivered').length}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Dispatched / Delivered</div>
+              </div>
+              <div style={{ background: 'var(--bg-surface)', padding: '12px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-success)' }}>
+                  {mealDeliveries.filter(m => m.status === 'consumed' || m.status === 'served').length}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Consumed</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Live hospital meal schedule is synchronized with active inpatient diet charts.</span>
+              <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('diet_monitoring')}>
+                Record Intake
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Patients Requiring Review List */}
+        <div className="card">
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <UserCheck size={16} style={{ color: '#f97316' }} />
+              <span className="card-title">Patients Requiring Diet Review</span>
+            </div>
+            <span className="badge badge-warning">{reviewPatients.length} Actions</span>
+          </div>
+          <div className="card-body" style={{ padding: '8px 16px' }}>
+            {reviewPatients.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {reviewPatients.slice(0, 3).map(adm => {
+                  const chart = dietCharts.find(c => c.admissionId === adm.id && c.status === 'active');
+                  const hasAssessment = assessments.some(a => a.admissionId === adm.id);
+
+                  return (
+                    <div
+                      key={adm.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-default)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                          {adm.patientName}{' '}
+                          <span className="badge badge-primary" style={{ fontSize: 10 }}>
+                            {adm.bedNumber}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          {!chart ? '⚠️ No active diet plan' : !hasAssessment ? '⚠️ Needs Nutrition Assessment' : '⚠️ Diet review due'}
+                        </div>
+                      </div>
+
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ height: 26, fontSize: 11 }}
+                        onClick={() => handleOpenDietPlan(adm.id)}
+                      >
+                        Review Plan
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--color-success)', fontSize: 13 }}>
+                <CheckCircle2 size={24} style={{ margin: '0 auto 6px' }} />
+                All active inpatients have up-to-date diet plans and assessments.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Inpatient Diet Allocation Roster */}
       <div className="card">
-        <div className="card-header" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border-default)' }}>
+        <div className="card-header" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <UtensilsCrossed size={16} style={{ color: 'var(--color-primary)' }} />
             <div>
-              <span className="card-title">Inpatient Nutrition Roster & Diet Allocation</span>
-              <div className="card-subtitle">Active diet charts, calorie targets, allergies & kitchen orders</div>
+              <span className="card-title">Inpatient Diet Roster & Plans</span>
+              <div className="card-subtitle">Active inpatient diet plans, calories, food allergies & status</div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('daily_meal_plans')}>
-              Kitchen Schedule
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}>
-              <Plus size={13} /> Create Diet Chart
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ position: 'relative', width: 220 }}>
+              <Search
+                size={14}
+                style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}
+              />
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Search Patient, Bed #..."
+                style={{ paddingLeft: 32, height: 32, fontSize: 12 }}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+
+            <select
+              className="form-select"
+              style={{ height: 32, fontSize: 12, width: 140 }}
+              value={selectedWard}
+              onChange={e => setSelectedWard(e.target.value)}
+            >
+              <option value="ALL">All Wards</option>
+              <option value="General Ward A">General Ward A</option>
+              <option value="Medical ICU">Medical ICU</option>
+              <option value="Private Ward">Private Ward</option>
+            </select>
+
+            <button className="btn btn-primary btn-sm" onClick={() => handlePrescribe()}>
+              <Plus size={13} /> Create Diet Plan
             </button>
           </div>
         </div>
@@ -201,57 +332,41 @@ export default function DietDashboard() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Patient Name & UHID</th>
-                  <th>Location (Ward & Bed)</th>
-                  <th>Attending Doctor</th>
-                  <th>Active Diet Type</th>
-                  <th>Calories</th>
-                  <th>Allergies / Restrictions</th>
+                  <th>Patient Details</th>
+                  <th>Location</th>
+                  <th>Diet Classification</th>
+                  <th>Calories & Consistency</th>
+                  <th>Food Allergies & Restrictions</th>
                   <th>Diet Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredAdmissions.map(adm => {
-                  const chart = dietCharts.find(c => c.admissionId === adm.id);
-                  const isNPO = chart?.dietConsistency === 'npo' || chart?.feedingMethod === 'npo';
+                  const chart = dietCharts.find(c => c.admissionId === adm.id && c.status === 'active');
 
                   return (
                     <tr key={adm.id}>
-                      {/* Patient Name */}
+                      {/* Patient Details */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="avatar avatar-sm" style={{ width: 28, height: 28, fontSize: 11 }}>
-                            {adm.patientName[0]}
-                          </div>
-                          <div>
-                            <div
-                              style={{ fontWeight: 700, color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13 }}
-                              onClick={() => handleOpenProfile(adm.id)}
-                            >
-                              {adm.patientName}
-                            </div>
-                            <div className="patient-id" style={{ fontSize: 10 }}>{adm.patientId}</div>
-                          </div>
+                        <div style={{ fontWeight: 700, color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13 }} onClick={() => handleOpenDailyChart(adm.id)}>
+                          {adm.patientName}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          UHID: {adm.patientId} · {adm.admittingDoctorName}
                         </div>
                       </td>
 
                       {/* Location */}
                       <td>
-                        <div style={{ fontWeight: 700, fontSize: 12 }}>
-                          <span className="badge badge-primary">{adm.bedNumber}</span> {adm.ward}
-                        </div>
+                        <span className="badge badge-primary">{adm.bedNumber}</span>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{adm.ward}</div>
                       </td>
 
-                      {/* Doctor */}
-                      <td>
-                        <div style={{ fontWeight: 600, fontSize: 12 }}>{adm.admittingDoctorName}</div>
-                      </td>
-
-                      {/* Active Diet Type */}
+                      {/* Diet Type */}
                       <td>
                         {chart ? (
-                          <span className={`badge ${isNPO ? 'badge-danger' : 'badge-primary'}`} style={{ fontWeight: 700 }}>
+                          <span className="badge badge-primary" style={{ fontWeight: 700 }}>
                             {chart.dietType.toUpperCase().replace('_', ' ')}
                           </span>
                         ) : (
@@ -259,12 +374,15 @@ export default function DietDashboard() {
                         )}
                       </td>
 
-                      {/* Calorie Target */}
+                      {/* Calories & Consistency */}
                       <td>
-                        {chart?.estimatedCalories ? (
-                          <div style={{ fontSize: 12, fontWeight: 600 }}>{chart.estimatedCalories} kcal</div>
+                        {chart ? (
+                          <div>
+                            <span style={{ fontWeight: 700, fontSize: 12 }}>{chart.estimatedCalories} kcal</span>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{chart.dietConsistency} · {chart.feedingMethod}</div>
+                          </div>
                         ) : (
-                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>—</span>
                         )}
                       </td>
 
@@ -272,30 +390,57 @@ export default function DietDashboard() {
                       <td>
                         {chart?.allergies && chart.allergies.length > 0 ? (
                           <span className="badge badge-danger" style={{ fontSize: 10 }}>
-                            {chart.allergies.join(', ')}
+                            ⚠️ {chart.allergies.join(', ')}
                           </span>
                         ) : (
-                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>NKDA</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No known allergies</span>
                         )}
                       </td>
 
                       {/* Status */}
                       <td>
-                        <span className={`badge ${chart?.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>
-                          {chart?.status ? chart.status.toUpperCase() : 'PENDING'}
+                        <span className={`badge ${chart?.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
+                          {chart?.status ? chart.status.toUpperCase() : 'NO PLAN'}
                         </span>
                       </td>
 
                       {/* Actions */}
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '3px 8px', fontSize: 11 }}
-                            onClick={() => handleOpenProfile(adm.id)}
-                          >
-                            View Chart
-                          </button>
+                          {chart ? (
+                            <>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '3px 8px', fontSize: 11 }}
+                                title="View Daily Diet Chart"
+                                onClick={() => handleOpenDailyChart(adm.id)}
+                              >
+                                Daily Chart
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-icon btn-icon-sm"
+                                title="Print Bedside Tray Card"
+                                onClick={() => setPrintBedsideCard(chart)}
+                              >
+                                <UtensilsCrossed size={13} />
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-icon btn-icon-sm"
+                                title="Print Diet Chart"
+                                onClick={() => setPrintChart(chart)}
+                              >
+                                <Printer size={13} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              style={{ padding: '3px 10px', fontSize: 11 }}
+                              onClick={() => handlePrescribe(adm.id)}
+                            >
+                              <Plus size={11} /> Prescribe
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -308,10 +453,15 @@ export default function DietDashboard() {
       </div>
 
       {/* Modals */}
+      {printChart && <PrintDietChartModal chart={printChart} onClose={() => setPrintChart(null)} />}
+      {printBedsideCard && <PrintBedsideDietCardModal chart={printBedsideCard} onClose={() => setPrintBedsideCard(null)} />}
       {showCreateModal && (
         <CreateDietChartModal
-          initialAdmissionId={admissions[0]?.id}
-          onClose={() => setShowCreateModal(false)}
+          initialAdmissionId={createAdmId}
+          onClose={() => {
+            setShowCreateModal(false);
+            setCreateAdmId(undefined);
+          }}
         />
       )}
     </div>

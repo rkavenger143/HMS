@@ -301,6 +301,7 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
   // Save to localStorage on change
   useEffect(() => {
     localStorage.setItem('hms_doctors', JSON.stringify(doctors));
+    window.dispatchEvent(new CustomEvent('hms_storage_updated'));
   }, [doctors]);
 
   useEffect(() => {

@@ -209,12 +209,11 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
             id="ai-voice-btn"
             className="header-voice-btn"
             onClick={() => openAIBoard('', true)}
-            title="Start AI Voice Command in English or Telugu (మాట్లాడండి)"
+            title="Start AI Voice Command (Auto-detects English / Telugu)"
             aria-label="Start AI Voice Command"
           >
             <Mic size={15} />
             <span className="voice-btn-label">AI Voice Command</span>
-            <span className="voice-lang-badge">TE + EN</span>
           </button>
 
           {/* Emergency Button */}

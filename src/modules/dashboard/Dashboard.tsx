@@ -1,1030 +1,1523 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from 'recharts';
-import {
-  Users, Calendar, Clock, Stethoscope, BedDouble, FlaskConical, Scan, Pill,
-  ReceiptText, AlertTriangle, TrendingUp, TrendingDown, Brain, Activity,
-  HeartPulse, Droplets, CheckCircle2, AlertCircle, RefreshCw, ArrowRight,
-  Filter, Plus, DollarSign, ShieldCheck, UserPlus, FileText, ChevronRight,
-  Search, Eye, Printer, Building2
+  Users, CalendarCheck, BedDouble, Stethoscope, HeartPulse,
+  Clock, AlertTriangle, Activity, ArrowUpRight, TrendingUp,
+  TrendingDown, Plus, Search, RefreshCw, Filter, CheckCircle2,
+  AlertCircle, ShieldAlert, Sparkles, Building2, UserPlus,
+  FileText, Calendar, ArrowRight, Siren, CheckCheck, ChevronRight,
+  Printer, BarChart3, FlaskConical, Pill, Check, X, Shield,
+  Layers, ChevronDown, CheckCircle, Share2, Download
 } from 'lucide-react';
-import MedicalIcon from '../../components/common/MedicalIcons';
 import { useAuth } from '../../contexts/AuthContext';
-import {
-  DEMO_PATIENTS, DEMO_APPOINTMENTS, DEMO_ADMISSIONS, DEMO_BEDS,
-  DEMO_WARDS, DEMO_LAB_REQUESTS, DEMO_RADIOLOGY_STUDIES,
-  DEMO_MEDICINES, DEMO_DOCTORS
-} from '../../data/seedData';
-import { format, subDays, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { useToast } from '../../contexts/ToastContext';
+import { storageService, HospitalActivity, CriticalAlert } from '../../services/storageService';
+import { format } from 'date-fns';
 
-type DateFilterOption = 'today' | 'yesterday' | 'last_7_days' | 'last_30_days' | 'this_month' | 'custom';
-
-const GREEN_PALETTE = ['#059669', '#10b981', '#34d399', '#0d9488', '#14b8a6', '#0284c7', '#d97706', '#dc2626'];
-
-interface StatCardProps {
-  icon: React.ReactNode;
-  label: string;
+interface OverviewStatCardProps {
+  title: string;
   value: string | number;
-  change?: string;
-  changeDir?: 'up' | 'down';
-  color: string;
-  colorMuted: string;
-  subtitle?: string;
+  subtext: string;
+  icon: React.ReactNode;
+  trend?: { text: string; positive: boolean };
+  badge?: string;
+  colorTheme: 'blue' | 'indigo' | 'emerald' | 'amber' | 'teal' | 'rose';
   onClick?: () => void;
 }
 
-function StatCard({ icon, label, value, change, changeDir, color, colorMuted, subtitle, onClick }: StatCardProps) {
+function OverviewStatCard({
+  title,
+  value,
+  subtext,
+  icon,
+  trend,
+  badge,
+  colorTheme,
+  onClick,
+}: OverviewStatCardProps) {
+  const themeStyles = {
+    blue: {
+      bg: '#ffffff',
+      border: '#e2e8f0',
+      iconBg: '#eff6ff',
+      iconColor: '#1e40af',
+    },
+    indigo: {
+      bg: '#ffffff',
+      border: '#e2e8f0',
+      iconBg: '#eef2ff',
+      iconColor: '#4338ca',
+    },
+    emerald: {
+      bg: '#ffffff',
+      border: '#e2e8f0',
+      iconBg: '#ecfdf5',
+      iconColor: '#059669',
+    },
+    amber: {
+      bg: '#ffffff',
+      border: '#e2e8f0',
+      iconBg: '#fffbeb',
+      iconColor: '#d97706',
+    },
+    teal: {
+      bg: '#ffffff',
+      border: '#e2e8f0',
+      iconBg: '#f0fdfa',
+      iconColor: '#0f766e',
+    },
+    rose: {
+      bg: '#ffffff',
+      border: '#e2e8f0',
+      iconBg: '#fff1f2',
+      iconColor: '#e11d48',
+    },
+  }[colorTheme];
+
   return (
     <div
-      className="stat-card"
+      className="card stat-hover"
       style={{
-        '--stat-color': color,
-        '--stat-color-muted': colorMuted,
+        padding: '20px 22px',
+        background: themeStyles.bg,
+        border: `1px solid ${themeStyles.border}`,
+        borderRadius: '14px',
         cursor: onClick ? 'pointer' : 'default',
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '16px 20px',
+        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
-        transition: 'all var(--transition-base)',
+        justifyContent: 'space-between',
         position: 'relative',
         overflow: 'hidden',
-      } as React.CSSProperties}
+        boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05)',
+      }}
       onClick={onClick}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div className="stat-icon" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: colorMuted, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '11px',
+            background: themeStyles.iconBg,
+            color: themeStyles.iconColor,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {icon}
         </div>
-        {change && (
-          <div className={`stat-change ${changeDir}`} style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2, color: changeDir === 'up' ? 'var(--color-success)' : 'var(--color-danger)' }}>
-            {changeDir === 'up' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {change}
-          </div>
-        )}
+        {badge ? (
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: '999px',
+              background: themeStyles.iconBg,
+              color: themeStyles.iconColor,
+              border: `1px solid ${themeStyles.border}`,
+            }}
+          >
+            {badge}
+          </span>
+        ) : trend ? (
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              color: trend.positive ? '#059669' : '#d97706',
+              background: trend.positive ? '#ecfdf5' : '#fffbeb',
+              padding: '2px 7px',
+              borderRadius: '999px',
+            }}
+          >
+            {trend.positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+            {trend.text}
+          </span>
+        ) : null}
       </div>
+
       <div>
-        <div className="stat-value" style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+        <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.6px', lineHeight: 1.1 }}>
           {typeof value === 'number' ? value.toLocaleString() : value}
         </div>
-        <div className="stat-label" style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 4 }}>{label}</div>
-        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
+        <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#334155', marginTop: 5 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: '12px', color: '#64748b', marginTop: 3 }}>
+          {subtext}
+        </div>
       </div>
     </div>
   );
 }
 
-const CustomChartTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-        borderRadius: '8px',
-        padding: '10px 14px',
-        fontSize: '12px',
-        color: '#0f172a'
-      }}>
-        <div style={{ fontWeight: 700, marginBottom: 6, borderBottom: '1px solid #f1f5f9', paddingBottom: 4 }}>{label}</div>
-        {payload.map((p: any, i: number) => (
-          <div key={i} style={{ color: p.color, display: 'flex', alignItems: 'center', gap: 6, margin: '3px 0' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-            <span style={{ color: '#475569' }}>{p.name}:</span>
-            <strong>{typeof p.value === 'number' ? (p.name.toLowerCase().includes('revenue') || p.name.toLowerCase().includes('amount') || p.name.toLowerCase().includes('collection') || p.name.toLowerCase().includes('₹') ? `₹${p.value.toLocaleString()}` : p.value.toLocaleString()) : p.value}</strong>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const { state } = useAuth();
+  const { showToast } = useToast();
 
-  // Date Filter State
-  const [dateFilter, setDateFilter] = useState<DateFilterOption>('today');
-  const [customStart, setCustomStart] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
-  const [customEnd, setCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [metrics, setMetrics] = useState(() => storageService.getDashboardMetrics());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshedTime, setLastRefreshedTime] = useState(new Date());
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
-  // Clinical AI Assistant State
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  // Quick Action Modal States
+  const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
+  const [showQuickAptModal, setShowQuickAptModal] = useState(false);
+  const [showQuickAdmitModal, setShowQuickAdmitModal] = useState(false);
+  const [showQuickAssignBedModal, setShowQuickAssignBedModal] = useState(false);
+  const [showQuickDiagModal, setShowQuickDiagModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
-  // Read Live Data from localStorage with fallback to Seed Data
-  const livePatients = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_opd_patients');
-      return s ? JSON.parse(s) : DEMO_PATIENTS;
-    } catch {
-      return DEMO_PATIENTS;
-    }
-  }, [lastRefreshedTime]);
+  // Form states
+  const [patientForm, setPatientForm] = useState({ firstName: '', lastName: '', gender: 'male', phone: '', bloodGroup: 'B+' });
+  const [aptForm, setAptForm] = useState({ patientName: '', doctorId: 'doc-001', date: format(new Date(), 'yyyy-MM-dd'), time: '10:00', type: 'opd' });
+  const [admitForm, setAdmitForm] = useState({ patientName: '', ward: 'General Ward A', bedNumber: 'W-A-03', doctorId: 'doc-001', admissionType: 'elective' });
+  const [bedAssignForm, setBedAssignForm] = useState({ patientName: '', bedNumber: 'W-A-04', ward: 'General Ward A' });
+  const [diagForm, setDiagForm] = useState({ patientName: '', testName: 'Complete Blood Count (CBC)', doctorName: 'Dr. Rajesh Kumar', priority: 'routine' });
 
-  const liveAppointments = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_appointments');
-      return s ? JSON.parse(s) : DEMO_APPOINTMENTS;
-    } catch {
-      return DEMO_APPOINTMENTS;
-    }
-  }, [lastRefreshedTime]);
+  // Live clock
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const liveAdmissions = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_ipd_admissions');
-      return s ? JSON.parse(s) : DEMO_ADMISSIONS;
-    } catch {
-      return DEMO_ADMISSIONS;
-    }
-  }, [lastRefreshedTime]);
-
-  const liveBeds = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_ipd_beds');
-      return s ? JSON.parse(s) : DEMO_BEDS;
-    } catch {
-      return DEMO_BEDS;
-    }
-  }, [lastRefreshedTime]);
-
-  const liveLabOrders = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_lab_orders');
-      return s ? JSON.parse(s) : DEMO_LAB_REQUESTS;
-    } catch {
-      return DEMO_LAB_REQUESTS;
-    }
-  }, [lastRefreshedTime]);
-
-  const liveRadOrders = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_radiology_orders');
-      return s ? JSON.parse(s) : DEMO_RADIOLOGY_STUDIES;
-    } catch {
-      return DEMO_RADIOLOGY_STUDIES;
-    }
-  }, [lastRefreshedTime]);
-
-  const liveMedicines = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_pharmacy_medicines');
-      return s ? JSON.parse(s) : DEMO_MEDICINES;
-    } catch {
-      return DEMO_MEDICINES;
-    }
-  }, [lastRefreshedTime]);
-
-  const liveInvoices = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_billing_invoices');
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  }, [lastRefreshedTime]);
-
-  const livePayments = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_billing_payments');
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  }, [lastRefreshedTime]);
-
-  const liveCharges = useMemo(() => {
-    try {
-      const s = localStorage.getItem('hms_billing_charges');
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  }, [lastRefreshedTime]);
-
-  // Determine active date interval
-  const dateInterval = useMemo(() => {
-    const now = new Date();
-    const todayStr = format(now, 'yyyy-MM-dd');
-
-    if (dateFilter === 'today') {
-      return { start: startOfDay(now), end: endOfDay(now), label: `Today (${todayStr})` };
-    } else if (dateFilter === 'yesterday') {
-      const y = subDays(now, 1);
-      return { start: startOfDay(y), end: endOfDay(y), label: `Yesterday (${format(y, 'yyyy-MM-dd')})` };
-    } else if (dateFilter === 'last_7_days') {
-      return { start: startOfDay(subDays(now, 7)), end: endOfDay(now), label: 'Last 7 Days' };
-    } else if (dateFilter === 'last_30_days') {
-      return { start: startOfDay(subDays(now, 30)), end: endOfDay(now), label: 'Last 30 Days' };
-    } else if (dateFilter === 'this_month') {
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { start: startOfDay(startOfMonth), end: endOfDay(now), label: 'This Month' };
-    } else {
-      return {
-        start: startOfDay(new Date(customStart)),
-        end: endOfDay(new Date(customEnd)),
-        label: `${customStart} to ${customEnd}`,
-      };
-    }
-  }, [dateFilter, customStart, customEnd]);
-
-  // Compute Live Metrics Dynamically
-  const dynamicMetrics = useMemo(() => {
-    // 1. Patients
-    const totalPatients = livePatients.length;
-    const newPatientsInPeriod = livePatients.filter((p: any) => {
-      if (!p.createdAt && !p.registeredDate) return true;
-      try {
-        const d = parseISO(p.createdAt || p.registeredDate);
-        return isWithinInterval(d, { start: dateInterval.start, end: dateInterval.end });
-      } catch {
-        return true;
-      }
-    }).length;
-
-    // 2. Appointments
-    const appointmentsInPeriod = liveAppointments.filter((a: any) => {
-      if (!a.date) return true;
-      try {
-        const d = parseISO(a.date);
-        return isWithinInterval(d, { start: dateInterval.start, end: dateInterval.end });
-      } catch {
-        return true;
-      }
-    });
-
-    const waitingApts = appointmentsInPeriod.filter((a: any) => a.status === 'waiting' || a.status === 'scheduled').length;
-    const inConsultApts = appointmentsInPeriod.filter((a: any) => a.status === 'in_progress').length;
-    const completedApts = appointmentsInPeriod.filter((a: any) => a.status === 'completed').length;
-    const cancelledApts = appointmentsInPeriod.filter((a: any) => a.status === 'cancelled').length;
-
-    // 3. Inpatients & Bed Occupancy
-    const activeAdmissions = liveAdmissions.filter((a: any) => a.status === 'active');
-    const totalBeds = liveBeds.length || 80;
-    const occupiedBeds = liveBeds.filter((b: any) => b.status === 'occupied').length || 42;
-    const availableBeds = totalBeds - occupiedBeds;
-    const bedOccupancyPct = Math.round((occupiedBeds / totalBeds) * 100);
-
-    const icuBeds = liveBeds.filter((b: any) => (b.ward || '').toLowerCase().includes('icu'));
-    const icuTotal = icuBeds.length || 18;
-    const icuOccupied = icuBeds.filter((b: any) => b.status === 'occupied').length || 15;
-    const icuOccupancyPct = Math.round((icuOccupied / icuTotal) * 100);
-
-    // 4. Lab & Radiology Diagnostics
-    const pendingLab = liveLabOrders.filter((l: any) => l.status === 'pending' || l.status === 'in_progress' || l.status === 'sample_collected').length;
-    const completedLab = liveLabOrders.filter((l: any) => l.status === 'completed').length;
-
-    const pendingRad = liveRadOrders.filter((r: any) => r.status === 'pending' || r.status === 'scheduled' || r.status === 'in_progress').length;
-    const completedRad = liveRadOrders.filter((r: any) => r.status === 'completed' || r.status === 'verified').length;
-
-    // 5. Pharmacy Inventory & Low Stock
-    const lowStockMeds = liveMedicines.filter((m: any) => Number(m.stock) <= Number(m.reorderLevel || 20));
-    const expiringMeds = liveMedicines.filter((m: any) => {
-      if (!m.expiryDate) return false;
-      const days = (new Date(m.expiryDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24);
-      return days <= 60;
-    });
-
-    // 6. Central Billing & Revenue
-    const billedInvoices = liveInvoices.filter((inv: any) => {
-      if (!inv.invoiceDate) return true;
-      try {
-        const d = parseISO(inv.invoiceDate);
-        return isWithinInterval(d, { start: dateInterval.start, end: dateInterval.end });
-      } catch {
-        return true;
-      }
-    });
-
-    const totalBilledRevenue = billedInvoices.reduce((sum: number, inv: any) => sum + (inv.grossAmount || 0), 0) || 125400;
-    const totalCollected = billedInvoices.reduce((sum: number, inv: any) => sum + (inv.paidAmount || 0), 0) || 112500;
-    const totalOutstanding = billedInvoices.reduce((sum: number, inv: any) => sum + (inv.outstandingBalance || 0), 0) || 12900;
-
-    // Department Revenue Breakdown
-    const opdRev = billedInvoices.filter((i: any) => i.encounterType === 'opd').reduce((sum: number, i: any) => sum + (i.grossAmount || 0), 0) || 35000;
-    const ipdRev = billedInvoices.filter((i: any) => i.encounterType === 'ipd').reduce((sum: number, i: any) => sum + (i.grossAmount || 0), 0) || 58000;
-    const labRev = liveCharges.filter((c: any) => c.department === 'laboratory').reduce((sum: number, c: any) => sum + (c.totalAmount || 0), 0) || 16500;
-    const radRev = liveCharges.filter((c: any) => c.department === 'radiology').reduce((sum: number, c: any) => sum + (c.totalAmount || 0), 0) || 12000;
-    const pharmRev = liveCharges.filter((c: any) => c.department === 'pharmacy').reduce((sum: number, c: any) => sum + (c.totalAmount || 0), 0) || 18500;
-
-    return {
-      totalPatients,
-      newPatientsInPeriod,
-      appointmentsTotal: appointmentsInPeriod.length || 47,
-      waitingApts,
-      inConsultApts,
-      completedApts,
-      cancelledApts,
-      activeAdmissionsCount: activeAdmissions.length || 38,
-      totalBeds,
-      occupiedBeds,
-      availableBeds,
-      bedOccupancyPct,
-      icuTotal,
-      icuOccupied,
-      icuOccupancyPct,
-      pendingLab,
-      completedLab,
-      pendingRad,
-      completedRad,
-      lowStockCount: lowStockMeds.length,
-      expiringCount: expiringMeds.length,
-      totalBilledRevenue,
-      totalCollected,
-      totalOutstanding,
-      opdRev,
-      ipdRev,
-      labRev,
-      radRev,
-      pharmRev,
-      lowStockList: lowStockMeds.slice(0, 4),
+  // Storage updates listener
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      setMetrics(storageService.getDashboardMetrics());
     };
-  }, [livePatients, liveAppointments, liveAdmissions, liveBeds, liveLabOrders, liveRadOrders, liveMedicines, liveInvoices, liveCharges, dateInterval]);
+    window.addEventListener('hms_storage_updated', handleStorageUpdate);
+    return () => window.removeEventListener('hms_storage_updated', handleStorageUpdate);
+  }, []);
 
-  // Chart Data: Department Revenue Distribution
-  const deptRevenueChartData = [
-    { name: 'OPD Care', revenue: dynamicMetrics.opdRev },
-    { name: 'IPD & Beds', revenue: dynamicMetrics.ipdRev },
-    { name: 'Laboratory', revenue: dynamicMetrics.labRev },
-    { name: 'Radiology', revenue: dynamicMetrics.radRev },
-    { name: 'Pharmacy', revenue: dynamicMetrics.pharmRev },
-  ];
-
-  // Chart Data: Dynamic Daily Revenue Trend
-  const revenueTrendData = [
-    { period: 'Mon', billed: 95000, collected: 89000 },
-    { period: 'Tue', billed: 110000, collected: 104000 },
-    { period: 'Wed', billed: 125000, collected: 118000 },
-    { period: 'Thu', billed: 115000, collected: 108000 },
-    { period: 'Fri', billed: 138000, collected: 130000 },
-    { period: 'Sat', billed: 145000, collected: 140000 },
-    { period: 'Sun', billed: 85000, collected: 80000 },
-  ];
-
-  // Chart Data: Ward Bed Occupancy Breakdown
-  const wardOccupancyData = [
-    { ward: 'General Ward', occupied: 18, total: 30, pct: 60 },
-    { ward: 'Semi-Private', occupied: 12, total: 16, pct: 75 },
-    { ward: 'Private Deluxe', occupied: 8, total: 12, pct: 67 },
-    { ward: 'ICU / CCU', occupied: dynamicMetrics.icuOccupied, total: dynamicMetrics.icuTotal, pct: dynamicMetrics.icuOccupancyPct },
-  ];
-
-  // Handle Refresh
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => {
-      setLastRefreshedTime(new Date());
+      setMetrics(storageService.getDashboardMetrics());
       setIsRefreshing(false);
-    }, 400);
+      showToast('Hospital operational data synchronized in real-time', 'success');
+    }, 350);
   };
 
-  // Generate AI Operational Insight
-  const generateAIInsight = async () => {
-    setAiLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setAiInsight(`**Hospital Operations Briefing — ${format(new Date(), 'EEEE, dd MMMM yyyy')}**
-
-📊 **Patient Traffic**: ${dynamicMetrics.appointmentsTotal} appointments scheduled today with ${dynamicMetrics.waitingApts} patients currently waiting. OPD flow is well-distributed.
-
-🏥 **Bed Utilization**: Overall hospital bed occupancy is at ${dynamicMetrics.bedOccupancyPct}% (${dynamicMetrics.occupiedBeds}/${dynamicMetrics.totalBeds} beds). ICU occupancy is high at ${dynamicMetrics.icuOccupancyPct}% (${dynamicMetrics.icuOccupied}/${dynamicMetrics.icuTotal} beds) — monitor critical ward allocations.
-
-⚠️ **Active Clinical & Inventory Alerts**:
-${dynamicMetrics.lowStockCount > 0 ? `- ${dynamicMetrics.lowStockCount} medicines are at or below reorder threshold (e.g. ${dynamicMetrics.lowStockList.map((m: any) => m.name).join(', ')})` : '- Pharmacy stock levels adequate'}
-${dynamicMetrics.pendingLab > 0 ? `- ${dynamicMetrics.pendingLab} laboratory tests and ${dynamicMetrics.pendingRad} imaging investigations pending verification` : '- Diagnostic turnaround on schedule'}
-${dynamicMetrics.totalOutstanding > 0 ? `- ₹${dynamicMetrics.totalOutstanding.toLocaleString()} in pending discharge billing dues to be reconciled` : '- Zero billing variance'}
-
-💰 **Financial Health**: Total billed revenue for ${dateInterval.label} is ₹${dynamicMetrics.totalBilledRevenue.toLocaleString()} with realized cash/online collections of ₹${dynamicMetrics.totalCollected.toLocaleString()} (91.2% realization velocity).`);
-    setAiLoading(false);
+  const getGreeting = () => {
+    const hour = currentDateTime.getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   };
 
-  const isAdmin = ['super_admin', 'hospital_admin', 'management', 'billing_staff'].includes(state.user?.role || '');
+  // Handlers
+  const handleSavePatient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patientForm.firstName || !patientForm.phone) {
+      showToast('Please fill in patient name and mobile number', 'warning');
+      return;
+    }
+    const created = storageService.addPatient({
+      firstName: patientForm.firstName,
+      lastName: patientForm.lastName,
+      gender: patientForm.gender as any,
+      phone: patientForm.phone,
+      bloodGroup: patientForm.bloodGroup as any,
+    });
+    showToast(`Patient ${created.firstName} registered successfully (MRN: ${created.id})`, 'success');
+    setShowQuickPatientModal(false);
+    setPatientForm({ firstName: '', lastName: '', gender: 'male', phone: '', bloodGroup: 'B+' });
+  };
+
+  const handleSaveAppointment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aptForm.patientName) {
+      showToast('Please enter patient name', 'warning');
+      return;
+    }
+    const doctors = storageService.getDoctors();
+    const doc = doctors.find(d => d.id === aptForm.doctorId) || doctors[0];
+
+    const created = storageService.addAppointment({
+      patientName: aptForm.patientName,
+      doctorId: doc.id,
+      doctorName: doc.name,
+      department: doc.department,
+      date: aptForm.date,
+      time: aptForm.time,
+      type: aptForm.type as any,
+      consultationFee: doc.consultationFee,
+      status: 'scheduled',
+    });
+    showToast(`Appointment booked for ${created.patientName} (Token #${created.tokenNumber})`, 'success');
+    setShowQuickAptModal(false);
+    setAptForm({ patientName: '', doctorId: 'doc-001', date: format(new Date(), 'yyyy-MM-dd'), time: '10:00', type: 'opd' });
+  };
+
+  const handleSaveAdmission = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!admitForm.patientName || !admitForm.bedNumber) {
+      showToast('Please specify patient name and bed allocation', 'warning');
+      return;
+    }
+    const doctors = storageService.getDoctors();
+    const doc = doctors.find(d => d.id === admitForm.doctorId) || doctors[0];
+
+    const created = storageService.addAdmission({
+      patientName: admitForm.patientName,
+      ward: admitForm.ward,
+      bedNumber: admitForm.bedNumber,
+      admittingDoctorId: doc.id,
+      admittingDoctorName: doc.name,
+      priority: (admitForm.admissionType === 'emergency' ? 'emergency' : 'routine') as any,
+    });
+    showToast(`Inpatient ${created.patientName} admitted to Bed ${created.bedNumber}`, 'success');
+    setShowQuickAdmitModal(false);
+    setAdmitForm({ patientName: '', ward: 'General Ward A', bedNumber: 'W-A-03', doctorId: 'doc-001', admissionType: 'elective' });
+  };
+
+  const handleSaveBedAssign = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bedAssignForm.patientName || !bedAssignForm.bedNumber) {
+      showToast('Please specify patient name and bed number', 'warning');
+      return;
+    }
+    storageService.assignBed(bedAssignForm.bedNumber, bedAssignForm.patientName, undefined, bedAssignForm.ward);
+    showToast(`Bed ${bedAssignForm.bedNumber} assigned to ${bedAssignForm.patientName}`, 'success');
+    setShowQuickAssignBedModal(false);
+    setBedAssignForm({ patientName: '', bedNumber: 'W-A-04', ward: 'General Ward A' });
+  };
+
+  const handleSaveDiagnostic = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!diagForm.patientName) {
+      showToast('Please enter patient name', 'warning');
+      return;
+    }
+    const created = storageService.addLabRequest({
+      patientName: diagForm.patientName,
+      doctorName: diagForm.doctorName,
+      tests: [{ testId: 't-1', testName: diagForm.testName, status: 'ordered', sampleType: 'Blood', price: 500 }],
+      priority: diagForm.priority as any,
+    });
+    showToast(`Diagnostic investigation order ${created.id} initiated`, 'success');
+    setShowQuickDiagModal(false);
+    setDiagForm({ patientName: '', testName: 'Complete Blood Count (CBC)', doctorName: 'Dr. Rajesh Kumar', priority: 'routine' });
+  };
+
+  const doctors = useMemo(() => storageService.getDoctors(), [metrics]);
+  const availableBedsList = useMemo(() => storageService.getBeds().filter(b => b.status === 'available'), [metrics]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Page Header */}
-      <div className="page-header" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div className="page-header-content">
-          <div className="breadcrumb">
-            <span>Home</span>
-            <span className="breadcrumb-sep">›</span>
-            <span>Hospital Dashboard</span>
-          </div>
-          <div className="page-title" style={{ color: 'var(--color-primary-dark)' }}>
-            Hospital Real-Time Operational & Clinical Intelligence
-          </div>
-          <div className="page-subtitle">
-            Live database-driven overview of patient encounters, admissions, bed capacity, diagnostics, pharmacy stock, and central billing
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary btn-sm" onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw size={13} className={isRefreshing ? 'spin' : ''} /> {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-          <button className="btn btn-ai btn-sm" onClick={generateAIInsight} disabled={aiLoading}>
-            <Brain size={13} /> {aiLoading ? 'Analyzing...' : 'AI Operations Briefing'}
-          </button>
-        </div>
-      </div>
-
-      {/* Interactive Date Range Filter Bar */}
-      <div className="card" style={{ padding: '12px 18px', background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Filter size={14} style={{ color: 'var(--color-primary)' }} /> Date Filter:
-            </span>
-
-            {(['today', 'yesterday', 'last_7_days', 'last_30_days', 'this_month', 'custom'] as DateFilterOption[]).map(opt => (
-              <button
-                key={opt}
-                className={`btn btn-sm ${dateFilter === opt ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ fontSize: 11, padding: '5px 12px', textTransform: 'capitalize' }}
-                onClick={() => setDateFilter(opt)}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 28 }}>
+      {/* ============================================================
+          1. PREMIUM TOP HEADER
+          ============================================================ */}
+      <div
+        className="card"
+        style={{
+          padding: '24px 28px',
+          background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 55%, #2563eb 100%)',
+          borderRadius: '16px',
+          color: '#ffffff',
+          boxShadow: '0 10px 25px -5px rgba(30, 58, 138, 0.25)',
+          border: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 18 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span
+                style={{
+                  background: 'rgba(255, 255, 255, 0.18)',
+                  padding: '3px 10px',
+                  borderRadius: '999px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                }}
               >
-                {opt.replace(/_/g, ' ')}
-              </button>
-            ))}
-          </div>
-
-          {dateFilter === 'custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="date" className="form-input" style={{ height: 32, fontSize: 11 }} value={customStart} onChange={e => setCustomStart(e.target.value)} />
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>to</span>
-              <input type="date" className="form-input" style={{ height: 32, fontSize: 11 }} value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
-            </div>
-          )}
-
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-            Active Window: <strong style={{ color: 'var(--color-primary)' }}>{dateInterval.label}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Action Navigation Bar */}
-      <div className="card" style={{ padding: '12px 16px', background: 'var(--bg-surface)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 2 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginRight: 4 }}>
-            Quick Actions:
-          </span>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/patients')}>
-            <MedicalIcon name="patients" size={14} color="var(--color-primary)" /> Register Patient
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/appointments')}>
-            <MedicalIcon name="appointments" size={14} color="var(--color-success)" /> New Appointment
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/opd')}>
-            <MedicalIcon name="opd" size={14} color="var(--color-primary)" /> OPD Check-in
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/ipd')}>
-            <MedicalIcon name="ipd" size={14} color="#d97706" /> New IPD Admission
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/laboratory')}>
-            <MedicalIcon name="laboratory" size={14} color="#0284c7" /> Lab Order
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/radiology')}>
-            <MedicalIcon name="radiology" size={14} color="#7c3aed" /> Radiology Scan
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/pharmacy')}>
-            <MedicalIcon name="pharmacy" size={14} color="#0d9488" /> Pharmacy POS
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/billing')}>
-            <MedicalIcon name="billing" size={14} color="var(--color-success)" /> Central Billing
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/reports')}>
-            <MedicalIcon name="reports" size={14} color="var(--text-secondary)" /> Reports
-          </button>
-        </div>
-      </div>
-
-      {/* Live AI Hospital Operational Summary Widget */}
-      <div className="card" style={{ padding: '14px 18px', background: 'linear-gradient(135deg, rgba(5,150,105,0.06), rgba(16,185,129,0.02))', border: '1px solid rgba(5,150,105,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 8, background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Brain size={15} />
-            </div>
-            <div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Today's AI Hospital Intelligence Summary</span>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 8 }}>Multilingual & Real-Time Operational Pulse</span>
-            </div>
-          </div>
-          <span className="badge badge-success" style={{ fontSize: 10 }}>Live Neural Stream</span>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
-          <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>OPD Patients</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-primary)', marginTop: 2 }}>{dynamicMetrics.appointmentsTotal}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{dynamicMetrics.waitingApts} in queue</div>
-          </div>
-          <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>IPD Patients</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#059669', marginTop: 2 }}>{dynamicMetrics.activeAdmissionsCount}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Active Inpatients</div>
-          </div>
-          <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>Available Beds</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#d97706', marginTop: 2 }}>{dynamicMetrics.availableBeds}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{dynamicMetrics.totalBeds} Total Beds</div>
-          </div>
-          <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>Pending Lab</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>{dynamicMetrics.pendingLab}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Pathology Orders</div>
-          </div>
-          <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>Pending Radiology</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#0284c7', marginTop: 2 }}>{dynamicMetrics.pendingRad}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Imaging Scans</div>
-          </div>
-          <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>Low Stock Medicines</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: dynamicMetrics.lowStockCount > 0 ? '#dc2626' : '#059669', marginTop: 2 }}>{dynamicMetrics.lowStockCount}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Pharmacy Alerts</div>
-          </div>
-          {isAdmin && (
-            <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-default)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>Today's Revenue</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-primary)', marginTop: 2 }}>
-                ₹{(dynamicMetrics.totalBilledRevenue / 100000).toFixed(1)}L
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Realized collections</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* AI Clinical & Operational Briefing Panel */}
-      {(aiInsight || aiLoading) && (
-        <div className="ai-panel">
-          <div className="ai-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="ai-badge">ALN Cure AI</span>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Operational & Clinical Summary · {dateInterval.label}
+                ✦ ALN Cure Multi-Specialty Hospital
+              </span>
+              <span style={{ fontSize: '12px', opacity: 0.85 }}>• NABH Accredited Facility</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: '11px',
+                  background: 'rgba(16, 185, 129, 0.25)',
+                  color: '#a7f3d0',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', animation: 'pulse 2s infinite' }} />
+                24x7 Emergency Active
               </span>
             </div>
-            <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setAiInsight(null)}>✕</button>
+
+            <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.5px', margin: 0, color: '#ffffff' }}>
+              {getGreeting()}, {state.user?.name || 'Admin'} 👋
+            </h1>
+            <p style={{ fontSize: '13.5px', opacity: 0.9, marginTop: 4, maxWidth: 640, lineHeight: 1.5 }}>
+              Here's what's happening at your hospital today: <strong>{metrics.ipdPatients}</strong> admitted inpatients, <strong>{metrics.availableBeds}</strong> beds available, and <strong>{metrics.doctorsOnDuty}</strong> physicians on active duty.
+            </p>
           </div>
-          {aiLoading ? (
-            <div className="ai-thinking">
-              <div className="ai-dot" /><div className="ai-dot" /><div className="ai-dot" />
-              <span>Analyzing live hospital registers and transactions...</span>
+
+          {/* Right Header Controls: Live Date & Clock + Refresh */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(10px)',
+                padding: '10px 16px',
+                borderRadius: '12px',
+                textAlign: 'right',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              }}
+            >
+              <div style={{ fontSize: '14.5px', fontWeight: 800, letterSpacing: '0.5px', color: '#ffffff' }}>
+                {format(currentDateTime, 'hh:mm:ss a')}
+              </div>
+              <div style={{ fontSize: '11px', opacity: 0.85, marginTop: 2 }}>
+                {format(currentDateTime, 'EEEE, dd MMMM yyyy')}
+              </div>
             </div>
-          ) : (
-            <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.7, background: '#ffffff', padding: '14px 18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
-              {aiInsight?.split('\n').map((line, i) => (
-                <div key={i} style={{ marginBottom: line === '' ? '8px' : '0' }}>
-                  {line.replace(/\*\*(.*?)\*\*/g, '$1')}
+
+            <button
+              className="btn btn-sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              style={{
+                background: '#ffffff',
+                color: '#1e40af',
+                fontWeight: 700,
+                border: 'none',
+                height: 42,
+                padding: '0 16px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+              }}
+            >
+              <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
+              <span>{isRefreshing ? 'Syncing...' : 'Sync Live Data'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          2. CRITICAL ALERTS (High-Visibility Priority Triage)
+          ============================================================ */}
+      {metrics.alerts.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(245, 158, 11, 0.05) 100%)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            borderRadius: '14px',
+            padding: '16px 20px',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '8px', background: '#ef4444', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Siren size={16} />
+              </div>
+              <div>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#991b1b' }}>
+                  Critical Priority Hospital Alerts ({metrics.alerts.length})
+                </span>
+                <span style={{ fontSize: '12px', color: '#64748b', marginLeft: 8 }}>
+                  Requires prompt medical officer or supervisor attention
+                </span>
+              </div>
+            </div>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => navigate('/notifications')}
+              style={{ height: 30, fontSize: '11px' }}
+            >
+              View All Alerts ({metrics.alerts.length}) →
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 10 }}>
+            {metrics.alerts.slice(0, 3).map(alert => (
+              <div
+                key={alert.id}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #fee2e2',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{alert.title}</span>
+                    <span className="badge badge-danger" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                      {alert.severity.toUpperCase()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#475569', marginTop: 3 }}>{alert.description}</div>
+                </div>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  style={{ fontSize: '11px', padding: '4px 8px', flexShrink: 0 }}
+                  onClick={() => {
+                    storageService.acknowledgeAlert(alert.id);
+                    setMetrics(storageService.getDashboardMetrics());
+                    showToast('Alert acknowledged', 'success');
+                  }}
+                >
+                  <Check size={12} /> Ack
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          3. HOSPITAL OVERVIEW CARDS (6 Key Healthcare Metrics)
+          ============================================================ */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Activity size={18} style={{ color: '#2563eb' }} />
+            Hospital Vital Overview
+          </div>
+          <span style={{ fontSize: '12px', color: '#64748b' }}>Live Clinical Telemetry</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+          {/* 1. Total Patients */}
+          <OverviewStatCard
+            title="Total Patients"
+            value={metrics.totalPatients}
+            subtext="Master Patient Index (MPI)"
+            icon={<Users size={20} />}
+            trend={{ text: '+12% this month', positive: true }}
+            colorTheme="blue"
+            onClick={() => navigate('/patients')}
+          />
+
+          {/* 2. OPD Patients Today */}
+          <OverviewStatCard
+            title="OPD Patients Today"
+            value={metrics.opdPatientsToday}
+            subtext="Outpatient Consultations"
+            icon={<Stethoscope size={20} />}
+            trend={{ text: '+8% vs yesterday', positive: true }}
+            colorTheme="teal"
+            onClick={() => navigate('/opd')}
+          />
+
+          {/* 3. Current IPD Patients */}
+          <OverviewStatCard
+            title="Current IPD Patients"
+            value={metrics.ipdPatients}
+            subtext="Active Inpatient Admissions"
+            icon={<HeartPulse size={20} />}
+            badge="94% Recovery"
+            colorTheme="indigo"
+            onClick={() => navigate('/ipd')}
+          />
+
+          {/* 4. Available Beds */}
+          <OverviewStatCard
+            title="Available Beds"
+            value={metrics.availableBeds}
+            subtext={`Out of ${metrics.totalBeds} licensed beds`}
+            icon={<BedDouble size={20} />}
+            badge={`${metrics.bedOccupancyRate}% Occupied`}
+            colorTheme="emerald"
+            onClick={() => navigate('/ipd')}
+          />
+
+          {/* 5. Doctors On Duty */}
+          <OverviewStatCard
+            title="Doctors On Duty"
+            value={metrics.doctorsOnDuty}
+            subtext={`Across 8 clinical departments`}
+            icon={<Stethoscope size={20} />}
+            badge="On Active Duty"
+            colorTheme="blue"
+            onClick={() => navigate('/doctors')}
+          />
+
+          {/* 6. Nurses On Duty */}
+          <OverviewStatCard
+            title="Nurses On Duty"
+            value={metrics.nursesOnDuty}
+            subtext={`Floor & ICU nursing roster`}
+            icon={<HeartPulse size={20} />}
+            badge="Shift Assigned"
+            colorTheme="emerald"
+            onClick={() => navigate('/nursing')}
+          />
+        </div>
+      </div>
+
+      {/* ============================================================
+          4. QUICK ACTIONS SECTION (Clean Action Bar with 6 Actions)
+          ============================================================ */}
+      <div
+        className="card"
+        style={{
+          padding: '16px 20px',
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ⚡ Quick Clinical Actions:
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {/* 1. Add New Patient */}
+            <button
+              id="dash-add-patient-btn"
+              className="btn btn-sm btn-primary"
+              onClick={() => setShowQuickPatientModal(true)}
+            >
+              <UserPlus size={14} /> Add New Patient
+            </button>
+
+            {/* 2. Book Appointment */}
+            <button
+              id="dash-book-apt-btn"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowQuickAptModal(true)}
+            >
+              <CalendarCheck size={14} style={{ color: '#2563eb' }} /> Book Appointment
+            </button>
+
+            {/* 3. Admit Patient */}
+            <button
+              id="dash-admit-patient-btn"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowQuickAdmitModal(true)}
+            >
+              <BedDouble size={14} style={{ color: '#0d9488' }} /> Admit Patient
+            </button>
+
+            {/* 4. Assign Bed */}
+            <button
+              id="dash-assign-bed-btn"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowQuickAssignBedModal(true)}
+            >
+              <Layers size={14} style={{ color: '#d97706' }} /> Assign Bed
+            </button>
+
+            {/* 5. Diagnostic Request */}
+            <button
+              id="dash-order-diag-btn"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowQuickDiagModal(true)}
+            >
+              <FlaskConical size={14} style={{ color: '#7c3aed' }} /> Diagnostic Request
+            </button>
+
+            {/* 6. Generate Report */}
+            <button
+              id="dash-view-reports-btn"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowReportModal(true)}
+            >
+              <FileText size={14} style={{ color: '#059669' }} /> Generate Report
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          5. TODAY'S HOSPITAL ACTIVITY (4 Clean Visual Blocks)
+          ============================================================ */}
+      <div>
+        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Clock size={18} style={{ color: '#2563eb' }} />
+          Today's Hospital Activity
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          {/* 1. New Admissions */}
+          <div className="card" style={{ padding: '16px 18px', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>New Admissions</span>
+              <span className="badge badge-primary" style={{ fontSize: '10px' }}>Inpatient</span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#2563eb', marginTop: 6 }}>
+              {metrics.todayAdmissions}
+            </div>
+            <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <ArrowUpRight size={13} /> +2 Emergency admissions
+            </div>
+          </div>
+
+          {/* 2. Patient Discharges */}
+          <div className="card" style={{ padding: '16px 18px', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Patient Discharges</span>
+              <span className="badge badge-success" style={{ fontSize: '10px' }}>Completed</span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#059669', marginTop: 6 }}>
+              {metrics.todayDischarges}
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: 4 }}>
+              2 Planned for evening discharge
+            </div>
+          </div>
+
+          {/* 3. OPD Appointments */}
+          <div className="card" style={{ padding: '16px 18px', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>OPD Appointments</span>
+              <span className="badge badge-warning" style={{ fontSize: '10px' }}>Clinic</span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#d97706', marginTop: 6 }}>
+              {metrics.opdPatientsToday}
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: 4 }}>
+              24 Completed · 14 In Queue
+            </div>
+          </div>
+
+          {/* 4. Emergency Cases */}
+          <div className="card" style={{ padding: '16px 18px', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase' }}>Emergency Cases</span>
+              <span className="badge badge-danger" style={{ fontSize: '10px' }}>Triage</span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#e11d48', marginTop: 6 }}>
+              {metrics.emergencyPatients}
+            </div>
+            <div style={{ fontSize: '12px', color: '#e11d48', marginTop: 4, fontWeight: 600 }}>
+              Level 1 & 2 Trauma Triage
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          6. PATIENT FLOW OVERVIEW (Visual Journey Pipeline)
+          ============================================================ */}
+      <div className="card" style={{ padding: '20px 24px', borderRadius: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={18} style={{ color: '#2563eb' }} />
+            <div>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Patient Flow Overview</span>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>End-to-end patient journey throughout hospital clinical departments</div>
+            </div>
+          </div>
+          <span className="badge badge-primary">Active Pipeline</span>
+        </div>
+
+        {/* Pipeline Step Sequence */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 12,
+            position: 'relative',
+          }}
+        >
+          {[
+            { step: '1', title: 'Registration', count: `${metrics.totalPatients}`, sub: 'Registered Patients', color: '#2563eb', bg: '#eff6ff' },
+            { step: '2', title: 'OPD Consultation', count: `${metrics.opdPatientsToday}`, sub: 'Daily Consultations', color: '#0d9488', bg: '#f0fdfa' },
+            { step: '3', title: 'Admission', count: `${metrics.todayAdmissions}`, sub: 'New Inpatients', color: '#4f46e5', bg: '#eef2ff' },
+            { step: '4', title: 'Treatment', count: `${metrics.ipdPatients}`, sub: 'Under Active Care', color: '#d97706', bg: '#fffbeb' },
+            { step: '5', title: 'Discharge', count: `${metrics.todayDischarges}`, sub: 'Recovered & Cleared', color: '#059669', bg: '#ecfdf5' },
+          ].map((stage, idx, arr) => (
+            <div
+              key={stage.step}
+              style={{
+                background: stage.bg,
+                border: `1px solid ${stage.color}30`,
+                borderRadius: '12px',
+                padding: '16px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                position: 'relative',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: stage.color,
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {stage.step}
+                </span>
+                {idx < arr.length - 1 && (
+                  <ArrowRight size={14} style={{ color: stage.color, opacity: 0.6 }} />
+                )}
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: stage.color }}>
+                  {stage.count}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                  {stage.title}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: 2 }}>
+                  {stage.sub}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ============================================================
+          7. BED OCCUPANCY OVERVIEW & WARD MATRIX (2-Column Grid)
+          ============================================================ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 20 }}>
+        {/* Bed Occupancy Overview */}
+        <div className="card">
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BedDouble size={18} style={{ color: '#059669' }} />
+              <div>
+                <span className="card-title">Bed Occupancy Overview</span>
+                <div className="card-subtitle">Real-time status of hospital bed fleet</div>
+              </div>
+            </div>
+            <span className="badge badge-success">{metrics.bedOccupancyRate}% Occupied</span>
+          </div>
+
+          <div className="card-body">
+            {/* Visual Capacity Bar */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: 6 }}>
+                <span style={{ fontWeight: 700, color: '#0f172a' }}>Overall Facility Capacity:</span>
+                <span style={{ fontWeight: 800, color: metrics.bedOccupancyRate > 85 ? '#ef4444' : '#1e40af' }}>
+                  {metrics.occupiedBeds} / {metrics.totalBeds} Beds ({metrics.bedOccupancyRate}%)
+                </span>
+              </div>
+              <div style={{ height: 12, background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                <div
+                  style={{
+                    width: `${(metrics.occupiedBeds / metrics.totalBeds) * 100}%`,
+                    background: '#2563eb',
+                    transition: 'width 0.4s ease',
+                  }}
+                  title={`Occupied: ${metrics.occupiedBeds}`}
+                />
+                <div
+                  style={{
+                    width: `${(metrics.reservedBeds / metrics.totalBeds) * 100}%`,
+                    background: '#f59e0b',
+                    transition: 'width 0.4s ease',
+                  }}
+                  title={`Reserved: ${metrics.reservedBeds}`}
+                />
+                <div
+                  style={{
+                    width: `${(metrics.maintenanceBeds / metrics.totalBeds) * 100}%`,
+                    background: '#94a3b8',
+                    transition: 'width 0.4s ease',
+                  }}
+                  title={`Maintenance: ${metrics.maintenanceBeds}`}
+                />
+              </div>
+            </div>
+
+            {/* Bed Metrics Breakdown Matrix */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Total Beds</div>
+                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>{metrics.totalBeds}</div>
+                </div>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748b' }} />
+              </div>
+
+              <div style={{ padding: '10px 12px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#065f46', fontWeight: 600 }}>Available Beds</div>
+                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#059669' }}>{metrics.availableBeds}</div>
+                </div>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669' }} />
+              </div>
+
+              <div style={{ padding: '10px 12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 600 }}>Occupied Beds</div>
+                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#2563eb' }}>{metrics.occupiedBeds}</div>
+                </div>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb' }} />
+              </div>
+
+              <div style={{ padding: '10px 12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600 }}>Reserved Beds</div>
+                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#d97706' }}>{metrics.reservedBeds}</div>
+                </div>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706' }} />
+              </div>
+
+              <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Maintenance / Cleaning Beds</div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#475569' }}>{metrics.maintenanceBeds} Beds</div>
+                </div>
+                <span className="badge badge-neutral" style={{ fontSize: '10px' }}>Sanitizing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Ward Distribution Breakdown */}
+        <div className="card">
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Building2 size={18} style={{ color: '#2563eb' }} />
+              <div>
+                <span className="card-title">Ward Occupancy Distribution</span>
+                <div className="card-subtitle">Inpatient bed density by hospital unit</div>
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/ipd')}>
+              Manage Beds →
+            </button>
+          </div>
+
+          <div className="card-body">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { name: 'General Ward A (Male)', total: 20, occupied: 14, available: 4, type: 'General' },
+                { name: 'General Ward B (Female)', total: 20, occupied: 12, available: 6, type: 'General' },
+                { name: 'Medical ICU (MICU)', total: 10, occupied: 8, available: 2, type: 'ICU' },
+                { name: 'Surgical ICU (SICU)', total: 10, occupied: 7, available: 3, type: 'ICU' },
+                { name: 'Private Deluxe Rooms', total: 20, occupied: 11, available: 9, type: 'Deluxe' },
+              ].map(ward => {
+                const pct = Math.round((ward.occupied / ward.total) * 100);
+                return (
+                  <div key={ward.name} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{ward.name}</span>
+                        <span className={`badge ${ward.type === 'ICU' ? 'badge-danger' : 'badge-primary'}`} style={{ fontSize: '9px', marginLeft: 6 }}>
+                          {ward.type}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: pct > 80 ? '#e11d48' : '#2563eb' }}>
+                        {ward.occupied}/{ward.total} ({pct}%)
+                      </span>
+                    </div>
+                    <div style={{ height: 6, background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          background: pct > 80 ? '#e11d48' : '#2563eb',
+                          height: '100%',
+                          borderRadius: '3px',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          8. APPOINTMENTS AND SCHEDULE + RECENT HOSPITAL ACTIVITY (2-Column Grid)
+          ============================================================ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 20 }}>
+        {/* Appointments and Schedule */}
+        <div className="card">
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CalendarCheck size={18} style={{ color: '#2563eb' }} />
+              <div>
+                <span className="card-title">Appointments & Today's Schedule</span>
+                <div className="card-subtitle">Active OPD queue & upcoming clinical consultations</div>
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/opd')}>
+              View Full Queue →
+            </button>
+          </div>
+
+          <div className="card-body">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {metrics.todaySchedule.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: '13px' }}>
+                  No scheduled appointments remaining for today
+                </div>
+              ) : (
+                metrics.todaySchedule.slice(0, 5).map(item => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      background: '#f8fafc',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: '50%',
+                          background: '#eff6ff',
+                          color: '#1e40af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        #{item.tokenNumber}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                          {item.patientName}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          {item.doctorName} · {item.department}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                        {item.time}
+                      </div>
+                      <span className="badge badge-primary" style={{ fontSize: '9px', marginTop: 2 }}>
+                        {item.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Hospital Activity Timeline */}
+        <div className="card">
+          <div className="card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Activity size={18} style={{ color: '#059669' }} />
+              <div>
+                <span className="card-title">Recent Hospital Activity</span>
+                <div className="card-subtitle">Real-time event stream across all hospital wards</div>
+              </div>
+            </div>
+            <span className="badge badge-neutral">Live Log</span>
+          </div>
+
+          <div className="card-body">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {metrics.activities.slice(0, 6).map((act, index) => (
+                <div key={act.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        background: act.priority === 'critical' ? '#fee2e2' : '#eff6ff',
+                        color: act.priority === 'critical' ? '#ef4444' : '#1e40af',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {act.type === 'admission' ? <BedDouble size={13} /> :
+                       act.type === 'appointment' ? <Calendar size={13} /> :
+                       act.type === 'diagnostic' ? <FlaskConical size={13} /> :
+                       act.type === 'prescription' ? <Pill size={13} /> :
+                       act.type === 'bed_assigned' ? <Layers size={13} /> :
+                       <CheckCircle2 size={13} />}
+                    </div>
+                    {index !== metrics.activities.slice(0, 6).length - 1 && (
+                      <div style={{ width: 2, height: 24, background: '#e2e8f0', marginTop: 4 }} />
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                        {act.title}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#475569', marginTop: 2 }}>
+                      {act.description}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Live Operational Alerts Banner */}
-      {(dynamicMetrics.lowStockCount > 0 || dynamicMetrics.icuOccupancyPct > 80 || dynamicMetrics.pendingLab > 0) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-          {dynamicMetrics.icuOccupancyPct > 80 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--color-danger-muted)', border: '1px solid rgba(220,38,38,0.25)', borderRadius: 'var(--radius-md)', color: 'var(--color-danger)' }}>
-              <AlertTriangle size={18} />
-              <div style={{ fontSize: 12 }}>
-                <strong>Critical ICU Occupancy ({dynamicMetrics.icuOccupancyPct}%):</strong> {dynamicMetrics.icuTotal - dynamicMetrics.icuOccupied} beds available in Intensive Care.
-              </div>
-            </div>
-          )}
-
-          {dynamicMetrics.lowStockCount > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--color-warning-muted)', border: '1px solid rgba(217,119,6,0.25)', borderRadius: 'var(--radius-md)', color: 'var(--color-warning-dark)' }}>
-              <AlertCircle size={18} />
-              <div style={{ fontSize: 12 }}>
-                <strong>Pharmacy Stock Alert:</strong> {dynamicMetrics.lowStockCount} medicines at or below reorder threshold.
-              </div>
-            </div>
-          )}
-
-          {dynamicMetrics.pendingLab > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--color-info-muted)', border: '1px solid rgba(2,132,199,0.25)', borderRadius: 'var(--radius-md)', color: 'var(--color-info)' }}>
-              <Activity size={18} />
-              <div style={{ fontSize: 12 }}>
-                <strong>Diagnostic Queue:</strong> {dynamicMetrics.pendingLab} lab tests and {dynamicMetrics.pendingRad} radiology scans awaiting completion.
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Primary KPI Row (4 Cards) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
-        <StatCard
-          icon={<MedicalIcon name="patients" size={22} />}
-          label="Total Registered Patients"
-          value={dynamicMetrics.totalPatients}
-          subtitle={`+${dynamicMetrics.newPatientsInPeriod} registered in window`}
-          change="+8.4%"
-          changeDir="up"
-          color="var(--color-primary)"
-          colorMuted="var(--color-primary-muted)"
-          onClick={() => navigate('/patients')}
-        />
-
-        <StatCard
-          icon={<MedicalIcon name="appointments" size={22} />}
-          label="Appointments in Period"
-          value={dynamicMetrics.appointmentsTotal}
-          subtitle={`${dynamicMetrics.waitingApts} waiting · ${dynamicMetrics.completedApts} completed`}
-          color="var(--color-success)"
-          colorMuted="var(--color-success-muted)"
-          onClick={() => navigate('/appointments')}
-        />
-
-        <StatCard
-          icon={<MedicalIcon name="opd" size={22} />}
-          label="OPD Live Queue"
-          value={dynamicMetrics.waitingApts + dynamicMetrics.inConsultApts}
-          subtitle={`${dynamicMetrics.waitingApts} in queue · ${dynamicMetrics.inConsultApts} in doctor chamber`}
-          color="#0284c7"
-          colorMuted="rgba(2,132,199,0.1)"
-          onClick={() => navigate('/opd')}
-        />
-
-        <StatCard
-          icon={<MedicalIcon name="ipd" size={22} />}
-          label="Bed Occupancy"
-          value={`${dynamicMetrics.bedOccupancyPct}%`}
-          subtitle={`${dynamicMetrics.occupiedBeds} occupied / ${dynamicMetrics.availableBeds} available (${dynamicMetrics.totalBeds} total)`}
-          color="#d97706"
-          colorMuted="rgba(217,119,6,0.1)"
-          onClick={() => navigate('/ipd')}
-        />
-      </div>
-
-      {/* Secondary KPI Row (4 Cards) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
-        <StatCard
-          icon={<MedicalIcon name="heart-pulse" size={22} />}
-          label="Current Inpatients"
-          value={dynamicMetrics.activeAdmissionsCount}
-          subtitle="Admitted Inpatient Care"
-          color="#059669"
-          colorMuted="var(--color-primary-muted)"
-          onClick={() => navigate('/ipd')}
-        />
-
-        <StatCard
-          icon={<MedicalIcon name="laboratory" size={22} />}
-          label="Laboratory Orders"
-          value={dynamicMetrics.pendingLab + dynamicMetrics.completedLab}
-          subtitle={`${dynamicMetrics.pendingLab} pending analysis`}
-          color="#7c3aed"
-          colorMuted="rgba(124,58,237,0.1)"
-          onClick={() => navigate('/laboratory')}
-        />
-
-        <StatCard
-          icon={<MedicalIcon name="radiology" size={22} />}
-          label="Radiology Studies"
-          value={dynamicMetrics.pendingRad + dynamicMetrics.completedRad}
-          subtitle={`${dynamicMetrics.pendingRad} imaging scans pending`}
-          color="#0d9488"
-          colorMuted="rgba(13,148,136,0.1)"
-          onClick={() => navigate('/radiology')}
-        />
-
-        <StatCard
-          icon={<MedicalIcon name="pharmacy" size={22} />}
-          label="Pharmacy Stock Alerts"
-          value={dynamicMetrics.lowStockCount}
-          subtitle={`${dynamicMetrics.expiringCount} items expiring within 60d`}
-          color="var(--color-danger)"
-          colorMuted="var(--color-danger-muted)"
-          onClick={() => navigate('/pharmacy')}
-        />
-      </div>
-
-      {/* Financial & Central Billing KPI Row (Visible to Admin & Billing Staff) */}
-      {isAdmin && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
-          <StatCard
-            icon={<MedicalIcon name="billing" size={22} />}
-            label="Total Billed Revenue"
-            value={`₹${dynamicMetrics.totalBilledRevenue.toLocaleString()}`}
-            subtitle={`Invoiced charges for ${dateInterval.label}`}
-            change="+11.2%"
-            changeDir="up"
-            color="var(--color-primary)"
-            colorMuted="var(--color-primary-muted)"
-            onClick={() => navigate('/billing')}
-          />
-
-          <StatCard
-            icon={<MedicalIcon name="billing" size={22} />}
-            label="Realized Collections"
-            value={`₹${dynamicMetrics.totalCollected.toLocaleString()}`}
-            subtitle="Cash, POS, and UPI settlements"
-            color="var(--color-success)"
-            colorMuted="var(--color-success-muted)"
-            onClick={() => navigate('/billing')}
-          />
-
-          <StatCard
-            icon={<MedicalIcon name="heart-cross" size={22} />}
-            label="Outstanding Patient Dues"
-            value={`₹${dynamicMetrics.totalOutstanding.toLocaleString()}`}
-            subtitle="Receivables pending settlement"
-            color="var(--color-warning)"
-            colorMuted="var(--color-warning-muted)"
-            onClick={() => navigate('/billing')}
-          />
-
-          <StatCard
-            icon={<MedicalIcon name="admin" size={22} />}
-            label="Insurance & TPA Claims"
-            value="₹45,000"
-            subtitle="Cashless pre-auth approvals"
-            color="#0284c7"
-            colorMuted="rgba(2,132,199,0.1)"
-            onClick={() => navigate('/billing')}
-          />
-        </div>
-      )}
-
-      {/* Charts Row 1: Daily Revenue Trend & Department Revenue Share */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 16 }}>
-        {/* Daily Revenue & Collections Trend */}
-        <div className="card">
-          <div className="card-header" style={{ justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ReceiptText size={18} style={{ color: 'var(--color-primary)' }} />
-              <div>
-                <span className="card-title">Hospital Daily Billed vs Realized Collections (₹)</span>
-                <div className="card-subtitle">Real financial trajectory across all hospital departments</div>
-              </div>
-            </div>
-            <span className="badge badge-success">Live Billing Data</span>
-          </div>
-          <div className="card-body" style={{ height: 250 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueTrendData}>
-                <defs>
-                  <linearGradient id="greenBilled" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#059669" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="greenCollected" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="period" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomChartTooltip />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                <Area type="monotone" dataKey="billed" name="Billed Charges (₹)" stroke="#059669" fill="url(#greenBilled)" strokeWidth={2} />
-                <Area type="monotone" dataKey="collected" name="Realized Collections (₹)" stroke="#16a34a" fill="url(#greenCollected)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Department Revenue Contribution */}
-        <div className="card">
-          <div className="card-header">
-            <Building2 size={18} style={{ color: 'var(--color-primary)' }} />
-            <div>
-              <span className="card-title">Department Revenue Contribution (₹)</span>
-              <div className="card-subtitle">OPD, IPD, Diagnostics, and Pharmacy sales split</div>
-            </div>
-          </div>
-          <div className="card-body" style={{ height: 250 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={deptRevenueChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomChartTooltip />} />
-                <Bar dataKey="revenue" fill="#059669" radius={[6, 6, 0, 0]} name="Revenue (₹)" />
-              </BarChart>
-            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Charts Row 2: Ward Bed Occupancy Breakdown & Low Stock Watch */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
-        {/* Ward Bed Occupancy */}
-        <div className="card">
-          <div className="card-header">
-            <BedDouble size={18} style={{ color: '#d97706' }} />
-            <div>
-              <span className="card-title">Live Ward Bed Occupancy</span>
-              <div className="card-subtitle">Capacity utilization across clinical wards & ICU</div>
+      {/* ============================================================
+          9. MODALS (Full Dynamic Implementation of 6 Modals)
+          ============================================================ */}
+
+      {/* 1. Quick Add Patient Modal */}
+      {showQuickPatientModal && (
+        <div className="modal-backdrop" onClick={() => setShowQuickPatientModal(false)}>
+          <div className="modal modal-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <UserPlus size={18} style={{ color: '#1e40af' }} />
+              <span className="modal-title">Register New Patient</span>
+              <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickPatientModal(false)}>✕</button>
             </div>
-          </div>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {wardOccupancyData.map((w, i) => (
-              <div key={i}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{w.ward}</span>
-                  <span style={{ fontWeight: 700, color: w.pct > 80 ? 'var(--color-danger)' : w.pct > 60 ? 'var(--color-warning)' : 'var(--color-success)' }}>
-                    {w.occupied}/{w.total} Beds ({w.pct}%)
-                  </span>
-                </div>
-                <div className="progress" style={{ height: 8, background: '#f1f5f9', borderRadius: 4 }}>
-                  <div
-                    className={`progress-bar ${w.pct > 80 ? 'danger' : w.pct > 60 ? 'warning' : 'success'}`}
-                    style={{
-                      width: `${w.pct}%`,
-                      background: w.pct > 80 ? 'var(--color-danger)' : w.pct > 60 ? 'var(--color-warning)' : 'var(--color-success)',
-                      height: '100%',
-                      borderRadius: 4
-                    }}
-                  />
+            <form onSubmit={handleSavePatient}>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                  <div className="form-group">
+                    <label className="form-label">First Name <span className="required">*</span></label>
+                    <input
+                      className="form-input"
+                      placeholder="e.g. Ramesh"
+                      value={patientForm.firstName}
+                      onChange={e => setPatientForm({ ...patientForm, firstName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Last Name</label>
+                    <input
+                      className="form-input"
+                      placeholder="e.g. Yadav"
+                      value={patientForm.lastName}
+                      onChange={e => setPatientForm({ ...patientForm, lastName: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Mobile Number <span className="required">*</span></label>
+                    <input
+                      className="form-input"
+                      placeholder="10-digit mobile"
+                      type="tel"
+                      value={patientForm.phone}
+                      onChange={e => setPatientForm({ ...patientForm, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Gender <span className="required">*</span></label>
+                    <select
+                      className="form-select"
+                      value={patientForm.gender}
+                      onChange={e => setPatientForm({ ...patientForm, gender: e.target.value })}
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Blood Group</label>
+                    <select
+                      className="form-select"
+                      value={patientForm.bloodGroup}
+                      onChange={e => setPatientForm({ ...patientForm, bloodGroup: e.target.value })}
+                    >
+                      {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                        <option key={bg} value={bg}>{bg}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-            ))}
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowQuickPatientModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  <UserPlus size={14} /> Register Patient
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
 
-        {/* Pharmacy Low Stock & Expiry Watchlist */}
-        <div className="card">
-          <div className="card-header" style={{ justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Pill size={18} style={{ color: 'var(--color-danger)' }} />
-              <div>
-                <span className="card-title">Critical Pharmacy Inventory Watch</span>
-                <div className="card-subtitle">Medicines requiring immediate purchase requisition</div>
+      {/* 2. Quick Book Appointment Modal */}
+      {showQuickAptModal && (
+        <div className="modal-backdrop" onClick={() => setShowQuickAptModal(false)}>
+          <div className="modal modal-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <CalendarCheck size={18} style={{ color: '#1e40af' }} />
+              <span className="modal-title">Book OPD Appointment</span>
+              <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickAptModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveAppointment}>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Patient Name <span className="required">*</span></label>
+                    <input
+                      className="form-input"
+                      placeholder="Full Name"
+                      value={aptForm.patientName}
+                      onChange={e => setAptForm({ ...aptForm, patientName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Consulting Doctor <span className="required">*</span></label>
+                    <select
+                      className="form-select"
+                      value={aptForm.doctorId}
+                      onChange={e => setAptForm({ ...aptForm, doctorId: e.target.value })}
+                    >
+                      {doctors.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} — {d.specialization} (Fee: ₹{d.consultationFee})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={aptForm.date}
+                      onChange={e => setAptForm({ ...aptForm, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Time Slot</label>
+                    <select
+                      className="form-select"
+                      value={aptForm.time}
+                      onChange={e => setAptForm({ ...aptForm, time: e.target.value })}
+                    >
+                      {['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '14:00', '15:00', '16:00'].map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowQuickAptModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  <CalendarCheck size={14} /> Confirm Appointment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Quick Admit Patient Modal */}
+      {showQuickAdmitModal && (
+        <div className="modal-backdrop" onClick={() => setShowQuickAdmitModal(false)}>
+          <div className="modal modal-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <BedDouble size={18} style={{ color: '#059669' }} />
+              <span className="modal-title">Admit Patient to IPD</span>
+              <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickAdmitModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveAdmission}>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Patient Name <span className="required">*</span></label>
+                    <input
+                      className="form-input"
+                      placeholder="Full Name"
+                      value={admitForm.patientName}
+                      onChange={e => setAdmitForm({ ...admitForm, patientName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Ward</label>
+                    <select
+                      className="form-select"
+                      value={admitForm.ward}
+                      onChange={e => setAdmitForm({ ...admitForm, ward: e.target.value })}
+                    >
+                      <option value="General Ward A">General Ward A</option>
+                      <option value="General Ward B">General Ward B</option>
+                      <option value="Medical ICU (MICU)">Medical ICU (MICU)</option>
+                      <option value="Surgical ICU (SICU)">Surgical ICU (SICU)</option>
+                      <option value="Private Deluxe">Private Deluxe</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Available Bed <span className="required">*</span></label>
+                    <select
+                      className="form-select"
+                      value={admitForm.bedNumber}
+                      onChange={e => setAdmitForm({ ...admitForm, bedNumber: e.target.value })}
+                    >
+                      {availableBedsList.map(b => (
+                        <option key={b.id} value={b.bedNumber}>{b.bedNumber} ({b.ward})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Attending Doctor</label>
+                    <select
+                      className="form-select"
+                      value={admitForm.doctorId}
+                      onChange={e => setAdmitForm({ ...admitForm, doctorId: e.target.value })}
+                    >
+                      {doctors.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} — {d.specialization}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowQuickAdmitModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  <BedDouble size={14} /> Assign Bed & Admit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Quick Assign Bed Modal */}
+      {showQuickAssignBedModal && (
+        <div className="modal-backdrop" onClick={() => setShowQuickAssignBedModal(false)}>
+          <div className="modal modal-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <Layers size={18} style={{ color: '#d97706' }} />
+              <span className="modal-title">Assign Vacant Bed</span>
+              <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickAssignBedModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveBedAssign}>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Patient Name <span className="required">*</span></label>
+                    <input
+                      className="form-input"
+                      placeholder="e.g. Vikram Singh"
+                      value={bedAssignForm.patientName}
+                      onChange={e => setBedAssignForm({ ...bedAssignForm, patientName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Select Ward</label>
+                    <select
+                      className="form-select"
+                      value={bedAssignForm.ward}
+                      onChange={e => setBedAssignForm({ ...bedAssignForm, ward: e.target.value })}
+                    >
+                      <option value="General Ward A">General Ward A</option>
+                      <option value="General Ward B">General Ward B</option>
+                      <option value="Medical ICU (MICU)">Medical ICU (MICU)</option>
+                      <option value="Surgical ICU (SICU)">Surgical ICU (SICU)</option>
+                      <option value="Private Deluxe">Private Deluxe</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Available Bed Number <span className="required">*</span></label>
+                    <select
+                      className="form-select"
+                      value={bedAssignForm.bedNumber}
+                      onChange={e => setBedAssignForm({ ...bedAssignForm, bedNumber: e.target.value })}
+                    >
+                      {availableBedsList.map(b => (
+                        <option key={b.id} value={b.bedNumber}>{b.bedNumber} — {b.ward}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowQuickAssignBedModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  <Layers size={14} /> Allocate Bed
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Quick Diagnostic Request Modal */}
+      {showQuickDiagModal && (
+        <div className="modal-backdrop" onClick={() => setShowQuickDiagModal(false)}>
+          <div className="modal modal-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <FlaskConical size={18} style={{ color: '#7c3aed' }} />
+              <span className="modal-title">Create Diagnostic Investigation</span>
+              <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickDiagModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveDiagnostic}>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Patient Name <span className="required">*</span></label>
+                    <input
+                      className="form-input"
+                      placeholder="Full Name"
+                      value={diagForm.patientName}
+                      onChange={e => setDiagForm({ ...diagForm, patientName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Investigation / Test</label>
+                    <select
+                      className="form-select"
+                      value={diagForm.testName}
+                      onChange={e => setDiagForm({ ...diagForm, testName: e.target.value })}
+                    >
+                      <option value="Complete Blood Count (CBC)">Complete Blood Count (CBC)</option>
+                      <option value="Lipid Profile">Lipid Profile</option>
+                      <option value="Liver Function Test (LFT)">Liver Function Test (LFT)</option>
+                      <option value="Renal Function Test (KFT)">Renal Function Test (KFT)</option>
+                      <option value="Troponin I Quantitative">Troponin I Quantitative (Cardiac)</option>
+                      <option value="Chest X-Ray PA View">Chest X-Ray PA View</option>
+                      <option value="CT Brain Plain">CT Brain Plain</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Priority</label>
+                    <select
+                      className="form-select"
+                      value={diagForm.priority}
+                      onChange={e => setDiagForm({ ...diagForm, priority: e.target.value })}
+                    >
+                      <option value="routine">Routine</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="stat">🔴 STAT / Emergency</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowQuickDiagModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  <FlaskConical size={14} /> Submit Order
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Printable Daily Operational Report Modal */}
+      {showReportModal && (
+        <div className="modal-backdrop" onClick={() => setShowReportModal(false)}>
+          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <FileText size={18} style={{ color: '#059669' }} />
+              <span className="modal-title">Daily Hospital Operational Summary Report</span>
+              <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowReportModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: '#f8fafc', padding: '16px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#1e3a8a', margin: 0 }}>ALN Cure Multi-Specialty Hospital</h3>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Daily Executive Operations & Census Briefing</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{format(new Date(), 'dd MMMM yyyy')}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Generated: {format(currentDateTime, 'hh:mm a')}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-grid form-grid-3" style={{ gap: 12, marginBottom: 16 }}>
+                <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>Total Registered Patients</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e40af' }}>{metrics.totalPatients}</div>
+                </div>
+                <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>OPD Consultations</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#0d9488' }}>{metrics.opdPatientsToday}</div>
+                </div>
+                <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>Active Inpatients (IPD)</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#4338ca' }}>{metrics.ipdPatients}</div>
+                </div>
+                <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>Bed Occupancy Rate</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#059669' }}>{metrics.bedOccupancyRate}%</div>
+                </div>
+                <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>Available Vacant Beds</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#059669' }}>{metrics.availableBeds}</div>
+                </div>
+                <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>Duty Medical Officers</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e40af' }}>{metrics.doctorsOnDuty}</div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.6, background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <strong>Administrative Summary:</strong> All units are operating normally. Hospital emergency trauma triage is fully staffed. Pathology turnaround times are within 1.5 hours benchmark. Bed sanitation turnover is active in General Ward B.
               </div>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/pharmacy')}>
-              Manage <ChevronRight size={12} />
-            </button>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-container" style={{ border: 'none' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Medicine Name</th>
-                    <th>Current Stock</th>
-                    <th>Reorder Level</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dynamicMetrics.lowStockList.map((med: any) => (
-                    <tr key={med.id}>
-                      <td>
-                        <strong>{med.name}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{med.genericName || med.category}</div>
-                      </td>
-                      <td>
-                        <strong style={{ color: 'var(--color-danger)', fontSize: 14 }}>{med.stock} {med.unit}</strong>
-                      </td>
-                      <td>{med.reorderLevel || 20} {med.unit}</td>
-                      <td>
-                        <span className="badge badge-danger">CRITICAL LOW</span>
-                      </td>
-                    </tr>
-                  ))}
-                  {dynamicMetrics.lowStockList.length === 0 && (
-                    <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', padding: 20, color: 'var(--text-tertiary)' }}>
-                        All pharmaceutical inventory stocks are currently above minimum threshold.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowReportModal(false)}>Close</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  window.print();
+                  showToast('Daily summary sent to print dialog', 'success');
+                }}
+              >
+                <Printer size={14} /> Print Report
+              </button>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Tables Row 3: Today's Appointments & Recent Patients */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 16 }}>
-        {/* Today's Scheduled Appointments */}
-        <div className="card">
-          <div className="card-header" style={{ justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Calendar size={18} style={{ color: 'var(--color-primary)' }} />
-              <div>
-                <span className="card-title">Patient Appointments Queue</span>
-                <div className="card-subtitle">Consultation appointments and queue statuses</div>
-              </div>
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/appointments')}>
-              View All <ArrowRight size={12} />
-            </button>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-container" style={{ border: 'none' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Token</th>
-                    <th>Patient Name & UHID</th>
-                    <th>Consultant Doctor</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {liveAppointments.slice(0, 5).map((apt: any) => (
-                    <tr key={apt.id}>
-                      <td>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: '50%',
-                          background: 'var(--color-primary-muted)', color: 'var(--color-primary)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, fontWeight: 700
-                        }}>
-                          {apt.tokenNumber || '—'}
-                        </div>
-                      </td>
-                      <td>
-                        <strong>{apt.patientName}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{apt.patientId}</div>
-                      </td>
-                      <td>{apt.doctorName}</td>
-                      <td><strong>{apt.time}</strong></td>
-                      <td>
-                        <span className={`badge ${apt.status === 'completed' ? 'badge-success' : apt.status === 'in_progress' ? 'badge-primary' : apt.status === 'waiting' ? 'badge-warning' : 'badge-neutral'}`}>
-                          {(apt.status || 'scheduled').replace(/_/g, ' ').toUpperCase()}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Registered Patients */}
-        <div className="card">
-          <div className="card-header" style={{ justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Users size={18} style={{ color: 'var(--color-primary)' }} />
-              <div>
-                <span className="card-title">Recent Registered Patients</span>
-                <div className="card-subtitle">Latest patient registrations in hospital master</div>
-              </div>
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/patients')}>
-              View All <ArrowRight size={12} />
-            </button>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-container" style={{ border: 'none' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>UHID</th>
-                    <th>Patient Name</th>
-                    <th>Age & Gender</th>
-                    <th>Phone</th>
-                    <th style={{ textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {livePatients.slice(0, 5).map((p: any) => (
-                    <tr key={p.id}>
-                      <td>
-                        <strong style={{ fontFamily: 'monospace', color: 'var(--color-primary)' }}>{p.id}</strong>
-                      </td>
-                      <td>
-                        <strong>{p.firstName} {p.lastName}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Blood: {p.bloodGroup || 'O+'}</div>
-                      </td>
-                      <td>{p.age}y / {p.gender}</td>
-                      <td>{p.phone}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/patients/${p.id}`)}>
-                          <Eye size={11} /> View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

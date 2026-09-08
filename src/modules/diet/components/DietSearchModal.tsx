@@ -27,12 +27,12 @@ export default function DietSearchModal({ onClose }: DietSearchModalProps) {
 
   const handleSelectAdmission = (admId: string) => {
     setSelectedAdmissionId(admId);
-    setActiveTab('patient_profile');
+    setActiveTab('daily_diet_chart');
     onClose();
   };
 
   const handleSelectFood = () => {
-    setActiveTab('food_items');
+    setActiveTab('food_database');
     onClose();
   };
 

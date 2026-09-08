@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   UserPlus, Search, Save, BedDouble, ShieldCheck, Stethoscope,
-  Clock, RotateCcw, AlertTriangle, Printer, User, Phone, CheckCircle2
+  Clock, RotateCcw, AlertTriangle, Printer, User, Phone, CheckCircle2,
+  Calendar, Activity, ShieldAlert
 } from 'lucide-react';
 import { useIPD } from '../context/IPDContext';
 import type { Patient, Admission, AdmissionType } from '../../../types';
@@ -21,7 +22,6 @@ export default function PatientAdmission() {
     departments,
     beds,
     admitPatient,
-    admitEmergencyPatient,
     setActiveTab,
   } = useIPD();
 
@@ -36,6 +36,9 @@ export default function PatientAdmission() {
   const [selectedBedId, setSelectedBedId] = useState('');
   const [admissionDate, setAdmissionDate] = useState('2026-08-31');
   const [admissionTime, setAdmissionTime] = useState('11:00');
+  const [expectedDischargeDate, setExpectedDischargeDate] = useState('2026-09-04');
+  const [condition, setCondition] = useState<'stable' | 'guarded' | 'serious' | 'critical'>('stable');
+  const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
   const [diagnosis, setDiagnosis] = useState('Acute Inpatient Medical Evaluation');
   const [admissionNotes, setAdmissionNotes] = useState('Admitted for observation, continuous monitoring, and IV therapy.');
   const [referredBy, setReferredBy] = useState('Direct OPD');
@@ -57,6 +60,7 @@ export default function PatientAdmission() {
 
   // Available Beds Filtered
   const availableBeds = beds.filter(b => b.status === 'available');
+  const selectedBed = beds.find(b => b.id === selectedBedId);
 
   // Matching Patients Search
   const matchingPatients = patients.filter(p => {
@@ -89,6 +93,7 @@ export default function PatientAdmission() {
     setAdmissionNotes('');
     setAttendantName('');
     setAttendantPhone('');
+    setSelectedBedId('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -111,6 +116,9 @@ export default function PatientAdmission() {
       admissionType,
       admissionDate,
       admissionTime,
+      expectedDischargeDate,
+      condition,
+      priority,
       diagnosis: [diagnosis],
       admissionNotes,
       attendantName,
@@ -138,22 +146,22 @@ export default function PatientAdmission() {
           <div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>Inpatient (IPD) Admission & Bed Allocation</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              Planned, emergency, and referral inpatient registration with real-time bed lock
+              Complete patient registration, clinical triage, doctor assignment, and guaranteed double-allocation prevention
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('bed_board')}>
-            <BedDouble size={13} /> View Live Bed Board
+            <BedDouble size={13} /> View Bed Availability
           </button>
         </div>
       </div>
 
       {/* Main 2-Column Form Layout */}
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 20 }}>
-          {/* Left Column: Patient Search & Demographics */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+          {/* Left Column: Patient Search, Demographics & Attendant Details */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Patient Search Card */}
             <div className="card">
@@ -287,7 +295,6 @@ export default function PatientAdmission() {
                     </select>
                   </div>
 
-                  {/* Insurance Provider */}
                   <div className="form-group">
                     <label className="form-label">Insurance Provider (TPA)</label>
                     <input
@@ -314,58 +321,89 @@ export default function PatientAdmission() {
             </div>
           </div>
 
-          {/* Right Column: Admission Specifics & Bed Allocation */}
+          {/* Right Column: Clinical Triage, Bed Allocation & Dates */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Admission Information Card */}
+            {/* Clinical Condition & Bed Selection */}
             <div className="card">
               <div className="card-header">
                 <BedDouble size={16} style={{ color: 'var(--color-primary)' }} />
-                <span className="card-title">3. Admission Specifics & Bed Selection</span>
+                <span className="card-title">3. Clinical Triage & Bed Allocation</span>
               </div>
               <div className="card-body">
                 <div className="form-grid" style={{ gap: 14 }}>
-                  {/* Admission Type */}
+                  {/* Category & Priority */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="form-group">
+                      <label className="form-label">Admission Category <span className="required">*</span></label>
+                      <select
+                        className="form-select"
+                        value={admissionType}
+                        onChange={e => setAdmissionType(e.target.value as AdmissionType)}
+                      >
+                        {ADMISSION_TYPES.map(t => (
+                          <option key={t.id} value={t.id}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Admission Priority <span className="required">*</span></label>
+                      <select
+                        className="form-select"
+                        value={priority}
+                        onChange={e => setPriority(e.target.value as any)}
+                      >
+                        <option value="normal">Normal Priority</option>
+                        <option value="urgent">Urgent</option>
+                        <option value="emergency">Emergency Priority</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Patient Condition */}
                   <div className="form-group">
-                    <label className="form-label">Admission Category <span className="required">*</span></label>
+                    <label className="form-label">Patient Clinical Condition on Admission <span className="required">*</span></label>
                     <select
                       className="form-select"
-                      value={admissionType}
-                      onChange={e => setAdmissionType(e.target.value as AdmissionType)}
+                      value={condition}
+                      onChange={e => setCondition(e.target.value as any)}
                     >
-                      {ADMISSION_TYPES.map(t => (
-                        <option key={t.id} value={t.id}>{t.label}</option>
-                      ))}
+                      <option value="stable">Stable — Normal vital signs</option>
+                      <option value="guarded">Guarded — Unfavorable or variable signs</option>
+                      <option value="serious">Serious — Severely ill, close monitoring</option>
+                      <option value="critical">Critical — Vital signs unstable / ICU</option>
                     </select>
                   </div>
 
-                  {/* Department */}
-                  <div className="form-group">
-                    <label className="form-label">Clinical Department <span className="required">*</span></label>
-                    <select
-                      className="form-select"
-                      value={selectedDept}
-                      onChange={e => setSelectedDept(e.target.value)}
-                      required
-                    >
-                      {departments.slice(0, 10).map(d => (
-                        <option key={d.id} value={d.name}>{d.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Department & Doctor */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="form-group">
+                      <label className="form-label">Clinical Dept <span className="required">*</span></label>
+                      <select
+                        className="form-select"
+                        value={selectedDept}
+                        onChange={e => setSelectedDept(e.target.value)}
+                        required
+                      >
+                        {departments.slice(0, 10).map(d => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                  {/* Attending Doctor */}
-                  <div className="form-group">
-                    <label className="form-label">Attending Consultant Doctor <span className="required">*</span></label>
-                    <select
-                      className="form-select"
-                      value={selectedDoctorId}
-                      onChange={e => setSelectedDoctorId(e.target.value)}
-                      required
-                    >
-                      {doctors.map(d => (
-                        <option key={d.id} value={d.id}>{d.name} — {d.specialization} ({d.department})</option>
-                      ))}
-                    </select>
+                    <div className="form-group">
+                      <label className="form-label">Attending Doctor <span className="required">*</span></label>
+                      <select
+                        className="form-select"
+                        value={selectedDoctorId}
+                        onChange={e => setSelectedDoctorId(e.target.value)}
+                        required
+                      >
+                        {doctors.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.department})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Bed Selector with Double Allocation Protection */}
@@ -381,7 +419,7 @@ export default function PatientAdmission() {
                         <option value="">-- Choose Available Bed --</option>
                         {availableBeds.map(b => (
                           <option key={b.id} value={b.id}>
-                            {b.bedNumber} — {b.ward} ({b.type.toUpperCase()}) | Floor {b.floor} | ₹{b.dailyRate}/day
+                            {b.bedNumber} — {b.ward} {b.roomNumber ? `(Room ${b.roomNumber})` : ''} ({b.type.toUpperCase()}) | ₹{b.dailyRate}/day
                           </option>
                         ))}
                       </select>
@@ -392,10 +430,18 @@ export default function PatientAdmission() {
                     )}
                   </div>
 
-                  {/* Date & Time */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {/* Selected Bed Quick Preview */}
+                  {selectedBed && (
+                    <div style={{ padding: '8px 12px', background: 'var(--color-success-muted)', borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--color-success)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Bed: <strong>{selectedBed.bedNumber}</strong> · Ward: <strong>{selectedBed.ward}</strong></span>
+                      <span>Tariff: <strong>₹{selectedBed.dailyRate}/day</strong></span>
+                    </div>
+                  )}
+
+                  {/* Admission Date, Time, and Expected Discharge Date */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                     <div className="form-group">
-                      <label className="form-label">Admission Date</label>
+                      <label className="form-label">Adm. Date</label>
                       <input
                         type="date"
                         className="form-input"
@@ -405,12 +451,22 @@ export default function PatientAdmission() {
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Admission Time</label>
+                      <label className="form-label">Adm. Time</label>
                       <input
                         type="time"
                         className="form-input"
                         value={admissionTime}
                         onChange={e => setAdmissionTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Exp. Discharge</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={expectedDischargeDate}
+                        onChange={e => setExpectedDischargeDate(e.target.value)}
                         required
                       />
                     </div>
@@ -431,11 +487,11 @@ export default function PatientAdmission() {
 
                   {/* Admission Notes */}
                   <div className="form-group">
-                    <label className="form-label">Clinical Admission Notes & Protocol</label>
+                    <label className="form-label">Clinical Notes & Protocol</label>
                     <textarea
                       className="form-textarea"
                       rows={2}
-                      placeholder="Special instructions, continuous monitoring, diet, emergency precautions..."
+                      placeholder="Special instructions, continuous monitoring, diet, precautions..."
                       value={admissionNotes}
                       onChange={e => setAdmissionNotes(e.target.value)}
                     />

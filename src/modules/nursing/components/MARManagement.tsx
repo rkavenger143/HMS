@@ -22,7 +22,8 @@ export default function MARManagement() {
       !search ||
       m.medicineName.toLowerCase().includes(q) ||
       m.patientName.toLowerCase().includes(q) ||
-      m.bedNumber.toLowerCase().includes(q);
+      m.bedNumber.toLowerCase().includes(q) ||
+      (m.nurseName && m.nurseName.toLowerCase().includes(q));
 
     const matchesStatus = selectedStatus === 'ALL' || m.status === selectedStatus;
     const matchesAdm = selectedAdmId === 'ALL' || m.admissionId === selectedAdmId;
@@ -39,9 +40,9 @@ export default function MARManagement() {
             <Pill size={22} />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Medication Administration Record (MAR & eMAR)</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Medication Administration Record (MAR)</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              5-Rights verification, bedside administration logging, scheduled doses, and hold/missed clinical audit
+              Scheduled bedside drug administration: Administer, Hold (Delayed), and Missed logging with automatic nurse timestamp
             </div>
           </div>
         </div>
@@ -79,7 +80,7 @@ export default function MARManagement() {
             <option value="ALL">All Statuses ({marRecords.length})</option>
             <option value="scheduled">Scheduled / Due ({marRecords.filter(m => m.status === 'scheduled').length})</option>
             <option value="administered">Administered ({marRecords.filter(m => m.status === 'administered').length})</option>
-            <option value="held">Held Doses</option>
+            <option value="held">Held / Delayed</option>
             <option value="missed">Missed Doses</option>
           </select>
         </div>
@@ -90,8 +91,8 @@ export default function MARManagement() {
         <div className="card-header" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Pill size={18} style={{ color: 'var(--color-primary)' }} />
-            <span className="card-title">Medication Administration Schedule & Records</span>
-            <span className="badge badge-primary">{filteredMAR.length} Medications</span>
+            <span className="card-title">Bedside Medication Schedule</span>
+            <span className="badge badge-primary">{filteredMAR.length} Prescriptions</span>
           </div>
         </div>
 
@@ -100,90 +101,119 @@ export default function MARManagement() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Patient Name & Bed</th>
-                  <th>Medication & Strength</th>
+                  <th>Patient & Bed</th>
+                  <th>Medicine Name</th>
                   <th>Dose & Route</th>
-                  <th>Frequency</th>
                   <th>Scheduled Time</th>
-                  <th>Administered Time</th>
-                  <th>Status</th>
-                  <th>Administering Nurse</th>
-                  <th>Clinical Remarks</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>Administration Status</th>
+                  <th>Administered Time & Nurse</th>
+                  <th style={{ textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredMAR.map(med => {
-                  const isDue = med.status === 'scheduled';
-                  const isAdministered = med.status === 'administered';
-                  const isHeldOrMissed = med.status === 'held' || med.status === 'missed';
+                {filteredMAR.length > 0 ? (
+                  filteredMAR.map(m => {
+                    const isDone = m.status === 'administered';
+                    const isHeld = m.status === 'held';
+                    const isMissed = m.status === 'missed';
 
-                  return (
-                    <tr key={med.id}>
-                      <td>
-                        <strong>{med.patientName}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Bed {med.bedNumber}</div>
-                      </td>
-                      <td>
-                        <strong style={{ fontSize: 13, color: 'var(--color-primary)' }}>{med.medicineName}</strong>
-                      </td>
-                      <td>{med.dose} ({med.route})</td>
-                      <td>{med.frequency}</td>
-                      <td>
-                        <Clock size={11} style={{ display: 'inline', marginRight: 4, color: 'var(--text-tertiary)' }} />
-                        <strong>{med.scheduledTime}</strong>
-                      </td>
-                      <td>
-                        <strong>{med.administeredTime || '—'}</strong>
-                      </td>
-                      <td>
-                        <span className={`badge ${isAdministered ? 'badge-success' : isDue ? 'badge-primary' : 'badge-danger'}`}>
-                          {med.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td>{med.nurseName || '—'}</td>
-                      <td>
-                        <span style={{ fontSize: 11, color: isHeldOrMissed ? 'var(--color-danger)' : 'var(--text-secondary)' }}>
-                          {med.reasonForHoldMissed || med.remarks || 'Standard prescription'}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {isDue ? (
+                    return (
+                      <tr key={m.id}>
+                        <td>
+                          <strong>{m.patientName}</strong>
+                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Bed {m.bedNumber}</div>
+                        </td>
+
+                        <td>
+                          <div style={{ fontWeight: 800, color: 'var(--color-primary)', fontSize: 13 }}>{m.medicineName}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{m.frequency}</div>
+                        </td>
+
+                        <td>
+                          <div>{m.dose}</div>
+                          <span className="badge badge-neutral" style={{ fontSize: 9 }}>{m.route}</span>
+                        </td>
+
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                            <Clock size={12} style={{ color: 'var(--color-primary)' }} />
+                            {m.scheduledTime}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{m.scheduledDate}</div>
+                        </td>
+
+                        <td>
+                          {isDone ? (
+                            <span className="badge badge-success">
+                              <span className="badge-dot" /> Administered
+                            </span>
+                          ) : isHeld ? (
+                            <span className="badge badge-warning">Held / Delayed</span>
+                          ) : isMissed ? (
+                            <span className="badge badge-danger">Missed</span>
+                          ) : (
+                            <span className="badge badge-primary">Scheduled / Due</span>
+                          )}
+                        </td>
+
+                        <td>
+                          {m.administeredTime ? (
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 600 }}>{m.administeredTime}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>By {m.nurseName}</div>
+                            </div>
+                          ) : m.reasonForHoldMissed ? (
+                            <div style={{ fontSize: 11, color: 'var(--color-danger)' }}>
+                              Reason: {m.reasonForHoldMissed}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Pending Dose</span>
+                          )}
+                        </td>
+
+                        <td style={{ textAlign: 'right' }}>
                           <button
-                            className="btn btn-primary btn-sm"
-                            onClick={() => setActiveMedRecord(med)}
+                            className={`btn btn-sm ${isDone ? 'btn-secondary' : 'btn-primary'}`}
+                            style={{ padding: '3px 10px', fontSize: 11 }}
+                            onClick={() => setActiveMedRecord(m)}
                           >
-                            <ShieldCheck size={12} /> Administer
+                            {isDone ? 'View Log' : 'Administer / Update'}
                           </button>
-                        ) : (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setActiveMedRecord(med)}
-                          >
-                            Edit / Log
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7}>
+                      <div className="empty-state" style={{ padding: '32px' }}>
+                        <div className="empty-state-icon"><Pill size={28} /></div>
+                        <div className="empty-state-title">No Medication Records Found</div>
+                        <div className="empty-state-desc">All scheduled doses are logged or filter criteria didn't match.</div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      {/* Administer 5-Rights Modal */}
+      {/* Administer Medication Modal */}
       {activeMedRecord && (
-        <AdministerMedModal record={activeMedRecord} onClose={() => setActiveMedRecord(null)} />
+        <AdministerMedModal
+          record={activeMedRecord}
+          onClose={() => setActiveMedRecord(null)}
+        />
       )}
 
       {/* Print MAR Modal */}
       {printAdm && (
         <PrintMARSheetModal
-          records={marRecords.filter(m => m.admissionId === printAdm.id)}
-          patient={patients.find(p => p.id === printAdm.patientId) || null}
           admission={printAdm}
+          records={marRecords.filter(r => r.admissionId === printAdm.id)}
+          patient={patients.find(p => p.id === printAdm.patientId) || null}
           onClose={() => setPrintAdm(null)}
         />
       )}

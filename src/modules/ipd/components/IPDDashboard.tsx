@@ -1,32 +1,23 @@
 import React, { useState } from 'react';
 import {
-  BedDouble, Users, UserPlus, Clock, ArrowRightLeft, ShieldAlert,
-  Activity, CheckCircle2, AlertTriangle, Sparkles, ChevronRight,
-  Plus, Search, Stethoscope, HeartPulse, FileText, Eye, AlertCircle
+  BedDouble, Users, UserPlus, Clock, ArrowRightLeft,
+  CheckCircle2, AlertTriangle, Sparkles, Plus, Search,
+  Eye, FileText, Layers, TrendingUp, Calendar
 } from 'lucide-react';
 import { useIPD } from '../context/IPDContext';
 import type { Admission, Bed } from '../../../types';
 import BedDetailsModal from './modals/BedDetailsModal';
 import TransferModal from './modals/TransferModal';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: 'Admitted', color: 'var(--color-primary)', bg: 'var(--color-primary-muted)' },
-  stable: { label: 'Stable', color: 'var(--color-success)', bg: 'var(--color-success-muted)' },
-  critical: { label: 'Critical / ICU', color: 'var(--color-danger)', bg: 'var(--color-danger-muted)' },
-  planned_discharge: { label: 'Planned Discharge', color: 'var(--color-warning)', bg: 'var(--color-warning-muted)' },
-  discharged: { label: 'Discharged', color: 'var(--text-tertiary)', bg: 'var(--bg-surface)' },
-  transferred: { label: 'Transferred', color: 'var(--color-ai)', bg: 'var(--color-ai-muted)' },
-};
-
 export default function IPDDashboard() {
   const {
     admissions,
     beds,
     kpis,
+    wards,
     setActiveTab,
     setSelectedAdmissionId,
-    doctors,
-    wards,
+    updateAdmissionReadiness,
   } = useIPD();
 
   const [search, setSearch] = useState('');
@@ -55,47 +46,28 @@ export default function IPDDashboard() {
     setActiveTab('inpatient_profile');
   };
 
+  const handleDischargePatient = (admissionId: string) => {
+    setSelectedAdmissionId(admissionId);
+    setActiveTab('discharge');
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 10 KPI Summary Cards Grid */}
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-        {/* Total Inpatients */}
+      {/* Exact 8 Essential KPI Stat Cards */}
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+        {/* 1. Total Admitted Patients */}
         <div className="stat-card" style={{ '--stat-color': 'var(--color-primary)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="stat-icon">
+            <div className="stat-icon" style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}>
               <Users size={20} />
             </div>
             <span className="badge badge-primary">Active</span>
           </div>
           <div className="stat-value">{kpis.totalInpatients}</div>
-          <div className="stat-label">Total Inpatients (IPD)</div>
+          <div className="stat-label">Total Admitted Patients</div>
         </div>
 
-        {/* Today's Admissions */}
-        <div className="stat-card" style={{ '--stat-color': 'var(--color-info)' } as React.CSSProperties}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="stat-icon" style={{ background: 'var(--color-info-muted)', color: 'var(--color-info)' }}>
-              <UserPlus size={20} />
-            </div>
-            <span className="badge badge-info">Today</span>
-          </div>
-          <div className="stat-value" style={{ color: 'var(--color-info)' }}>{kpis.todayAdmissions}</div>
-          <div className="stat-label">Today's Admissions</div>
-        </div>
-
-        {/* Today's Discharges */}
-        <div className="stat-card" style={{ '--stat-color': 'var(--color-success)' } as React.CSSProperties}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="stat-icon" style={{ background: 'var(--color-success-muted)', color: 'var(--color-success)' }}>
-              <CheckCircle2 size={20} />
-            </div>
-            <span className="badge badge-success">Done</span>
-          </div>
-          <div className="stat-value" style={{ color: 'var(--color-success)' }}>{kpis.todayDischarges}</div>
-          <div className="stat-label">Today's Discharges</div>
-        </div>
-
-        {/* Available Beds */}
+        {/* 2. Available Beds */}
         <div className="stat-card" style={{ '--stat-color': 'var(--color-success)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="stat-icon" style={{ background: 'var(--color-success-muted)', color: 'var(--color-success)' }}>
@@ -107,19 +79,19 @@ export default function IPDDashboard() {
           <div className="stat-label">Available Vacant Beds</div>
         </div>
 
-        {/* Occupied Beds */}
+        {/* 3. Occupied Beds */}
         <div className="stat-card" style={{ '--stat-color': 'var(--color-danger)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="stat-icon" style={{ background: 'var(--color-danger-muted)', color: 'var(--color-danger)' }}>
               <BedDouble size={20} />
             </div>
-            <span className="badge badge-danger">{kpis.bedOccupancyRate}% Total</span>
+            <span className="badge badge-danger">{kpis.bedOccupancyRate}%</span>
           </div>
           <div className="stat-value" style={{ color: 'var(--color-danger)' }}>{kpis.occupiedBeds}</div>
           <div className="stat-label">Occupied Beds</div>
         </div>
 
-        {/* Reserved Beds */}
+        {/* 4. Reserved Beds */}
         <div className="stat-card" style={{ '--stat-color': 'var(--color-warning)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="stat-icon" style={{ background: 'var(--color-warning-muted)', color: 'var(--color-warning)' }}>
@@ -131,7 +103,7 @@ export default function IPDDashboard() {
           <div className="stat-label">Reserved Beds</div>
         </div>
 
-        {/* Cleaning Beds */}
+        {/* 5. Beds Under Cleaning */}
         <div className="stat-card" style={{ '--stat-color': 'var(--color-info)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="stat-icon" style={{ background: 'var(--color-info-muted)', color: 'var(--color-info)' }}>
@@ -140,10 +112,10 @@ export default function IPDDashboard() {
             <span className="badge badge-info">Sanitizing</span>
           </div>
           <div className="stat-value" style={{ color: 'var(--color-info)' }}>{kpis.cleaningBeds}</div>
-          <div className="stat-label">Beds in Cleaning</div>
+          <div className="stat-label">Beds Under Cleaning</div>
         </div>
 
-        {/* Maintenance Beds */}
+        {/* 6. Beds Under Maintenance */}
         <div className="stat-card" style={{ '--stat-color': 'var(--text-muted)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="stat-icon" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
@@ -152,82 +124,151 @@ export default function IPDDashboard() {
             <span className="badge badge-neutral">Repairs</span>
           </div>
           <div className="stat-value">{kpis.maintenanceBeds}</div>
-          <div className="stat-label">Maintenance / Blocked</div>
+          <div className="stat-label">Beds Under Maintenance</div>
         </div>
 
-        {/* ICU Occupancy Rate */}
-        <div className="stat-card" style={{ '--stat-color': 'var(--color-danger)' } as React.CSSProperties}>
+        {/* 7. Today's Admissions */}
+        <div className="stat-card" style={{ '--stat-color': 'var(--color-primary)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="stat-icon" style={{ background: 'var(--color-danger-muted)', color: 'var(--color-danger)' }}>
-              <HeartPulse size={20} />
+            <div className="stat-icon" style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}>
+              <UserPlus size={20} />
             </div>
-            <span className="badge badge-danger">Critical</span>
+            <span className="badge badge-primary">Today</span>
           </div>
-          <div className="stat-value" style={{ color: 'var(--color-danger)' }}>{kpis.icuOccupancyRate}%</div>
-          <div className="stat-label">ICU / HDU Occupancy</div>
+          <div className="stat-value" style={{ color: 'var(--color-primary)' }}>{kpis.todayAdmissions}</div>
+          <div className="stat-label">Today's Admissions</div>
         </div>
 
-        {/* General Ward Occupancy Rate */}
-        <div className="stat-card" style={{ '--stat-color': 'var(--color-ai)' } as React.CSSProperties}>
+        {/* 8. Today's Discharges */}
+        <div className="stat-card" style={{ '--stat-color': 'var(--color-success)' } as React.CSSProperties}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="stat-icon" style={{ background: 'var(--color-ai-muted)', color: 'var(--color-ai)' }}>
-              <BedDouble size={20} />
+            <div className="stat-icon" style={{ background: 'var(--color-success-muted)', color: 'var(--color-success)' }}>
+              <CheckCircle2 size={20} />
             </div>
-            <span className="badge badge-ai">Wards</span>
+            <span className="badge badge-success">Done</span>
           </div>
-          <div className="stat-value" style={{ color: 'var(--color-ai)' }}>{kpis.generalWardOccupancyRate}%</div>
-          <div className="stat-label">General Ward Occupancy</div>
+          <div className="stat-value" style={{ color: 'var(--color-success)' }}>{kpis.todayDischarges}</div>
+          <div className="stat-label">Today's Discharges</div>
         </div>
       </div>
 
-      {/* Highlights Bar: Emergency / High Priority / Awaiting Bed Alerts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-        {/* Emergency Callout */}
-        <div style={{ padding: '12px 16px', background: 'var(--color-danger-muted)', border: '1px solid rgba(255,69,58,0.3)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldAlert size={20} style={{ color: 'var(--color-danger)' }} />
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--color-danger)' }}>
-                {kpis.highPriorityPatients} High-Priority / Critical Inpatients
+      {/* 2 Clean Informative Visual Charts */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
+        {/* Chart 1: Ward-Wise Bed Availability & Occupancy */}
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Layers size={18} style={{ color: 'var(--color-primary)' }} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Ward-wise Bed Occupancy & Availability</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Capacity census across clinical wards</div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>ICU & Emergency beds under continuous cardiac monitoring</div>
             </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => setActiveTab('beds')} style={{ fontSize: 12 }}>
+              View All Beds ›
+            </button>
           </div>
-          <button className="btn btn-danger btn-sm" onClick={() => setActiveTab('nursing')}>
-            Open Vitals
-          </button>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {wards.map(ward => {
+              const wardBeds = beds.filter(b => b.wardId === ward.id || b.ward === ward.name);
+              const occ = wardBeds.filter(b => b.status === 'occupied').length;
+              const avail = wardBeds.filter(b => b.status === 'available').length;
+              const total = wardBeds.length || ward.totalBeds;
+              const pct = total > 0 ? Math.round((occ / total) * 100) : 0;
+
+              return (
+                <div key={ward.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ fontWeight: 600 }}>{ward.name}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      <strong style={{ color: 'var(--color-danger)' }}>{occ}</strong> occ / <strong style={{ color: 'var(--color-success)' }}>{avail}</strong> free ({pct}%)
+                    </span>
+                  </div>
+                  <div className="progress" style={{ height: 7, background: 'var(--border-default)', borderRadius: 4 }}>
+                    <div
+                      className={`progress-bar ${pct > 80 ? 'danger' : pct > 50 ? 'warning' : 'success'}`}
+                      style={{ width: `${pct}%`, borderRadius: 4 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Awaiting Bed / Triage */}
-        <div style={{ padding: '12px 16px', background: 'var(--color-warning-muted)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Clock size={20} style={{ color: 'var(--color-warning)' }} />
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--color-warning)' }}>
-                {kpis.patientsAwaitingBed} Patients Awaiting Bed Allocation
+        {/* Chart 2: Bed Status Distribution */}
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <TrendingUp size={18} style={{ color: 'var(--color-primary)' }} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Live Hospital Bed Status Distribution</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total Operational Beds: {beds.length}</div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>OPD/Emergency triage pending ward admission</div>
+            </div>
+            <span className="badge badge-primary">{kpis.bedOccupancyRate}% Occupancy</span>
+          </div>
+
+          {/* Visual Proportion Bar */}
+          <div style={{ display: 'flex', height: 14, borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+            <div style={{ width: `${(kpis.occupiedBeds / beds.length) * 100}%`, background: 'var(--color-danger)' }} title={`Occupied: ${kpis.occupiedBeds}`} />
+            <div style={{ width: `${(kpis.availableBeds / beds.length) * 100}%`, background: 'var(--color-success)' }} title={`Available: ${kpis.availableBeds}`} />
+            <div style={{ width: `${(kpis.cleaningBeds / beds.length) * 100}%`, background: 'var(--color-info)' }} title={`Cleaning: ${kpis.cleaningBeds}`} />
+            <div style={{ width: `${(kpis.reservedBeds / beds.length) * 100}%`, background: 'var(--color-warning)' }} title={`Reserved: ${kpis.reservedBeds}`} />
+            <div style={{ width: `${(kpis.maintenanceBeds / beds.length) * 100}%`, background: 'var(--text-muted)' }} title={`Maintenance: ${kpis.maintenanceBeds}`} />
+          </div>
+
+          {/* Breakdown Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 12 }}>
+            <div style={{ padding: '8px 10px', background: 'var(--color-success-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-success)' }} />
+                Available Vacant
+              </span>
+              <strong>{kpis.availableBeds}</strong>
+            </div>
+
+            <div style={{ padding: '8px 10px', background: 'var(--color-danger-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-danger)' }} />
+                Occupied
+              </span>
+              <strong>{kpis.occupiedBeds}</strong>
+            </div>
+
+            <div style={{ padding: '8px 10px', background: 'var(--color-info-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-info)' }} />
+                Under Cleaning
+              </span>
+              <strong>{kpis.cleaningBeds}</strong>
+            </div>
+
+            <div style={{ padding: '8px 10px', background: 'var(--color-warning-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-warning)' }} />
+                Reserved / Hold
+              </span>
+              <strong>{kpis.reservedBeds}</strong>
             </div>
           </div>
-          <button className="btn btn-warning btn-sm" onClick={() => setActiveTab('admission')}>
-            Admit Now
-          </button>
         </div>
       </div>
 
-      {/* Main Active Inpatient Roster Card */}
+      {/* Main Active Inpatient Roster */}
       <div className="card">
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BedDouble size={18} style={{ color: 'var(--color-primary)' }} />
+            <Users size={18} style={{ color: 'var(--color-primary)' }} />
             <div>
-              <div className="card-title" style={{ fontSize: 16 }}>Current Inpatient Admissions ({activeAdmissions.length})</div>
-              <div className="card-subtitle">Live ward census, bed assignments, and attending consultants</div>
+              <div className="card-title" style={{ fontSize: 16 }}>Current Admitted Patients ({activeAdmissions.length})</div>
+              <div className="card-subtitle">Live inpatient admission tracking, condition, and expected discharge</div>
             </div>
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('bed_board')}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('beds')}>
               <BedDouble size={13} /> Live Bed Board
             </button>
             <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('admission')}>
@@ -238,7 +279,7 @@ export default function IPDDashboard() {
 
         <div className="card-body" style={{ padding: '16px 20px' }}>
           {/* Filters Bar */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 16 }}>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
               <input
@@ -266,7 +307,7 @@ export default function IPDDashboard() {
             </div>
           </div>
 
-          {/* Table */}
+          {/* Clean Table */}
           <div className="table-container">
             <table className="data-table">
               <thead>
@@ -275,9 +316,10 @@ export default function IPDDashboard() {
                   <th>Patient Details</th>
                   <th>Ward & Bed</th>
                   <th>Attending Doctor</th>
-                  <th>Admission Date / Stay</th>
-                  <th>Primary Diagnosis</th>
-                  <th>Status</th>
+                  <th>Admitted / Stay</th>
+                  <th>Expected Discharge</th>
+                  <th>Condition & Priority</th>
+                  <th>Readiness</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -287,6 +329,9 @@ export default function IPDDashboard() {
                     const days = Math.floor((new Date().getTime() - new Date(adm.admissionDate).getTime()) / 86400000) + 1;
                     const isICU = adm.ward.toLowerCase().includes('icu');
                     const isEM = adm.bedNumber.startsWith('EM');
+
+                    const isCritical = adm.condition === 'critical' || isICU;
+                    const isImproving = adm.condition === 'improving';
 
                     return (
                       <tr key={adm.id}>
@@ -321,17 +366,48 @@ export default function IPDDashboard() {
                           </div>
                         </td>
 
-                        <td style={{ maxWidth: 200 }}>
-                          <div className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            {adm.diagnosis.join(', ')}
+                        <td>
+                          <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Calendar size={12} style={{ color: 'var(--text-tertiary)' }} />
+                            {adm.expectedDischargeDate || '2026-09-04'}
                           </div>
                         </td>
 
                         <td>
-                          <span className="badge" style={{ background: isICU ? 'var(--color-danger-muted)' : 'var(--color-success-muted)', color: isICU ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                            <span className="badge-dot" />
-                            {isICU ? 'ICU Care' : 'Admitted'}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <span
+                              className="badge"
+                              style={{
+                                background: isCritical ? 'var(--color-danger-muted)' : isImproving ? 'var(--color-success-muted)' : 'var(--color-primary-muted)',
+                                color: isCritical ? 'var(--color-danger)' : isImproving ? 'var(--color-success)' : 'var(--color-primary)',
+                                textTransform: 'capitalize',
+                                fontSize: 11,
+                                fontWeight: 700,
+                              }}
+                            >
+                              <span className="badge-dot" />
+                              {adm.condition || 'Stable'}
+                            </span>
+                            {adm.priority && adm.priority !== 'routine' && (
+                              <span className={`badge ${adm.priority === 'emergency' || adm.priority === 'critical' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: 9, padding: '1px 5px' }}>
+                                {adm.priority.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td>
+                          <select
+                            className="form-select"
+                            style={{ height: 28, fontSize: 11, padding: '2px 6px' }}
+                            value={adm.dischargeReadiness || 'under_treatment'}
+                            onChange={e => updateAdmissionReadiness(adm.id, e.target.value as any)}
+                          >
+                            <option value="under_treatment">Under Treatment</option>
+                            <option value="planned_discharge">Planned Discharge</option>
+                            <option value="medically_cleared">Medically Cleared</option>
+                            <option value="ready_for_discharge">Ready for Bed Release</option>
+                          </select>
                         </td>
 
                         <td style={{ textAlign: 'right' }}>
@@ -341,7 +417,7 @@ export default function IPDDashboard() {
                               style={{ padding: '3px 10px', fontSize: 11 }}
                               onClick={() => handleOpenProfile(adm.id)}
                             >
-                              <Eye size={12} /> View EHR
+                              <Eye size={12} /> EHR
                             </button>
 
                             <button
@@ -352,6 +428,15 @@ export default function IPDDashboard() {
                             >
                               <ArrowRightLeft size={11} /> Transfer
                             </button>
+
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              style={{ padding: '3px 8px', fontSize: 11, color: 'var(--color-success)' }}
+                              title="Discharge"
+                              onClick={() => handleDischargePatient(adm.id)}
+                            >
+                              <CheckCircle2 size={11} /> Discharge
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -359,7 +444,7 @@ export default function IPDDashboard() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <div className="empty-state" style={{ padding: '32px 16px' }}>
                         <div className="empty-state-icon"><BedDouble size={28} /></div>
                         <div className="empty-state-title">No Inpatient Admissions Found</div>
