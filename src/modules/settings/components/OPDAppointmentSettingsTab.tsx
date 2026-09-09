@@ -254,10 +254,10 @@ export default function OPDAppointmentSettingsTab() {
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
                       <input
                         type="checkbox"
-                        checked={apptForm.enablePatientPortalBooking}
-                        onChange={e => setApptForm({ ...apptForm, enablePatientPortalBooking: e.target.checked })}
+                        checked={apptForm.enableOnlineWalkinTriage}
+                        onChange={e => setApptForm({ ...apptForm, enableOnlineWalkinTriage: e.target.checked })}
                       />
-                      Allow Patient Portal Self-Booking
+                      Enable Reception Fast-Track Triage Check-In
                     </label>
                   </div>
                 </div>

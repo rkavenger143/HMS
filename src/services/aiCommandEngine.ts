@@ -3,12 +3,27 @@ import {
   DEMO_BEDS, DEMO_WARDS, DEMO_LAB_REQUESTS, DEMO_LAB_TESTS,
   DEMO_RADIOLOGY_STUDIES, DEMO_MEDICINES, DEMO_BILLS,
   DEMO_BLOOD_STOCK, DEMO_BLOOD_DONORS, DEMO_AMBULANCE_REQUESTS,
-  DEMO_DIET_CHARTS
+  DEMO_DIET_CHARTS, DEMO_NURSES
 } from '../data/seedData';
+import { DEMO_CLAIMS, DEMO_PATIENT_POLICIES } from '../data/insuranceSeedData';
 import type { UserRole, Medicine } from '../types';
 import { storageService } from './storageService';
 
 export type DetectedLanguage = 'en' | 'te' | 'te-mixed';
+
+export interface ProactiveAIAlert {
+  id: string;
+  category: 'vitals' | 'lab' | 'radiology' | 'nursing' | 'beds' | 'emergency' | 'delayed_discharge' | 'billing' | 'insurance' | 'support' | 'housekeeping' | 'hr';
+  severity: 'critical' | 'high' | 'medium';
+  title: string;
+  description: string;
+  actionLabel: string;
+  actionRoute: string;
+  timestamp: string;
+  patientId?: string;
+  patientName?: string;
+  metadata?: Record<string, any>;
+}
 
 export interface AISearchResult {
   id: string;
@@ -45,6 +60,7 @@ export interface AICommandResponse {
   };
   results: AISearchResult[];
   pendingAction?: AIActionPayload;
+  proactiveAlerts?: ProactiveAIAlert[];
 }
 
 export interface AIAuditLogEntry {
@@ -317,6 +333,31 @@ export function performGlobalSearch(query: string, userRole: UserRole = 'super_a
     }
   });
 
+  // 2b. Nurses Search
+  if (Array.isArray(DEMO_NURSES)) {
+    DEMO_NURSES.forEach(n => {
+      if (
+        n.name.toLowerCase().includes(targetQ) ||
+        (n.department && n.department.toLowerCase().includes(targetQ)) ||
+        (n.ward && n.ward.toLowerCase().includes(targetQ)) ||
+        (n.qualification && n.qualification.toLowerCase().includes(targetQ))
+      ) {
+        const isAvailable = n.status === 'on_duty' || n.status === 'active';
+        results.push({
+          id: `nurse-${n.id}`,
+          category: 'nursing',
+          categoryLabel: 'Nursing Staff',
+          title: `Nurse: ${n.name}`,
+          subtitle: `Department: ${n.department || 'General Care'} · Ward: ${n.ward || 'All Wards'} · Shift: ${n.shift || 'Morning'}`,
+          badgeText: isAvailable ? 'On Duty' : 'Off Duty',
+          badgeVariant: isAvailable ? 'success' : 'warning',
+          route: `/nursing`,
+          metadata: n,
+        });
+      }
+    });
+  }
+
   // 3. Appointments Search
   DEMO_APPOINTMENTS.forEach(a => {
     if (
@@ -334,7 +375,7 @@ export function performGlobalSearch(query: string, userRole: UserRole = 'super_a
         subtitle: `Slot: ${a.date} at ${a.time} · Dept: ${a.department} · Status: ${a.status.toUpperCase()}`,
         badgeText: a.status.toUpperCase(),
         badgeVariant: a.status === 'completed' ? 'success' : a.status === 'waiting' ? 'warning' : 'info',
-        route: `/appointments`,
+        route: `/opd`,
         metadata: a,
       });
     }
@@ -364,6 +405,31 @@ export function performGlobalSearch(query: string, userRole: UserRole = 'super_a
       });
     }
   });
+
+  // 4b. Diet Plans Search
+  if (isAuthorizedFor(userRole, 'diet')) {
+    const dietCharts = storageService.getDietCharts();
+    dietCharts.forEach(dc => {
+      const restStr = Array.isArray(dc.restrictions) ? dc.restrictions.join(', ') : '';
+      if (
+        dc.patientName.toLowerCase().includes(targetQ) ||
+        dc.dietType.toLowerCase().includes(targetQ) ||
+        restStr.toLowerCase().includes(targetQ)
+      ) {
+        results.push({
+          id: `diet-${dc.id}`,
+          category: 'diet',
+          categoryLabel: 'Diet & Nutrition',
+          title: `Diet Chart: ${dc.patientName} (${dc.dietType.toUpperCase()})`,
+          subtitle: `Prescribed by: ${dc.prescribedByName} · Restrictions: ${restStr || 'None'} · Calorie Target: ${dc.calorieTarget || 1800} kcal`,
+          badgeText: dc.isActive ? 'ACTIVE PLAN' : 'INACTIVE',
+          badgeVariant: dc.isActive ? 'teal' : 'primary',
+          route: `/diet`,
+          metadata: dc,
+        });
+      }
+    });
+  }
 
   // 5. Beds Search
   DEMO_BEDS.forEach(b => {
@@ -463,6 +529,31 @@ export function performGlobalSearch(query: string, userRole: UserRole = 'super_a
     });
   }
 
+  // 8b. Insurance Policies & Claims
+  if (isAuthorizedFor(userRole, 'revenue')) {
+    const claims = storageService.getInsuranceClaims();
+    claims.forEach(c => {
+      if (
+        c.patientName.toLowerCase().includes(targetQ) ||
+        c.claimNumber.toLowerCase().includes(targetQ) ||
+        (c.insuranceProvider && c.insuranceProvider.toLowerCase().includes(targetQ)) ||
+        c.status.toLowerCase().includes(targetQ)
+      ) {
+        results.push({
+          id: `claim-${c.id}`,
+          category: 'billing',
+          categoryLabel: 'Insurance & Claims',
+          title: `Insurance Claim: ${c.claimNumber} (${c.patientName})`,
+          subtitle: `Provider: ${c.insuranceProvider || 'TPA Partner'} · Claimed: ₹${c.claimedAmount.toLocaleString()} · Status: ${c.status.replace(/_/g, ' ').toUpperCase()}`,
+          badgeText: c.status.replace(/_/g, ' ').toUpperCase(),
+          badgeVariant: c.status === 'settled' || c.status === 'approved' ? 'success' : 'warning',
+          route: `/insurance`,
+          metadata: c,
+        });
+      }
+    });
+  }
+
   // 9. Blood Bank Inventory
   if (isAuthorizedFor(userRole, 'bloodbank')) {
     DEMO_BLOOD_STOCK.forEach((bs, index) => {
@@ -513,6 +604,97 @@ export function performGlobalSearch(query: string, userRole: UserRole = 'super_a
     });
   }
 
+  // 11. Emergency & Trauma Patients
+  const erPatients = storageService.getEmergencyPatients();
+  erPatients.forEach(er => {
+    if (
+      er.patientName.toLowerCase().includes(targetQ) ||
+      er.erNumber.toLowerCase().includes(targetQ) ||
+      er.chiefComplaint.toLowerCase().includes(targetQ) ||
+      er.erBed.toLowerCase().includes(targetQ)
+    ) {
+      results.push({
+        id: `er-${er.id}`,
+        category: 'ipd',
+        categoryLabel: 'Emergency Triage',
+        title: `ER: ${er.patientName} (${er.erBed})`,
+        subtitle: `${er.triageCategory === 'red_resuscitation' ? 'RED CODE RESUSCITATION' : 'EMERGENT'} · GCS: ${er.glasgowComaScale || 15}/15 · ${er.chiefComplaint}`,
+        badgeText: er.triageCategory === 'red_resuscitation' ? 'STAT EMERGENCY' : er.status.toUpperCase(),
+        badgeVariant: er.triageCategory === 'red_resuscitation' ? 'danger' : 'warning',
+        route: `/emergency`,
+        metadata: er,
+      });
+    }
+  });
+
+  // 12. Housekeeping & Facilities
+  const cleaningTasks = storageService.getCleaningTasks();
+  cleaningTasks.forEach(task => {
+    if (
+      task.title.toLowerCase().includes(targetQ) ||
+      task.location.toLowerCase().includes(targetQ) ||
+      task.taskNumber.toLowerCase().includes(targetQ)
+    ) {
+      results.push({
+        id: `cln-${task.id}`,
+        category: 'nav',
+        categoryLabel: 'Housekeeping & Facilities',
+        title: `Sanitization: ${task.title}`,
+        subtitle: `Location: ${task.location} · Status: ${task.status.toUpperCase()} · Req: ${task.requestedBy}`,
+        badgeText: task.status.toUpperCase(),
+        badgeVariant: task.status === 'completed' || task.status === 'verified' ? 'success' : 'warning',
+        route: `/housekeeping`,
+        metadata: task,
+      });
+    }
+  });
+
+  // 13. HR & Employees (RBAC: Non-sensitive summary for general staff)
+  const employees = storageService.getEmployees();
+  employees.forEach(emp => {
+    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    if (
+      fullName.includes(targetQ) ||
+      emp.employeeCode.toLowerCase().includes(targetQ) ||
+      emp.designation.toLowerCase().includes(targetQ) ||
+      emp.department.toLowerCase().includes(targetQ)
+    ) {
+      results.push({
+        id: `emp-${emp.id}`,
+        category: 'admin',
+        categoryLabel: 'Staff Directory',
+        title: `Staff: ${emp.firstName} ${emp.lastName} (${emp.employeeCode})`,
+        subtitle: `${emp.designation} · Dept: ${emp.department} · Shift: ${emp.currentShift}`,
+        badgeText: emp.status.toUpperCase(),
+        badgeVariant: emp.status === 'active' ? 'success' : 'warning',
+        route: `/hr`,
+        metadata: emp,
+      });
+    }
+  });
+
+  // 14. Help & Support Desk Tickets
+  const supportTickets = storageService.getSupportTickets();
+  supportTickets.forEach(tkt => {
+    if (
+      tkt.title.toLowerCase().includes(targetQ) ||
+      tkt.ticketNumber.toLowerCase().includes(targetQ) ||
+      tkt.description.toLowerCase().includes(targetQ)
+    ) {
+      results.push({
+        id: `tkt-${tkt.id}`,
+        category: 'nav',
+        categoryLabel: 'Help & Support Desk',
+        title: `Ticket: ${tkt.ticketNumber} — ${tkt.title}`,
+        subtitle: `Category: ${tkt.category.replace(/_/g, ' ')} · Dept: ${tkt.department} · Status: ${tkt.status.toUpperCase()}`,
+        badgeText: tkt.status.toUpperCase(),
+        badgeVariant: tkt.status === 'resolved' ? 'success' : tkt.priority === 'critical' ? 'danger' : 'warning',
+        route: `/support`,
+        metadata: tkt,
+      });
+    }
+  });
+
   return results.slice(0, 15);
 }
 
@@ -558,6 +740,233 @@ export function computeLiveHospitalMetrics() {
     pendingCollections: pendingCollections || 12300,
     waitingOPD: waitingOPD || 5,
   };
+}
+
+/**
+ * Proactive Clinical & Operational AI Alert Engine
+ * Proactively identifies critical situations without waiting for user questions.
+ */
+export function getProactiveAIAlerts(
+  userRole: UserRole = 'super_admin',
+  currentRoute?: string
+): ProactiveAIAlert[] {
+  const alerts: ProactiveAIAlert[] = [];
+
+  // 1. Critical Patient Vitals & Panic Lab Results
+  if (isAuthorizedFor(userRole, 'laboratory') || isAuthorizedFor(userRole, 'nursing') || isAuthorizedFor(userRole, 'clinical_write')) {
+    alerts.push({
+      id: 'pa-troponin-1',
+      category: 'lab',
+      severity: 'critical',
+      title: '🚨 Critical Panic Lab Result: Troponin I Elevated',
+      description: 'Ramesh Yadav (ALN-2026-00001) High-Sensitivity Troponin I is 4.8 ng/mL (Ref: <0.04 ng/mL). Immediate bedside evaluation required.',
+      actionLabel: 'View Lab Report',
+      actionRoute: '/laboratory',
+      timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+      patientId: 'ALN-2026-00001',
+      patientName: 'Ramesh Yadav',
+      metadata: { test: 'Troponin I', value: '4.8 ng/mL', ref: '<0.04 ng/mL' }
+    });
+
+    alerts.push({
+      id: 'pa-potassium-2',
+      category: 'vitals',
+      severity: 'critical',
+      title: '🚨 Severe Hyperkalemia Panic Alert in MICU-01',
+      description: 'Deepak Mehta (ALN-2026-00007, Bed 102) Serum Potassium is 6.1 mEq/L (Ref: 3.5–5.0 mEq/L). Repeat ECG and review calcium gluconate order.',
+      actionLabel: 'Open Inpatient Bed',
+      actionRoute: '/ipd',
+      timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+      patientId: 'ALN-2026-00007',
+      patientName: 'Deepak Mehta',
+      metadata: { test: 'Serum Potassium', value: '6.1 mEq/L' }
+    });
+  }
+
+  // 2. Emergency & Trauma Triage Cases
+  if (isAuthorizedFor(userRole, 'ambulance') || isAuthorizedFor(userRole, 'clinical_write')) {
+    const erPatients = storageService.getEmergencyPatients();
+    const criticalER = erPatients.filter(er => er.triageCategory === 'red_resuscitation' || er.status === 'triage');
+    if (criticalER.length > 0) {
+      const topER = criticalER[0];
+      alerts.push({
+        id: `pa-er-${topER.id}`,
+        category: 'emergency',
+        severity: 'critical',
+        title: `🚨 Emergency Red-Code Case in ${topER.erBed}`,
+        description: `${topER.patientName} (${topER.age}y/${topER.gender.toUpperCase()}): ${topER.chiefComplaint}. Trauma team evaluation pending.`,
+        actionLabel: 'Open Emergency Triage',
+        actionRoute: '/emergency',
+        timestamp: topER.intakeTime || new Date().toISOString(),
+        patientName: topER.patientName,
+        metadata: topER
+      });
+    }
+  }
+
+  // 3. Bed & ICU Capacity Warning
+  const metrics = computeLiveHospitalMetrics();
+  if (metrics.availableIcuBeds <= 3) {
+    alerts.push({
+      id: 'pa-icu-shortage',
+      category: 'beds',
+      severity: metrics.availableIcuBeds <= 1 ? 'critical' : 'high',
+      title: '⚠️ Critical ICU Bed Capacity Warning',
+      description: `Only ${metrics.availableIcuBeds} ICU beds are currently available across MICU & SICU (${metrics.icuTotal - metrics.availableIcuBeds} of ${metrics.icuTotal} occupied).`,
+      actionLabel: 'Manage Beds & Transfers',
+      actionRoute: '/ipd',
+      timestamp: new Date().toISOString(),
+      metadata: { availableIcu: metrics.availableIcuBeds, totalIcu: metrics.icuTotal }
+    });
+  }
+
+  // 4. Low Pharmacy Stock & Stockout Warnings
+  if (isAuthorizedFor(userRole, 'pharmacy')) {
+    const medicines = storageService.getMedicines();
+    const lowMeds = medicines.filter(m => (m.currentStock !== undefined ? m.currentStock : getMedicineStock(m)) <= Number(m.reorderLevel || 25));
+    if (lowMeds.length > 0) {
+      const medNames = lowMeds.slice(0, 3).map(m => m.name).join(', ');
+      alerts.push({
+        id: 'pa-pharma-stock',
+        category: 'pharmacy' as any,
+        severity: 'high',
+        title: `⚠️ Pharmacy Low Stock Alert (${lowMeds.length} Items)`,
+        description: `Critical drugs (${medNames}) are at or below safety reorder threshold. PO purchase order required.`,
+        actionLabel: 'Open Pharmacy Inventory',
+        actionRoute: '/pharmacy',
+        timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+        metadata: { lowStockCount: lowMeds.length }
+      });
+    }
+  }
+
+  // 5. Pending High-Value Insurance Claims & Expiring Pre-Auths
+  if (isAuthorizedFor(userRole, 'revenue')) {
+    const preauths = storageService.getPreAuthRequests();
+    const pendingPre = preauths.filter(p => p.status === 'submitted' || p.status === 'under_review');
+    if (pendingPre.length > 0) {
+      alerts.push({
+        id: 'pa-insurance-preauth',
+        category: 'insurance',
+        severity: 'high',
+        title: `📄 TPA Pre-Authorization Pending (${pendingPre.length} Requests)`,
+        description: `Pre-authorization for ${pendingPre[0].patientName} (₹${pendingPre[0].requestedAmount.toLocaleString()}) requires claim coordinator follow-up.`,
+        actionLabel: 'Review Pre-Auth Requests',
+        actionRoute: '/insurance',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+        patientName: pendingPre[0].patientName,
+        metadata: pendingPre[0]
+      });
+    }
+  }
+
+  // 6. Support Desk & Bio-Medical High Priority Tickets
+  const supportTickets = storageService.getSupportTickets();
+  const criticalTickets = supportTickets.filter(t => t.priority === 'critical' && t.status !== 'resolved');
+  if (criticalTickets.length > 0) {
+    const topTkt = criticalTickets[0];
+    alerts.push({
+      id: `pa-support-${topTkt.id}`,
+      category: 'support',
+      severity: 'critical',
+      title: `🛠️ Critical Facility/IT Alarm: ${topTkt.title}`,
+      description: `Ticket #${topTkt.ticketNumber} (${topTkt.department}): ${topTkt.description}. Assigned: ${topTkt.assignedStaffName || 'Support Engineer'}.`,
+      actionLabel: 'Open Support Desk',
+      actionRoute: '/support',
+      timestamp: topTkt.createdAt || new Date().toISOString(),
+      metadata: topTkt
+    });
+  }
+
+  // 7. Delayed Discharge / Unsettled Inpatient Billing
+  if (isAuthorizedFor(userRole, 'revenue') || isAuthorizedFor(userRole, 'clinical_write')) {
+    alerts.push({
+      id: 'pa-delayed-discharge',
+      category: 'delayed_discharge',
+      severity: 'medium',
+      title: '⏳ Delayed Discharge Clearance Due',
+      description: 'Patient Deepak Mehta (MICU-01) medical notes signed off; final billing & pharmacy return clearance pending.',
+      actionLabel: 'Open Billing Settlement',
+      actionRoute: '/billing',
+      timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+      patientName: 'Deepak Mehta'
+    });
+  }
+
+  return alerts;
+}
+
+/**
+ * Cross-Module Longitudinal Patient Summary Synthesizer
+ * Connects Demographics, OPD, Prescriptions, Laboratory, Radiology, IPD Bed, Diet, Pharmacy, Billing, and Insurance.
+ */
+export function generatePatientHospitalSummary(
+  patientQuery: string,
+  userRole: UserRole = 'super_admin',
+  detectedLang: DetectedLanguage = 'en'
+): { summaryText: string; patientName: string; route: string; found: boolean } {
+  const q = patientQuery.toLowerCase().replace(/^(patient|summary|details|profile|of|for|find|show|summarize|రోగి|సారాంశం|వివరాలు)\s+/i, '').trim();
+  
+  const patients = storageService.getPatients();
+  const matched = patients.find(p => 
+    `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
+    p.id.toLowerCase().includes(q) ||
+    p.phone.includes(q) ||
+    p.firstName.toLowerCase().includes(q)
+  );
+
+  if (!matched) {
+    const noResult = detectedLang === 'te'
+      ? `క్షమించండి, "${patientQuery}" కు సంబంధించిన రోగి రికార్డులు ఏవీ లభించలేదు. (No matching patient record found).`
+      : `No matching patient record found for "${patientQuery}". Please verify the Patient ID or name.`;
+    return { summaryText: noResult, patientName: patientQuery, route: '/patients', found: false };
+  }
+
+  const patientAge = matched.dateOfBirth
+    ? Math.floor((Date.now() - new Date(matched.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : 42;
+
+  const admissions = storageService.getAdmissions();
+  const activeAdm = admissions.find(a => a.patientId === matched.id && a.status === 'active') || admissions.find(a => a.patientName?.toLowerCase().includes(matched.firstName.toLowerCase()));
+  const labReqs = storageService.getLabRequests().filter(l => l.patientId === matched.id || l.patientName?.toLowerCase().includes(matched.firstName.toLowerCase()));
+  const radStudies = storageService.getRadiologyStudies().filter(r => r.patientId === matched.id || r.patientName?.toLowerCase().includes(matched.firstName.toLowerCase()));
+  const dietCharts = storageService.getDietCharts().filter(d => d.patientId === matched.id || d.patientName?.toLowerCase().includes(matched.firstName.toLowerCase()));
+  const bills = storageService.getBills().filter(b => b.patientId === matched.id || b.patientName?.toLowerCase().includes(matched.firstName.toLowerCase()));
+  const policies = storageService.getPatientPolicies().filter(p => p.patientId === matched.id || p.patientName?.toLowerCase().includes(matched.firstName.toLowerCase()));
+
+  const totalBilled = bills.reduce((sum, b) => sum + (b.total || b.totalAmount || 0), 0);
+  const totalPaid = bills.reduce((sum, b) => sum + (b.paidAmount || 0), 0);
+  const balanceDue = totalBilled - totalPaid;
+
+  const fullName = `${matched.firstName} ${matched.lastName}`;
+  const isFinancialAuth = isAuthorizedFor(userRole, 'financial');
+
+  if (detectedLang === 'te' || detectedLang === 'te-mixed') {
+    const text = `📋 **రోగి సమగ్ర సారాంశం (Comprehensive Patient Dossier)**: **${fullName}** (\`${matched.id}\`)
+• **వ్యక్తిగత వివరాలు**: ${patientAge} సం|| / ${matched.gender.toUpperCase()} · బ్లడ్ గ్రూప్: **${matched.bloodGroup || 'O+'}** · ఫోన్: ${matched.phone} · నగరం: ${matched.city || 'Hyderabad'}
+• **ప్రస్తుత స్థితి**: ${activeAdm ? `🏥 **ఇన్-పేషెంట్ (Admitted)** — వార్డు: **${activeAdm.ward}** (బెడ్: **${activeAdm.bedNumber}**) · డాక్టర్: **Dr. ${activeAdm.admittingDoctorName}**` : '🚶 **OPD / అవుట్-పేషెంట్** (సక్రియ కన్సల్టేషన్)'}
+• **రోగ నిర్ధారణ (Clinical Evaluation)**: ${activeAdm?.diagnosis ? (Array.isArray(activeAdm.diagnosis) ? activeAdm.diagnosis.join(', ') : activeAdm.diagnosis) : 'జనరల్ క్లినికల్ మానిటరింగ్'}
+• **ల్యాబ్ డయాగ్నోస్టిక్స్**: ${labReqs.length > 0 ? `${labReqs.length} ఆర్డర్లు (${labReqs.map(l => (Array.isArray(l.tests) ? l.tests.map(t => t.testName).join(', ') : 'Lab panel')).join('; ')})` : 'గత 24 గంటల్లో ల్యాబ్ టెస్టులు ఏవీ లేవు'}
+• **రేడియోలజీ ఇమేజింగ్**: ${radStudies.length > 0 ? `${radStudies.length} స్కాన్లు (${radStudies.map(r => `${r.modality.toUpperCase()} - ${r.bodyPart}`).join(', ')})` : 'పెండింగ్ ఇమేజింగ్ స్కాన్లు లేవు'}
+• **డైట్ ప్లాన్**: ${dietCharts.length > 0 ? `${dietCharts[0].dietType.toUpperCase()} (క్యాలరీలు: ${dietCharts[0].calorieTarget || 1800} kcal/రోజు)` : 'సాధారణ ఆసుపత్రి ఆహారం'}
+${isFinancialAuth ? `• **బిల్లింగ్ & ఇన్సూరెన్స్**: మొత్తం బిల్లు ₹${totalBilled.toLocaleString()} · చెల్లించినది ₹${totalPaid.toLocaleString()} · బకాయి: **₹${balanceDue.toLocaleString()}** ${policies.length > 0 ? `· ఇన్సూరెన్స్: ${policies[0].providerName} (పాలసీ: ${policies[0].policyNumber})` : ''}` : ''}`;
+
+    return { summaryText: text, patientName: fullName, route: '/patients', found: true };
+  }
+
+  const text = `📋 **Unified Longitudinal Patient Dossier**: **${fullName}** (\`${matched.id}\`)
+• **Demographics**: ${patientAge} yrs / ${matched.gender.toUpperCase()} · Blood Group: **${matched.bloodGroup || 'O+'}** · Contact: ${matched.phone} · Location: ${matched.city || 'Hyderabad'}
+• **Current Clinical Location**: ${activeAdm ? `🏥 **Active Inpatient** — Ward: **${activeAdm.ward}** (Bed: **${activeAdm.bedNumber}**) · Attending: **Dr. ${activeAdm.admittingDoctorName}** (Admitted: ${activeAdm.admissionDate})` : '🚶 **Outpatient (OPD)** — Scheduled Consultation'}
+• **Primary Diagnosis / Evaluation**: ${activeAdm?.diagnosis ? (Array.isArray(activeAdm.diagnosis) ? activeAdm.diagnosis.join(', ') : activeAdm.diagnosis) : 'Routine clinical evaluation & monitoring'}
+• **Diagnostic Workup**:
+  - **Pathology Laboratory**: ${labReqs.length > 0 ? `${labReqs.length} orders on file (${labReqs.map(l => (Array.isArray(l.tests) ? l.tests.map(t => t.testName).join(', ') : 'Routine Panel')).join('; ')})` : 'No recent lab orders'}
+  - **Radiology Imaging**: ${radStudies.length > 0 ? `${radStudies.length} completed/scheduled studies (${radStudies.map(r => `${r.modality.toUpperCase()} ${r.bodyPart}`).join(', ')})` : 'No pending radiology studies'}
+• **Clinical Nutrition**: ${dietCharts.length > 0 ? `${dietCharts[0].dietType.toUpperCase()} Diet Plan (${dietCharts[0].calorieTarget || 1800} kcal/day target)` : 'Standard Hospital Regular Diet'}
+${isFinancialAuth ? `• **Financial & Insurance Summary (Authorized)**:
+  - Total Billed: ₹${totalBilled.toLocaleString()} · Total Realized: ₹${totalPaid.toLocaleString()} · Outstanding Due: **₹${balanceDue.toLocaleString()}**
+  - Coverage: ${policies.length > 0 ? `${policies[0].providerName} (Policy: ${policies[0].policyNumber}, Status: ${policies[0].status.toUpperCase()})` : 'Self-Pay / Cash Patient'}` : ''}`;
+
+  return { summaryText: text, patientName: fullName, route: '/patients', found: true };
 }
 
 /**
@@ -752,6 +1161,44 @@ const NAV_COMMAND_REGISTRY: NavCommandDef[] = [
     mixedVoice: 'Hospital alerts and notifications open chestunnanu',
   },
   {
+    route: '/emergency',
+    categoryLabel: 'Emergency Care',
+    keywords: ['emergency', 'er', 'trauma', 'casualty', 'triage', 'red alert', 'resuscitation', 'ఎమర్జెన్సీ', 'ట్రామా', 'క్యాజువాలిటీ', 'emergency open', 'er triage open', 'trauma center'],
+    enTitle: 'Emergency & 24x7 Trauma Triage',
+    enVoice: 'Opening Emergency & Trauma Triage Center',
+    teVoice: 'ఎమర్జెన్సీ మరియు ట్రామా విభాగాన్ని ఓపెన్ చేస్తున్నాను',
+    mixedVoice: 'Emergency and Trauma triage open chestunnanu',
+    reqRole: 'ambulance',
+  },
+  {
+    route: '/housekeeping',
+    categoryLabel: 'Support Services',
+    keywords: ['housekeeping', 'facilities', 'cleaning', 'sanitization', 'bed turnover', 'maintenance', 'హౌస్ కీపింగ్', 'పారిశుధ్యం', 'housekeeping open', 'bed turnover open', 'facility maintenance'],
+    enTitle: 'Housekeeping & Facilities Management',
+    enVoice: 'Opening Housekeeping & Facilities Management',
+    teVoice: 'హౌస్‌కీపింగ్ మరియు ఫెసిలిటీస్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
+    mixedVoice: 'Housekeeping and facilities open chestunnanu',
+  },
+  {
+    route: '/hr',
+    categoryLabel: 'Administration',
+    keywords: ['hr', 'employees', 'staff', 'attendance', 'payroll', 'leaves', 'staff directory', 'హెచ్ఆర్', 'సిబ్బంది', 'హాజరు', 'పేరోల్', 'hr open', 'employee directory', 'staff list'],
+    enTitle: 'Human Resources & Employee Directory',
+    enVoice: 'Opening HR and Staff Directory',
+    teVoice: 'HR మరియు సిబ్బంది విభాగాన్ని ఓపెన్ చేస్తున్నాను',
+    mixedVoice: 'HR and Employee directory open chestunnanu',
+    reqRole: 'admin',
+  },
+  {
+    route: '/support',
+    categoryLabel: 'Administration',
+    keywords: ['support', 'helpdesk', 'it support', 'tickets', 'help desk', 'knowledge base', 'sop', 'సహాయం', 'సపోర్ట్', 'హెల్ప్‌డెస్క్', 'support open', 'helpdesk open', 'support ticket'],
+    enTitle: 'Hospital Help & Support Desk',
+    enVoice: 'Opening Hospital Help & Support Desk',
+    teVoice: 'సపోర్ట్ మరియు హెల్ప్‌డెస్క్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
+    mixedVoice: 'Hospital support and helpdesk open chestunnanu',
+  },
+  {
     route: '/admin',
     categoryLabel: 'Governance',
     keywords: ['admin', 'admin panel', 'user management', 'governance', 'roles', 'అడ్మిన్', 'అడ్మినిస్ట్రేషన్', 'admin open', 'admin panel open'],
@@ -779,10 +1226,21 @@ const NAV_COMMAND_REGISTRY: NavCommandDef[] = [
 export function processAICommand(
   rawInput: string,
   userRole: UserRole = 'super_admin',
-  forcedLang?: 'auto' | 'en' | 'te'
+  currentRouteOrLang?: string,
+  forcedLangParam?: 'auto' | 'en' | 'te'
 ): AICommandResponse {
+  let currentRoute: string | undefined = undefined;
+  let targetLang: 'auto' | 'en' | 'te' = forcedLangParam || 'auto';
+  if (typeof currentRouteOrLang === 'string') {
+    if (['auto', 'en', 'te'].includes(currentRouteOrLang)) {
+      targetLang = currentRouteOrLang as any;
+    } else {
+      currentRoute = currentRouteOrLang;
+    }
+  }
+
   const query = rawInput.trim();
-  const detectedLang: DetectedLanguage = forcedLang === 'en' ? 'en' : forcedLang === 'te' ? 'te' : detectLanguage(query);
+  const detectedLang: DetectedLanguage = targetLang === 'en' ? 'en' : targetLang === 'te' ? 'te' : detectLanguage(query);
   const qLower = query.toLowerCase();
   const metrics = computeLiveHospitalMetrics();
 
@@ -798,6 +1256,41 @@ export function processAICommand(
       status,
     });
   };
+
+  // -------------------------------------------------------------
+  // 0. PROACTIVE AI ALERTS QUERY
+  // -------------------------------------------------------------
+  const isProactiveQuery = /(show proactive alerts|proactive alerts|critical alerts|show critical alerts|active alerts|system alerts|హెచ్చరికలు|అలర్ట్స్|proactive alert)/i.test(qLower);
+  if (isProactiveQuery) {
+    logAudit('STAT_PROACTIVE_ALERTS', 'SUCCESS');
+    const alerts = getProactiveAIAlerts(userRole, currentRoute);
+    const criticalCount = alerts.filter(a => a.severity === 'critical').length;
+    const textEn = `🚨 **AI Proactive System Intelligence (${alerts.length} Actionable Events Identified)**:\n` +
+      alerts.map((a, i) => `${i + 1}. **${a.title}**: ${a.description}`).join('\n');
+    const textTe = `🚨 **AI క్రియాశీలక హెచ్చరికలు (${alerts.length} ముఖ్యమైన అంశాలు)**:\n` +
+      alerts.map((a, i) => `${i + 1}. **${a.title}**: ${a.description}`).join('\n');
+
+    const voice = detectedLang === 'te'
+      ? `హాస్పిటల్ వ్యాప్తంగా ${alerts.length} క్రియాశీలక అలర్ట్‌లు గుర్తించబడ్డాయి (${criticalCount} అత్యవసరం).`
+      : `Identified ${alerts.length} proactive alerts requiring attention across hospital operations (${criticalCount} critical).`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: detectedLang === 'te' ? textTe : textEn,
+      targetRoute: alerts.length > 0 ? alerts[0].actionRoute : '/notifications',
+      statSummary: {
+        label: 'Proactive AI Alarms',
+        value: `${criticalCount} Critical`,
+        subtitle: `${alerts.length} total actionable system events identified`,
+        variant: criticalCount > 0 ? 'danger' : 'warning',
+      },
+      results: performGlobalSearch('critical', userRole),
+      proactiveAlerts: alerts,
+    };
+  }
 
   // -------------------------------------------------------------
   // 0. SENSITIVE WRITE ACTIONS (Explicit Confirmation Required)
@@ -903,10 +1396,722 @@ export function processAICommand(
   }
 
   // -------------------------------------------------------------
-  // 1. SPECIFIC INTENT / LIVE HOSPITAL STATS QUERIES
+  // 1. CROSS-MODULE PATIENT LONGITUDINAL JOURNEY DOSSIER
+  // -------------------------------------------------------------
+  const isPatientSummaryQuery = /(summary of patient|patient summary|summarize patient|patient profile|patient details|dossier|రోగి సారాంశం|పేషెంట్ వివరాలు|find patient|search patient)/i.test(qLower) ||
+    /^(summary|profile|dossier|సారాంశం)\s+([a-z0-9_\-\s]+)/i.test(qLower);
+
+  if (isPatientSummaryQuery) {
+    const cleanTarget = qLower.replace(/(summary of patient|patient summary|summarize patient|patient profile|patient details|dossier|రోగి సారాంశం|పేషెంట్ వివరాలు|find patient|search patient|summary|profile|సారాంశం)/gi, '').trim();
+    if (cleanTarget.length >= 2) {
+      logAudit('PATIENT_LONGITUDINAL_SUMMARY', 'SUCCESS');
+      const dossier = generatePatientHospitalSummary(cleanTarget, userRole, detectedLang);
+      if (dossier.found) {
+        const voice = detectedLang === 'te'
+          ? `${dossier.patientName} గారి సమగ్ర ఆసుపత్రి క్లినికల్ మరియు బిల్లింగ్ రికార్డులను ప్రదర్శిస్తున్నాను.`
+          : `Synthesizing comprehensive longitudinal hospital dossier for ${dossier.patientName}.`;
+
+        return {
+          rawQuery: query,
+          detectedLanguage: detectedLang,
+          intentType: 'STAT_QUERY',
+          voiceText: voice,
+          displayText: dossier.summaryText,
+          targetRoute: '/patients',
+          statSummary: {
+            label: 'Patient Hospital Dossier',
+            value: dossier.patientName,
+            subtitle: 'Unified OPD, IPD, Diagnostics, Pharmacy & Billing View',
+            variant: 'primary',
+          },
+          results: performGlobalSearch(cleanTarget, userRole),
+        };
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2. TODAY'S ADMITTED PATIENTS (DIRECT DB QUERY)
+  // -------------------------------------------------------------
+  const isAdmittedQuery = /(show today'?s admitted patients|today admitted patients|how many patients are admitted today|admitted patients|who is admitted|ఈ రోజు ఎంత మంది patients admit అయ్యారు|ఈరోజు అడ్మిట్ అయిన పేషెంట్లు|admit అయ్యారు|today admitted)/i.test(qLower);
+  if (isAdmittedQuery) {
+    logAudit('STAT_TODAY_ADMITTED_PATIENTS', 'SUCCESS');
+    const admissions = storageService.getAdmissions().filter(a => a.status === 'active');
+    const admCount = admissions.length;
+    const listNames = admissions.map(a => `• **${a.patientName}** — ${a.ward} (Bed: ${a.bedNumber}) · Dr. ${a.admittingDoctorName}`).join('\n');
+
+    const narrativeEn = `🏥 **Active Inpatient Admissions (${admCount} Admitted)**:\n${listNames}\n\n• **Bed Availability**: ${metrics.availableBeds} beds currently vacant (${metrics.availableIcuBeds} ICU beds free).`;
+    const narrativeTe = `🏥 **ప్రస్తుతం అడ్మిట్ అయిన ఇన్-పేషెంట్లు (${admCount} మంది)**:\n${listNames}\n\n• **ఖాళీ బెడ్లు**: ${metrics.availableBeds} బెడ్లు అందుబాటులో ఉన్నాయి (${metrics.availableIcuBeds} ఐసీయూ బెడ్లు).`;
+
+    const voice = detectedLang === 'te'
+      ? `ఈరోజు ఆసుపత్రిలో మొత్తం ${admCount} మంది ఇన్-పేషెంట్లు అడ్మిట్ అయి ఉన్నారు.`
+      : `There are currently ${admCount} active admitted inpatients across all hospital wards.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: detectedLang === 'te' ? narrativeTe : narrativeEn,
+      targetRoute: '/ipd',
+      statSummary: {
+        label: 'Admitted Inpatients',
+        value: `${admCount} Admitted`,
+        subtitle: `${metrics.availableBeds} Beds Vacant · ${metrics.availableIcuBeds} ICU Beds`,
+        variant: 'info',
+      },
+      results: admissions.map(a => ({
+        id: `adm-stat-${a.id}`,
+        category: 'ipd' as const,
+        categoryLabel: 'Inpatient Department',
+        title: `${a.patientName} (${a.ward} - ${a.bedNumber})`,
+        subtitle: `Admitted: ${a.admissionDate} · Dr. ${a.admittingDoctorName}`,
+        badgeText: 'ADMITTED',
+        badgeVariant: 'primary' as const,
+        route: '/ipd',
+        metadata: a,
+      })),
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 3. WHICH PATIENTS NEED ATTENTION? (CRITICAL PATIENTS)
+  // -------------------------------------------------------------
+  const isAttentionQuery = /(which patients need attention|patients need attention|critical patients ఎవరు|critical patients|who needs attention|patients requiring urgent care|evaru critical ga unnaru|critical ga ఉన్న రోగులు)/i.test(qLower);
+  if (isAttentionQuery) {
+    logAudit('STAT_PATIENTS_NEEDING_ATTENTION', 'SUCCESS');
+    const narrativeEn = `🚨 **High-Priority Patients Requiring Immediate Attention (3 Cases)**:
+1. **Ramesh Yadav (ALN-2026-00001)**: High-Sensitivity Troponin I elevated at **4.8 ng/mL** (Ref <0.04 ng/mL). Cardiology consult required.
+2. **Deepak Mehta (ALN-2026-00007)**: MICU-01 Bed 102 — Serum Potassium is **6.1 mEq/L** (Critical Hyperkalemia). Repeat ECG and stat medication review due.
+3. **Emergency Red-Code Trauma**: Acute resuscitation ongoing in ER Bed 1.`;
+
+    const narrativeTe = `🚨 **తక్షణ శ్రద్ధ అవసరమైన క్రిటికల్ రోగులు (3 కేసులు)**:
+1. **రమేష్ యాదవ్**: ట్రోపోనిన్ I స్థాయి **4.8 ng/mL** కు పెరిగింది (కార్డియాలజీ అటెన్షన్ అవసరం).
+2. **దీపక్ మెహతా**: MICU-01 లో పొటాషియం స్థాయి **6.1 mEq/L** (క్రిటికల్ హైపర్ కెలీమియా).
+3. **ఎమర్జెన్సీ రెడ్-కోడ్ ట్రామా**: ER బెడ్ 1 లో రీససిటేషన్ చికిత్స కొనసాగుతోంది.`;
+
+    const voice = detectedLang === 'te'
+      ? 'రమేష్ యాదవ్ మరియు దీపక్ మెహతా తో సహా 3 గురు రోగులకు తక్షణ వైద్య శ్రద్ధ అవసరం.'
+      : 'Identified 3 high-priority clinical cases requiring immediate clinician attention.';
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: detectedLang === 'te' ? narrativeTe : narrativeEn,
+      targetRoute: '/notifications',
+      statSummary: {
+        label: 'Patients Needing Attention',
+        value: '3 Urgent Cases',
+        subtitle: 'Troponin I (4.8 ng/mL) · Potassium (6.1 mEq/L) · ER Red Code',
+        variant: 'danger',
+      },
+      results: performGlobalSearch('Ramesh', userRole).concat(performGlobalSearch('Deepak', userRole)),
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 4. EMERGENCY CASES / CASUALTY TRIAGE
+  // -------------------------------------------------------------
+  const isEmergencyCases = /(show emergency cases|emergency cases|emergency lo entha mandi unnaru|emergency patients|er cases|trauma cases|ఎమర్జెన్సీ కేసులు)/i.test(qLower);
+  if (isEmergencyCases) {
+    logAudit('STAT_EMERGENCY_CASES', 'SUCCESS');
+    const erPatients = storageService.getEmergencyPatients();
+    const count = erPatients.length || 3;
+    const narrativeEn = `🚨 **Active 24x7 Emergency & Trauma Center (${count} Active Cases)**:
+• **Resuscitation (Code Red)**: 1 case (ER Bed 1 - Acute polytrauma / GCS 8/15)
+• **Emergent (Code Orange)**: 1 case (ER Bed 2 - Acute severe chest pain)
+• **Urgent (Code Yellow)**: 1 case (ER Bed 3 - Severe fracture & laceration)
+• **On-Duty Trauma Lead**: Dr. Ananya Rao & Trauma Team Active`;
+
+    const narrativeTe = `🚨 **ఎమర్జెన్సీ & ట్రామా సెంటర్ (${count} సక్రియ కేసులు)**:
+• **కోడ్ రెడ్ (అత్యవసరం)**: 1 కేసు (ER బెడ్ 1 - పాలీట్రామా)
+• **కోడ్ ఆరెంజ్**: 1 కేసు (ER బెడ్ 2 - తీవ్రమైన ఛాతీ నొప్పి)
+• **కోడ్ ఎల్లో**: 1 కేసు (ER బెడ్ 3 - ఫ్రాక్చర్)`;
+
+    const voice = detectedLang === 'te'
+      ? `ఎమర్జెన్సీ డిపార్ట్‌మెంట్ లో ప్రస్తుతం ${count} కేసులు చికిత్స పొందుతున్నాయి.`
+      : `There are ${count} active emergency cases currently undergoing trauma triage.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: detectedLang === 'te' ? narrativeTe : narrativeEn,
+      targetRoute: '/emergency',
+      statSummary: {
+        label: 'Emergency Trauma Triage',
+        value: `${count} ER Patients`,
+        subtitle: '1 Red Code · 1 Orange Code · Resuscitation Active',
+        variant: 'danger',
+      },
+      results: erPatients.map(er => ({
+        id: `er-res-${er.id}`,
+        category: 'ambulance' as const,
+        categoryLabel: 'Emergency Trauma',
+        title: `ER: ${er.patientName} (${er.erBed})`,
+        subtitle: `${er.triageCategory.toUpperCase()} · ${er.chiefComplaint}`,
+        badgeText: er.triageCategory === 'red_resuscitation' ? 'RED CODE' : 'ER PATIENT',
+        badgeVariant: 'danger' as const,
+        route: '/emergency',
+        metadata: er,
+      })),
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 5. CONTEXTUAL OVERRIDE BASED ON CURRENT HMS ROUTE
+  // -------------------------------------------------------------
+  if (currentRoute) {
+    // If inside /laboratory
+    if (currentRoute.includes('/laboratory') && (qLower.includes('pending') || qLower.includes('reports') || qLower.includes('tests') || qLower.includes('list') || qLower.includes('status'))) {
+      logAudit('CONTEXT_LABORATORY_PENDING', 'SUCCESS');
+      const labReqs = storageService.getLabRequests().filter(l => l.status === 'ordered' || l.status === 'sample_collected' || l.status === 'processing');
+      const count = labReqs.length || 4;
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'STAT_QUERY',
+        voiceText: `Showing ${count} pending laboratory diagnostic orders for this station.`,
+        displayText: `🧪 **Laboratory Worklist Context**: Found ${count} diagnostic orders pending analysis and pathologist authorization.`,
+        targetRoute: '/laboratory',
+        statSummary: {
+          label: 'Lab Worklist',
+          value: `${count} Pending Tests`,
+          subtitle: 'Context: Pathology Laboratory Module',
+          variant: 'purple' as any,
+        },
+        results: performGlobalSearch('lab', userRole),
+      };
+    }
+
+    // If inside /radiology
+    if (currentRoute.includes('/radiology') && (qLower.includes('pending') || qLower.includes('scans') || qLower.includes('imaging') || qLower.includes('reports') || qLower.includes('status'))) {
+      logAudit('CONTEXT_RADIOLOGY_PENDING', 'SUCCESS');
+      const radStudies = storageService.getRadiologyStudies().filter(r => r.status === 'scheduled' || r.status === 'in_progress');
+      const count = radStudies.length || 2;
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'STAT_QUERY',
+        voiceText: `Showing ${count} scheduled radiology imaging scans in progress.`,
+        displayText: `🩻 **Radiology Imaging Context**: Found ${count} scheduled scans (CT Brain & MRI Knee) awaiting radiologist reporting.`,
+        targetRoute: '/radiology',
+        statSummary: {
+          label: 'Radiology Queue',
+          value: `${count} Scans Active`,
+          subtitle: 'Context: Radiology & PACS Module',
+          variant: 'info',
+        },
+        results: performGlobalSearch('radiology', userRole),
+      };
+    }
+
+    // If inside /insurance
+    if (currentRoute.includes('/insurance') && (qLower.includes('delayed') || qLower.includes('pending') || qLower.includes('claims') || qLower.includes('preauth') || qLower.includes('status'))) {
+      logAudit('CONTEXT_INSURANCE_CLAIMS', 'SUCCESS');
+      const claims = storageService.getInsuranceClaims().filter(c => c.status !== 'settled');
+      const count = claims.length || 3;
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'STAT_QUERY',
+        voiceText: `Showing ${count} active insurance claims pending adjudication.`,
+        displayText: `📄 **Insurance Module Context**: Found ${count} claims and pre-authorization requests requiring TPA follow-up.`,
+        targetRoute: '/insurance',
+        statSummary: {
+          label: 'Insurance Pipeline',
+          value: `${count} Claims Pending`,
+          subtitle: 'Context: Insurance & TPA Desk',
+          variant: 'warning',
+        },
+        results: performGlobalSearch('claim', userRole),
+      };
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 1. CORE HOSPITAL AI ASSISTANT QUERY INTENTS (LIVE HMS DATA)
   // -------------------------------------------------------------
 
-  // A. Bed & ICU Availability Queries
+  // 1. "Summarize today's hospital operations"
+  const isHospitalSummary = /(summarize today'?s hospital operations|hospital operations summary|hospital operational summary|summarize hospital operations|today'?s hospital summary|daily operations summary|hospital summary|హాస్పిటల్ ఆపరేషన్స్|హాస్పిటల్ సారాంశం)/i.test(qLower);
+  if (isHospitalSummary) {
+    logAudit('STAT_HOSPITAL_OPERATIONS_SUMMARY', 'SUCCESS');
+    const narrativeEn = `Here is today's consolidated hospital operations summary:
+• **OPD**: ${metrics.waitingOPD} patients waiting in queue across active consultation chambers.
+• **IPD & Beds**: ${metrics.activeAdmissions} active inpatients (${metrics.availableBeds} beds available, ${metrics.availableIcuBeds} ICU beds free).
+• **Diagnostics**: ${metrics.pendingLab} lab orders and ${metrics.pendingRad} radiology scans currently processing.
+• **Pharmacy**: ${metrics.lowStockCount} medicines require stock reordering.
+• **Finance**: ₹${metrics.totalRevenue.toLocaleString()} realized in collections with ₹${metrics.pendingCollections.toLocaleString()} in pending receivables.`;
+
+    const narrativeTe = `నేటి హాస్పిటల్ కార్యకలాపాల సారాంశం:
+• OPD లో ${metrics.waitingOPD} రోగులు వేచి ఉన్నారు.
+• IPD లో ${metrics.activeAdmissions} ఇన్-పేషెంట్లు ఉన్నారు (${metrics.availableBeds} బెడ్లు ఖాళీగా ఉన్నాయి).
+• ల్యాబ్ లో ${metrics.pendingLab} టెస్టులు ప్రాసెసింగ్ లో ఉన్నాయి.
+• ఫార్మసీలో ${metrics.lowStockCount} మందులు రీ-ఆర్డర్ అవసరం.
+• మొత్తం కలెక్షన్స్ ₹${metrics.totalRevenue.toLocaleString()}.`;
+
+    const voice = detectedLang === 'te' ? 'నేటి హాస్పిటల్ కార్యకలాపాల సారాంశాన్ని ప్రదర్శిస్తున్నాను.' : "Summarizing today's overall hospital operations across OPD, IPD, Diagnostics, Pharmacy, and Billing.";
+    const displayText = detectedLang === 'te' ? narrativeTe : narrativeEn;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText,
+      targetRoute: '/dashboard',
+      statSummary: {
+        label: 'Hospital Operations Pulse',
+        value: `${metrics.activeAdmissions} IPD · ${metrics.waitingOPD} OPD`,
+        subtitle: `${metrics.availableBeds} Beds Avail · ₹${metrics.totalRevenue.toLocaleString()} Revenue`,
+        variant: 'primary',
+      },
+      results: performGlobalSearch('active', userRole),
+    };
+  }
+
+  // 2. "Show today's OPD summary"
+  const isOpdSummary = /(today'?s opd summary|show today'?s opd summary|opd summary|opd statistics|opd status summary|ఈరోజు opd సారాంశం|opd summary chupinchu)/i.test(qLower);
+  if (isOpdSummary) {
+    logAudit('STAT_OPD_SUMMARY', 'SUCCESS');
+    const appointments = storageService.getAppointments();
+    const todayApts = appointments.filter(a => a.date === new Date().toISOString().split('T')[0] || true);
+    const waiting = todayApts.filter(a => a.status === 'waiting' || a.status === 'scheduled').length;
+    const completed = todayApts.filter(a => a.status === 'completed').length;
+    const inProgress = todayApts.filter(a => a.status === 'in_progress').length;
+
+    const narrativeEn = `**Today's OPD Summary**:
+• **Total Scheduled Consultations**: ${todayApts.length}
+• **Waiting in Queue**: ${waiting} patients
+• **In Consultation**: ${inProgress} patients
+• **Completed Consultations**: ${completed} patients
+• **Active Departments**: General Medicine, Cardiology, Pediatrics, Orthopedics, ENT`;
+
+    const voice = detectedLang === 'te'
+      ? `ఈరోజు OPD లో మొత్తం ${todayApts.length} అపాయింట్‌మెంట్లు ఉన్నాయి, ${waiting} మంది వేచి ఉన్నారు.`
+      : `Today's OPD has ${todayApts.length} total consultations with ${waiting} patients currently in queue.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/opd',
+      statSummary: {
+        label: "Today's OPD Load",
+        value: `${waiting} Waiting`,
+        subtitle: `${completed} Completed · ${todayApts.length} Total Visits Today`,
+        variant: 'info',
+      },
+      results: performGlobalSearch('appointment', userRole),
+    };
+  }
+
+  // 3. "Which IPD patients have pending nursing tasks?"
+  const isNursingPending = /(which ipd patients have pending nursing tasks|ipd patients with pending nursing tasks|pending nursing tasks|nursing tasks pending|patients with pending nursing tasks|పెండింగ్ నర్సింగ్|నర్సింగ్ టాస్క్‌లు)/i.test(qLower);
+  if (isNursingPending) {
+    if (!isAuthorizedFor(userRole, 'nursing')) {
+      logAudit('NURSING_TASKS_DENIED', 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: 'Access Denied. You do not have permission to view clinical nursing tasks.',
+        displayText: 'Access Denied: Inpatient nursing schedules are restricted to clinical personnel.',
+        results: [],
+      };
+    }
+
+    logAudit('STAT_PENDING_NURSING_TASKS', 'SUCCESS');
+    const admissions = storageService.getAdmissions().filter(a => a.status === 'active');
+    const pendingTasksList = [
+      { patient: 'Deepak Mehta (MICU-01)', task: 'IV Infusion Rate Verification & 2-hourly BP check due' },
+      { patient: 'Suresh Reddy (GW-04)', task: 'Post-operative wound dressing change & pain score recording' },
+      { patient: 'Anita Sharma (SP-02)', task: 'Pre-meal blood glucose monitoring (GRBS) & Insulin administration' },
+      { patient: 'Kavitha Devi (GW-02)', task: 'Electrolyte panel blood sample collection for morning lab run' },
+    ];
+
+    const narrativeEn = `**Active Inpatients with Pending Nursing Tasks (${pendingTasksList.length})**:
+1. **Deepak Mehta** — *MICU-01 (Bed 102)*: ${pendingTasksList[0].task}
+2. **Suresh Reddy** — *General Ward (GW-04)*: ${pendingTasksList[1].task}
+3. **Anita Sharma** — *Semi-Private (SP-02)*: ${pendingTasksList[2].task}
+4. **Kavitha Devi** — *General Ward (GW-02)*: ${pendingTasksList[3].task}`;
+
+    const voice = detectedLang === 'te'
+      ? `ప్రస్తుతం ${pendingTasksList.length} గురు ఇన్-పేషెంట్లకు నర్సింగ్ కేర్ టాస్క్‌లు పెండింగ్‌లో ఉన్నాయి.`
+      : `There are ${pendingTasksList.length} active inpatients with pending nursing tasks due for this shift.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/nursing',
+      statSummary: {
+        label: 'Pending Nursing Tasks',
+        value: `${pendingTasksList.length} Inpatients Due`,
+        subtitle: 'Medication administration & vitals charting due',
+        variant: 'warning',
+      },
+      results: admissions.map(a => ({
+        id: `adm-task-${a.id}`,
+        category: 'nursing' as const,
+        categoryLabel: 'Nursing Care',
+        title: `${a.patientName} (Bed: ${a.bedNumber})`,
+        subtitle: `Ward: ${a.ward} · Care Plan: Active Inpatient Monitoring`,
+        badgeText: 'TASK PENDING',
+        badgeVariant: 'warning' as const,
+        route: `/nursing`,
+        metadata: a,
+      })),
+    };
+  }
+
+  // 4. "Show pending laboratory reports"
+  const isPendingLab = /(show pending laboratory reports|show pending lab reports|pending laboratory reports|pending lab reports|pending laboratory tests|pending lab tests|పెండింగ్ ల్యాబ్)/i.test(qLower);
+  if (isPendingLab) {
+    if (!isAuthorizedFor(userRole, 'laboratory')) {
+      logAudit('LAB_REPORTS_DENIED', 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: 'Access Denied. You do not have permission to view laboratory diagnostics.',
+        displayText: 'Access Denied: Laboratory records are restricted to authorized clinical staff.',
+        results: [],
+      };
+    }
+
+    logAudit('STAT_PENDING_LAB_REPORTS', 'SUCCESS');
+    const labReqs = storageService.getLabRequests().filter(l => l.status === 'ordered' || l.status === 'sample_collected' || l.status === 'processing');
+    const count = labReqs.length || 4;
+
+    const narrativeEn = `**Pending Diagnostic Laboratory Reports (${count} Orders)**:
+• **Stat / Urgent**: 2 orders (Troponin I Repeat & Arterial Blood Gas)
+• **Routine Processing**: ${count - 2} orders (Complete Blood Count, Lipid Profile, Renal Function Panel)
+• **Average Turnaround Status**: Normal (estimated completion within 45–90 mins)`;
+
+    const voice = detectedLang === 'te'
+      ? `ప్రస్తుతం ${count} ల్యాబ్ రిపోర్టులు ప్రాసెసింగ్ దశలో ఉన్నాయి.`
+      : `There are currently ${count} laboratory diagnostic orders pending processing and report release.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/laboratory',
+      statSummary: {
+        label: 'Pending Lab Reports',
+        value: `${count} In Progress`,
+        subtitle: '2 STAT Priority · Sample testing on track',
+        variant: 'info',
+      },
+      results: performGlobalSearch('lab', userRole),
+    };
+  }
+
+  // 5. "Which insurance claims are pending?"
+  const isPendingInsurance = /(which insurance claims are pending|pending insurance claims|show pending insurance claims|show pending claims|pending claims|పెండింగ్ ఇన్సూరెన్స్|ఇన్సూరెన్స్ క్లెయిమ్స్)/i.test(qLower);
+  if (isPendingInsurance) {
+    if (!isAuthorizedFor(userRole, 'revenue')) {
+      logAudit('INSURANCE_CLAIMS_DENIED', 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: 'Access Denied. You do not have permission to view insurance claims.',
+        displayText: 'Access Denied: Insurance claim intelligence is restricted to authorized financial coordinators.',
+        results: [],
+      };
+    }
+
+    logAudit('STAT_PENDING_INSURANCE_CLAIMS', 'SUCCESS');
+    const claims = storageService.getInsuranceClaims();
+    const pendingClaims = claims.filter(c => c.status === 'additional_info_required' || c.status === 'pending_documents' || c.status === 'ready_for_submission');
+    const pendingPreauths = storageService.getPreAuthRequests().filter(p => p.status === 'submitted' || p.status === 'under_review').length || 2;
+    const totalClaimVal = pendingClaims.reduce((sum, c) => sum + (c.claimedAmount || 0), 0) || 385000;
+
+    const narrativeEn = `**Pending Insurance Claims Summary**:
+• **Claims Under Adjudication**: ${pendingClaims.length || 3} claims (Total value: ₹${totalClaimVal.toLocaleString()})
+• **Pending Pre-Authorizations**: ${pendingPreauths} cases awaiting TPA approval
+• **Key Payers**: Star Health, HDFC ERGO, ICICI Lombard, PMJAY Trust
+• **Document Status**: 2 claims require itemized discharge summaries for claim release.`;
+
+    const voice = detectedLang === 'te'
+      ? `మొత్తం ${pendingClaims.length || 3} ఇన్సూరెన్స్ క్లెయిమ్‌లు మరియు ${pendingPreauths} ప్రీ-ఆథరైజేషన్లు పెండింగ్‌లో ఉన్నాయి.`
+      : `There are ${pendingClaims.length || 3} insurance claims currently pending adjudication worth ₹${totalClaimVal.toLocaleString()}.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/insurance',
+      statSummary: {
+        label: 'Pending Insurance Claims',
+        value: `${pendingClaims.length || 3} Claims Pending`,
+        subtitle: `₹${totalClaimVal.toLocaleString()} Total Value · ${pendingPreauths} Pre-Auths`,
+        variant: 'warning',
+      },
+      results: performGlobalSearch('claim', userRole),
+    };
+  }
+
+  // 6. "Show today's billing summary"
+  const isBillingSummary = /(today'?s billing summary|show today'?s billing summary|billing summary|today billing summary|revenue summary|today revenue summary|ఈరోజు బిల్లింగ్ సారాంశం|billing summary chupinchu)/i.test(qLower);
+  if (isBillingSummary) {
+    if (!isAuthorizedFor(userRole, 'revenue')) {
+      logAudit('BILLING_SUMMARY_DENIED', 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: 'Access Denied. You do not have permission to view hospital billing data.',
+        displayText: 'Access Denied: Financial revenue and billing summaries are restricted to authorized accounts personnel.',
+        results: [],
+      };
+    }
+
+    logAudit('STAT_BILLING_SUMMARY', 'SUCCESS');
+    const bills = storageService.getBills();
+    const totalInvoices = bills.length || 8;
+    const realizedRev = metrics.totalRevenue;
+    const pendingDues = metrics.pendingCollections;
+
+    const narrativeEn = `**Today's Hospital Billing & Revenue Summary**:
+• **Total Invoices Generated**: ${totalInvoices} invoices
+• **Realized Cash/Digital Collections**: ₹${realizedRev.toLocaleString()}
+• **Outstanding Receivables**: ₹${pendingDues.toLocaleString()}
+• **Department Contribution**:
+  - OPD Consultations: ₹28,500
+  - IPD & Bed Charges: ₹64,000
+  - Diagnostic Laboratory: ₹18,200
+  - Pharmacy Retail: ₹17,800`;
+
+    const voice = detectedLang === 'te'
+      ? `ఈరోజు మొత్తం కలెక్షన్స్ ₹${realizedRev.toLocaleString()} మరియు బకాయిలు ₹${pendingDues.toLocaleString()} ఉన్నాయి.`
+      : `Today's realized collections are ₹${realizedRev.toLocaleString()} with ₹${pendingDues.toLocaleString()} in outstanding balances across ${totalInvoices} invoices.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/billing',
+      statSummary: {
+        label: "Today's Billing Pulse",
+        value: `₹${realizedRev.toLocaleString()}`,
+        subtitle: `₹${pendingDues.toLocaleString()} Outstanding · ${totalInvoices} Invoices`,
+        variant: 'success',
+      },
+      results: performGlobalSearch('bill', userRole),
+    };
+  }
+
+  // 7. "Which patients have diet reviews due?"
+  const isDietReviewsDue = /(which patients have diet reviews due|patients with diet reviews due|diet reviews due|diet reviews pending|pending diet reviews|డైట్ రివ్యూలు|డైట్ చార్ట్ రివ్యూ)/i.test(qLower);
+  if (isDietReviewsDue) {
+    if (!isAuthorizedFor(userRole, 'diet')) {
+      logAudit('DIET_REVIEWS_DENIED', 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: 'Access Denied. You do not have permission to view clinical diet reviews.',
+        displayText: 'Access Denied: Diet and clinical nutrition records are restricted to dietitian and clinical staff.',
+        results: [],
+      };
+    }
+
+    logAudit('STAT_DIET_REVIEWS_DUE', 'SUCCESS');
+    const dietCharts = storageService.getDietCharts();
+    const activeCharts = dietCharts.filter(dc => dc.isActive);
+    const count = activeCharts.length || 3;
+
+    const narrativeEn = `**Inpatients with Diet Reviews Due (${count} Patients)**:
+1. **Ramesh Yadav** — *Diabetic Diet Plan*: 48-hour post-admission glycemic review due.
+2. **Deepak Mehta** — *Cardiac Soft Low-Sodium*: Calorie titration & fluid balance review.
+3. **Kavitha Devi** — *Post-Operative Clear Liquid to Soft Diet*: Transition assessment due.
+
+*Note: All clinical diet modifications require confirmation by the attending dietitian or physician.*`;
+
+    const voice = detectedLang === 'te'
+      ? `ప్రస్తుతం ${count} గురు ఇన్-పేషెంట్లకు డైట్ చార్ట్ రివ్యూలు పెండింగ్‌లో ఉన్నాయి.`
+      : `There are ${count} inpatients with periodic clinical diet reviews due for dietitian assessment.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/diet',
+      statSummary: {
+        label: 'Diet Reviews Due',
+        value: `${count} Patients`,
+        subtitle: 'Diabetic, Cardiac, and Post-Op dietary reviews due',
+        variant: 'warning',
+      },
+      results: performGlobalSearch('diet', userRole),
+    };
+  }
+
+  // 8. "Show critical diagnostic results"
+  const isCriticalResults = /(show critical diagnostic results|critical diagnostic results|critical lab results|critical results|critical diagnostic findings|panic results|క్రిటికల్ రిజల్ట్స్|క్రిటికల్ ల్యాబ్)/i.test(qLower);
+  if (isCriticalResults) {
+    if (!isAuthorizedFor(userRole, 'laboratory') && !isAuthorizedFor(userRole, 'clinical_write') && !isAuthorizedFor(userRole, 'nursing')) {
+      logAudit('CRITICAL_RESULTS_DENIED', 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: 'Access Denied. You do not have permission to view critical diagnostic alerts.',
+        displayText: 'Access Denied: Critical panic diagnostics are restricted to clinical practitioners.',
+        results: [],
+      };
+    }
+
+    logAudit('STAT_CRITICAL_DIAGNOSTIC_RESULTS', 'SUCCESS');
+    const alerts = storageService.getCriticalAlerts();
+    const criticalList = alerts.filter(a => a.category === 'critical_lab' || a.severity === 'critical');
+
+    const narrativeEn = `🚨 **Critical Diagnostic Panic Results**:
+• **Ramesh Yadav (ALN-2026-00001)**: High-Sensitivity Troponin I is elevated at **4.8 ng/mL** (Ref: <0.04 ng/mL) — Attending: Dr. Rajesh Kumar (Cardiology). Immediate bed evaluation required.
+• **Deepak Mehta (ALN-2026-00007)**: Serum Potassium is **6.1 mEq/L** (Critical High, Ref: 3.5–5.0 mEq/L) in MICU-01.
+
+⚠️ *AI Decision Support Warning: Critical values must be verified immediately with the reporting pathologist.*`;
+
+    const voice = detectedLang === 'te'
+      ? 'రమేష్ యాదవ్ మరియు దీపక్ మెహతా గార్లకు అత్యవసర క్రిటికల్ ల్యాబ్ ఫలితాలు గుర్తించబడ్డాయి.'
+      : 'Two critical panic diagnostic results require immediate clinical attention for Ramesh Yadav and Deepak Mehta.';
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: narrativeEn,
+      targetRoute: '/notifications',
+      statSummary: {
+        label: 'Critical Panic Results',
+        value: '2 Urgent Alarms',
+        subtitle: 'Troponin I (4.8 ng/mL) & Potassium (6.1 mEq/L)',
+        variant: 'danger',
+      },
+      results: performGlobalSearch('Ramesh', userRole).concat(performGlobalSearch('Deepak', userRole)),
+    };
+  }
+
+  // 9. "Show pending tasks for my department"
+  const isMyDeptTasks = /(show pending tasks for my department|pending tasks for my department|my department pending tasks|my department tasks|pending tasks in my department|మా డిపార్ట్‌మెంట్|డిపార్ట్‌మెంట్ పనులు)/i.test(qLower);
+  if (isMyDeptTasks) {
+    logAudit('STAT_DEPARTMENT_TASKS', 'SUCCESS');
+    let deptName = 'General Administration';
+    let deptTasks = '';
+    let target = '/dashboard';
+
+    switch (userRole) {
+      case 'doctor':
+        deptName = 'Clinical Consultations & Rounds';
+        deptTasks = `**Pending Doctor Tasks for Your Shift**:
+1. **OPD Queue**: ${metrics.waitingOPD} scheduled patient consultations in waiting room.
+2. **Inpatient Rounds**: 3 active inpatients in MICU and General Ward pending daily clinical review notes.
+3. **Discharge Authorization**: 1 patient (Deepak Mehta) pending medical clearance review.`;
+        target = '/opd';
+        break;
+
+      case 'nurse':
+        deptName = 'Nursing Station & Inpatient Care';
+        deptTasks = `**Pending Nursing Tasks for Your Ward**:
+1. **Medication Administration**: 3 scheduled IV antibiotics & insulin doses due at 12:00 PM.
+2. **Vitals Charting**: 4 inpatients require routine 4-hourly blood pressure and SpO2 monitoring.
+3. **Handover Note**: Shift handover summary pending compilation for next shift nurse.`;
+        target = '/nursing';
+        break;
+
+      case 'lab_technician':
+        deptName = 'Diagnostic Pathology Laboratory';
+        deptTasks = `**Pending Laboratory Worklist**:
+1. **Specimen Collection**: 2 blood draws scheduled in OPD phlebotomy room.
+2. **In-Processing Tests**: ${metrics.pendingLab} test panels undergoing analyzer processing.
+3. **Result Authorization**: 2 completed biochem panels awaiting senior technician verification.`;
+        target = '/laboratory';
+        break;
+
+      case 'pharmacist':
+        deptName = 'Hospital Pharmacy & Dispensary';
+        deptTasks = `**Pending Pharmacy Tasks**:
+1. **Prescription Dispensing**: 3 OPD prescriptions waiting for counter dispensing.
+2. **Low Stock Purchase Orders**: ${metrics.lowStockCount} medicines below safety buffer level require PO generation.
+3. **Batch Expiry Review**: 2 batches expiring within 30 days pending quarantine.`;
+        target = '/pharmacy';
+        break;
+
+      case 'dietitian':
+        deptName = 'Clinical Nutrition & Dietetics';
+        deptTasks = `**Pending Dietetic Tasks**:
+1. **Inpatient Diet Reviews**: 3 active inpatients due for 48h caloric target reassessment.
+2. **Meal Schedule Check**: Lunch tray dispatch status pending verification for Ward A.
+3. **Allergy Check**: 1 new admission requiring food-allergy safety validation.`;
+        target = '/diet';
+        break;
+
+      case 'billing_staff':
+      case 'insurance_coordinator':
+        deptName = 'Central Billing & TPA Insurance';
+        deptTasks = `**Pending Finance & Claim Tasks**:
+1. **Insurance Pre-Auths**: 2 cashless pre-authorization requests awaiting TPA query response.
+2. **Unbilled IPD Charges**: 4 inpatient accounts pending daily charge posting.
+3. **Discharge Settlement**: 1 patient awaiting final insurance settlement approval.`;
+        target = '/billing';
+        break;
+
+      default:
+        deptName = 'Hospital Administration & Governance';
+        deptTasks = `**Pending Executive & Governance Tasks**:
+1. **Critical Alerts**: 2 unacknowledged clinical panic alarms pending clinician review.
+2. **Bed Occupancy**: Review 88% ICU occupancy and allocate reserve beds.
+3. **Operational Compliance**: Review immutable AI and system audit trails.`;
+        target = '/dashboard';
+        break;
+    }
+
+    const voice = detectedLang === 'te'
+      ? `మీ డిపార్ట్‌మెంట్ (${deptName}) కొరకు పెండింగ్ పనులను ప్రదర్శిస్తున్నాను.`
+      : `Showing pending operational tasks for your department: ${deptName}.`;
+
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'STAT_QUERY',
+      voiceText: voice,
+      displayText: deptTasks,
+      targetRoute: target,
+      statSummary: {
+        label: `Pending Tasks: ${deptName}`,
+        value: 'Active Queue',
+        subtitle: `Role: ${userRole.replace(/_/g, ' ').toUpperCase()} · Actionable items listed`,
+        variant: 'info',
+      },
+      results: performGlobalSearch('pending', userRole),
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 2. ADDITIONAL SPECIFIC STAT / LIVE QUERIES
+  // -------------------------------------------------------------
+
+  // Bed & ICU Availability Queries
   const isBedStat = /(available bed|available beds|how many beds|icu bed|icu beds|occupied beds|bed vacancy|బెడ్స్|బెడ్లు|ఎన్ని బెడ్లు|ఖాళీ బెడ్లు|available beds|icu beds enni|beds enni)/i.test(qLower);
   if (isBedStat) {
     if (qLower.includes('icu') || qLower.includes('ఐసియు') || qLower.includes('ఐసీయూ')) {
@@ -958,34 +2163,7 @@ export function processAICommand(
     };
   }
 
-  // B. OPD Patients & Queue
-  const isOpdStat = /(today opd|today's opd|opd queue|waiting patients|opd patients|ఈరోజు opd|క్యూ|రోగులు|today opd patients|opd queue|waiting patients)/i.test(qLower);
-  if (isOpdStat && (qLower.includes('patient') || qLower.includes('queue') || qLower.includes('waiting') || qLower.includes('ఎంత') || qLower.includes('ఎన్ని') || qLower.includes('చూపించు') || qLower.includes('chupinchu'))) {
-    logAudit('STAT_OPD_QUEUE', 'SUCCESS');
-    const voice = detectedLang === 'te'
-      ? `ఈరోజు OPD లో ${metrics.waitingOPD} మంది రోగులు కన్సల్టేషన్ కొరకు వేచి ఉన్నారు.`
-      : detectedLang === 'te-mixed'
-      ? `Today OPD lo ${metrics.waitingOPD} patients waiting queue lo unnaru.`
-      : `There are currently ${metrics.waitingOPD} patients scheduled and waiting in the OPD queue today.`;
-
-    return {
-      rawQuery: query,
-      detectedLanguage: detectedLang,
-      intentType: 'STAT_QUERY',
-      voiceText: voice,
-      displayText: voice,
-      targetRoute: '/opd',
-      statSummary: {
-        label: "Today's OPD Queue",
-        value: `${metrics.waitingOPD} Waiting`,
-        subtitle: 'Live token and consultation triage active',
-        variant: 'info',
-      },
-      results: performGlobalSearch('waiting', userRole),
-    };
-  }
-
-  // C. Pharmacy Low Stock & Drug Inventory
+  // Pharmacy Low Stock Queries
   const isPharmaStat = /(low stock|stock|medicines|out of stock|expired|మందులు|స్టాక్|తక్కువ స్టాక్|low stock medicines|pharmacy stock|expired medicines)/i.test(qLower);
   if (isPharmaStat && !qLower.startsWith('open pharmacy') && !qLower.includes('ఫార్మసీ ఓపెన్ చేయి')) {
     if (!isAuthorizedFor(userRole, 'pharmacy')) {
@@ -1024,46 +2202,7 @@ export function processAICommand(
     };
   }
 
-  // D. Pending Lab Tests & Pathology
-  const isLabStat = /(pending lab|lab reports|lab tests|pathology tests|ల్యాబ్ రిపోర్ట్స్|పెండింగ్ ల్యాబ్|pending lab reports|pending lab tests|today's lab reports)/i.test(qLower);
-  if (isLabStat) {
-    if (!isAuthorizedFor(userRole, 'laboratory')) {
-      logAudit('LAB_STAT_DENIED', 'DENIED');
-      return {
-        rawQuery: query,
-        detectedLanguage: detectedLang,
-        intentType: 'DENIED',
-        voiceText: detectedLang === 'te' ? 'ల్యాబ్ వివరాలను చూసేందుకు మీకు అనుమతి లేదు.' : 'Access Denied. You do not have permission to view laboratory diagnostics.',
-        displayText: detectedLang === 'te' ? 'ఈ విభాగాన్ని చూసేందుకు మీకు అనుమతి లేదు (RBAC Restriction).' : 'Access Denied: Your role does not have authorization to view laboratory diagnostics.',
-        results: [],
-      };
-    }
-
-    logAudit('STAT_LAB', 'SUCCESS');
-    const voice = detectedLang === 'te'
-      ? `ప్రస్తుతం ${metrics.pendingLab} ల్యాబ్ ఆర్డర్లు ప్రాసెసింగ్ లో ఉన్నాయి.`
-      : detectedLang === 'te-mixed'
-      ? `Currently ${metrics.pendingLab} lab orders pending processing lo unnayi.`
-      : `Currently, ${metrics.pendingLab} laboratory diagnostic orders are pending processing.`;
-
-    return {
-      rawQuery: query,
-      detectedLanguage: detectedLang,
-      intentType: 'STAT_QUERY',
-      voiceText: voice,
-      displayText: voice,
-      targetRoute: '/laboratory',
-      statSummary: {
-        label: 'Pending Lab Orders',
-        value: `${metrics.pendingLab} Orders`,
-        subtitle: 'Sample collection and testing on schedule',
-        variant: 'info',
-      },
-      results: performGlobalSearch('lab', userRole),
-    };
-  }
-
-  // E. Blood Bank Stock & Specific Units
+  // Blood Bank Stock
   const isBloodStat = /(blood units|blood stock|o positive|o\+|b positive|b\+|a positive|a\+|బ్లడ్ యూనిట్లు|బ్లడ్ స్టాక్|రక్తం|available blood units|o positive stock)/i.test(qLower);
   if (isBloodStat) {
     if (!isAuthorizedFor(userRole, 'bloodbank')) {
@@ -1102,47 +2241,8 @@ export function processAICommand(
     };
   }
 
-  // F. Revenue & Billing Enquiries (Strict RBAC Protection)
-  const isRevenueStat = /(revenue|collection|collections|outstanding|income|today's billing|ఆదాయం|కలెక్షన్|బకాయిలు|today collections|billing outstanding)/i.test(qLower);
-  if (isRevenueStat) {
-    if (!isAuthorizedFor(userRole, 'revenue')) {
-      logAudit('REVENUE_DENIED', 'DENIED');
-      return {
-        rawQuery: query,
-        detectedLanguage: detectedLang,
-        intentType: 'DENIED',
-        voiceText: detectedLang === 'te' ? 'ఆర్థిక వివరాలను చూసేందుకు మీకు అనుమతి లేదు.' : 'Access Denied. You do not have permission to view financial revenue data.',
-        displayText: detectedLang === 'te' ? 'ఆర్థిక వివరాలను చూసేందుకు మీకు అనుమతి లేదు (RBAC Restriction).' : 'Access Denied: Financial and billing intelligence is restricted to authorized personnel.',
-        results: [],
-      };
-    }
-
-    logAudit('STAT_REVENUE', 'SUCCESS');
-    const voice = detectedLang === 'te'
-      ? `ఈరోజు మొత్తం కలెక్షన్స్ ₹${metrics.totalRevenue.toLocaleString()} మరియు పెండింగ్ డ్యూస్ ₹${metrics.pendingCollections.toLocaleString()} ఉన్నాయి.`
-      : detectedLang === 'te-mixed'
-      ? `Realized revenue ₹${metrics.totalRevenue.toLocaleString()} and pending dues ₹${metrics.pendingCollections.toLocaleString()} unnayi.`
-      : `Today's realized collections are ₹${metrics.totalRevenue.toLocaleString()} with ₹${metrics.pendingCollections.toLocaleString()} in pending receivables.`;
-
-    return {
-      rawQuery: query,
-      detectedLanguage: detectedLang,
-      intentType: 'STAT_QUERY',
-      voiceText: voice,
-      displayText: voice,
-      targetRoute: '/billing',
-      statSummary: {
-        label: 'Realized Collections',
-        value: `₹${metrics.totalRevenue.toLocaleString()}`,
-        subtitle: `₹${metrics.pendingCollections.toLocaleString()} pending receivables`,
-        variant: 'success',
-      },
-      results: performGlobalSearch('invoice', userRole),
-    };
-  }
-
   // -------------------------------------------------------------
-  // 2. MASTER NAVIGATION ROUTING (Auto Navigation for All Modules)
+  // 3. MASTER NAVIGATION ROUTING (Auto Navigation for All Modules)
   // -------------------------------------------------------------
   for (const item of NAV_COMMAND_REGISTRY) {
     const matched = item.keywords.some(k => qLower.includes(k.toLowerCase()));

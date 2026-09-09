@@ -41,20 +41,20 @@ function BillingModuleContent() {
   }, []);
 
   const NAV_TABS = [
-    { id: 'dashboard', label: '1. Dashboard', icon: <ReceiptText size={14} /> },
-    { id: 'ledger', label: '2. Patient Accounts', icon: <Users size={14} /> },
-    { id: 'workspace', label: '3. Create Central Bill', icon: <Plus size={14} /> },
-    { id: 'invoices', label: '4. Invoices Ledger', icon: <FileText size={14} />, badge: kpis.totalInvoicesToday },
-    { id: 'payments', label: '5. Payments & Receipts', icon: <CreditCard size={14} /> },
-    { id: 'charge_capture', label: '6. Department Charges', icon: <Layers size={14} /> },
-    { id: 'cash_counters', label: '7. Cash Counter & Shifts', icon: <DollarSign size={14} /> },
-    { id: 'advances', label: '8. IPD Advances & Final', icon: <Activity size={14} /> },
-    { id: 'insurance_tpa', label: '9. Insurance / TPA', icon: <ShieldCheck size={14} /> },
-    { id: 'refunds', label: '10. Refunds', icon: <Undo2 size={14} /> },
-    { id: 'discounts', label: '11. Discounts & Concessions', icon: <Scale size={14} /> },
-    { id: 'services', label: '12. Tariffs & Service Master', icon: <Settings size={14} /> },
-    { id: 'reconciliation', label: '13. Reconciliation', icon: <CheckCircle2 size={14} /> },
-    { id: 'reports', label: '14. Billing Reports', icon: <BarChart3 size={14} /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <ReceiptText size={14} /> },
+    { id: 'ledger', label: 'Patient Accounts', icon: <Users size={14} /> },
+    { id: 'workspace', label: 'Create Central Bill', icon: <Plus size={14} /> },
+    { id: 'invoices', label: 'Invoices Ledger', icon: <FileText size={14} />, badge: kpis.totalInvoicesToday },
+    { id: 'payments', label: 'Payments & Receipts', icon: <CreditCard size={14} /> },
+    { id: 'charge_capture', label: 'Department Charges', icon: <Layers size={14} /> },
+    { id: 'cash_counters', label: 'Cash Counter & Shifts', icon: <DollarSign size={14} /> },
+    { id: 'advances', label: 'IPD Advances & Final', icon: <Activity size={14} /> },
+    { id: 'insurance_tpa', label: 'Insurance / TPA', icon: <ShieldCheck size={14} /> },
+    { id: 'refunds', label: 'Refunds', icon: <Undo2 size={14} /> },
+    { id: 'discounts', label: 'Discounts & Concessions', icon: <Scale size={14} /> },
+    { id: 'services', label: 'Tariffs & Service Master', icon: <Settings size={14} /> },
+    { id: 'reconciliation', label: 'Reconciliation', icon: <CheckCircle2 size={14} /> },
+    { id: 'reports', label: 'Billing Reports', icon: <BarChart3 size={14} /> },
   ];
 
   return (

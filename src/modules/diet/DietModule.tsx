@@ -50,15 +50,15 @@ function DietModuleContent() {
 
   // 9 Clean Logical Hospital Navigation Tabs in Exact Order
   const NAV_TABS = [
-    { id: 'dashboard', label: '1. Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'diet_plans', label: '2. Diet Plans', icon: <Users size={14} />, badge: kpis.activeDietPlans },
-    { id: 'daily_diet_chart', label: '3. Daily Diet Chart', icon: <UtensilsCrossed size={14} /> },
-    { id: 'meal_schedule', label: '4. Meal Schedule & Status', icon: <ChefHat size={14} />, badge: kpis.pendingMeals > 0 ? kpis.pendingMeals : undefined },
-    { id: 'diet_monitoring', label: '5. Diet Monitoring', icon: <Activity size={14} />, badge: kpis.missedMeals > 0 ? kpis.missedMeals : undefined },
-    { id: 'food_database', label: '6. Food Database', icon: <Apple size={14} /> },
-    { id: 'special_diets', label: '7. Special Diets', icon: <FileText size={14} />, badge: kpis.specialDietPatients },
-    { id: 'diet_review_history', label: '8. Diet Review & History', icon: <History size={14} /> },
-    { id: 'reports', label: '9. Reports', icon: <BarChart3 size={14} /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'diet_plans', label: 'Diet Plans', icon: <Users size={14} />, badge: kpis.activeDietPlans },
+    { id: 'daily_diet_chart', label: 'Daily Diet Chart', icon: <UtensilsCrossed size={14} /> },
+    { id: 'meal_schedule', label: 'Meal Schedule & Status', icon: <ChefHat size={14} />, badge: kpis.pendingMeals > 0 ? kpis.pendingMeals : undefined },
+    { id: 'diet_monitoring', label: 'Diet Monitoring', icon: <Activity size={14} />, badge: kpis.missedMeals > 0 ? kpis.missedMeals : undefined },
+    { id: 'food_database', label: 'Food Database', icon: <Apple size={14} /> },
+    { id: 'special_diets', label: 'Special Diets', icon: <FileText size={14} />, badge: kpis.specialDietPatients },
+    { id: 'diet_review_history', label: 'Diet Review & History', icon: <History size={14} /> },
+    { id: 'reports', label: 'Diet Reports', icon: <BarChart3 size={14} /> },
   ];
 
   return (

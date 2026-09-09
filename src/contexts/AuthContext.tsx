@@ -42,7 +42,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 interface AuthContextValue {
   state: AuthState;
   loginWithCredentials: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithOTP: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   isRole: (role: UserRole | UserRole[]) => boolean;
@@ -95,37 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, []);
 
-  const loginWithOTP = useCallback(async (phone: string, otp: string) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-
-    await new Promise(r => setTimeout(r, 800));
-
-    if (otp !== PATIENT_OTP) {
-      dispatch({ type: 'SET_LOADING', payload: false });
-      return { success: false, error: 'Invalid OTP. For demo use: 1234' };
-    }
-
-    // Find patient by phone
-    const { DEMO_PATIENTS } = await import('../data/seedData');
-    const patient = DEMO_PATIENTS.find(p => p.phone === phone);
-
-    const patientUser: User = {
-      id: `patient-${phone}`,
-      name: patient ? `${patient.firstName} ${patient.lastName}` : `Patient (${phone})`,
-      email: patient?.email || '',
-      role: 'patient',
-      phone,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      permissions: ['patient.own.*'],
-    };
-
-    localStorage.setItem('aln_hms_user', JSON.stringify(patientUser));
-    dispatch({ type: 'LOGIN', payload: patientUser });
-    return { success: true };
-  }, []);
-
   const logout = useCallback(() => {
     localStorage.removeItem('aln_hms_user');
     dispatch({ type: 'LOGOUT' });
@@ -153,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.user]);
 
   return (
-    <AuthContext.Provider value={{ state, loginWithCredentials, loginWithOTP, logout, hasPermission, isRole }}>
+    <AuthContext.Provider value={{ state, loginWithCredentials, logout, hasPermission, isRole }}>
       {children}
     </AuthContext.Provider>
   );

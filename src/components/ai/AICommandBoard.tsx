@@ -21,14 +21,17 @@ export interface AICommandBoardProps {
 }
 
 const QUICK_SUGGESTIONS = [
-  { label: 'Available Beds', command: 'Show available beds' },
-  { label: "Today's OPD Queue", command: 'Show today opd queue' },
-  { label: 'Open OPD', command: 'Open OPD' },
-  { label: 'Open Nursing', command: 'Open nursing section' },
-  { label: 'ICU Beds (తెలుగు)', command: 'ICU beds chupinchu' },
-  { label: 'Pharmacy Stock', command: 'Pharmacy stock chupinchu' },
-  { label: 'Critical Alerts', command: 'Show critical alerts' },
-  { label: 'Today Admissions', command: 'Show today admissions' },
+  { label: 'Available Beds', command: 'Which beds are available?' },
+  { label: 'Critical Patients', command: 'Which patients need attention?' },
+  { label: 'Today Admitted', command: "Show today's admitted patients" },
+  { label: 'Pending Lab Reports', command: 'Show critical lab results' },
+  { label: 'Pending Claims', command: 'Which insurance claims are pending?' },
+  { label: "Today's OPD Queue", command: "Show today's OPD statistics" },
+  { label: 'Emergency Cases', command: 'Show emergency cases' },
+  { label: 'Patient Dossier', command: 'Summary of patient Ramesh' },
+  { label: 'Available Beds (తెలుగు)', command: 'ఈ రోజు available beds ఎంత ఉన్నాయి?' },
+  { label: 'Pending Lab (తెలుగు)', command: 'Pending lab reports చూపించు' },
+  { label: 'Pending Claims (తెలుగు)', command: 'నాకు pending insurance claims చూపించు' },
 ];
 
 export default function AICommandBoard({

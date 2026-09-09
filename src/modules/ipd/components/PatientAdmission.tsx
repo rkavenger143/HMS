@@ -5,6 +5,7 @@ import {
   Calendar, Activity, ShieldAlert
 } from 'lucide-react';
 import { useIPD } from '../context/IPDContext';
+import { useToast } from '../../../contexts/ToastContext';
 import type { Patient, Admission, AdmissionType } from '../../../types';
 import PrintAdmissionSlipModal from './modals/PrintAdmissionSlipModal';
 
@@ -16,6 +17,7 @@ const ADMISSION_TYPES: { id: AdmissionType; label: string }[] = [
 ];
 
 export default function PatientAdmission() {
+  const { showToast } = useToast();
   const {
     patients,
     doctors,
@@ -100,12 +102,12 @@ export default function PatientAdmission() {
     e.preventDefault();
 
     if (!selectedPatient) {
-      alert('Please search and select a registered patient.');
+      showToast('Please search and select a registered patient.', 'warning');
       return;
     }
 
     if (!selectedBedId) {
-      alert('Please select an available bed for this admission.');
+      showToast('Please select an available bed for this admission.', 'warning');
       return;
     }
 

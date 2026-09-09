@@ -3,12 +3,13 @@ import {
   BarChart2, Users, Stethoscope, Calendar, BedDouble,
   Activity, Heart, TestTube, Film, Pill, Droplet,
   DollarSign, CreditCard, UserCheck, AlertTriangle,
-  TrendingUp, Clock, ShieldCheck, Download, Printer
+  TrendingUp, Clock, ShieldCheck, Download, Printer, Sparkles, Brain
 } from 'lucide-react';
 import { ReportsProvider, useReports, ReportTab } from './context/ReportsContext';
 
 // Import All Tab Components
 import ReportsDashboard from './components/ReportsDashboard';
+import AIReportAssistant from './components/AIReportAssistant';
 import PatientReports from './components/PatientReports';
 import OPDReports from './components/OPDReports';
 import AppointmentReports from './components/AppointmentReports';
@@ -36,6 +37,7 @@ interface TabItem {
 
 const REPORT_TABS: TabItem[] = [
   { id: 'dashboard', label: 'Executive Overview', icon: BarChart2, category: 'Clinical' },
+  { id: 'ai_reports', label: 'AI Report Assistant', icon: Sparkles, category: 'Clinical' },
   { id: 'patient', label: 'Patient Master', icon: Users, category: 'Clinical' },
   { id: 'opd', label: 'OPD Consultations', icon: Stethoscope, category: 'Clinical' },
   { id: 'appointments', label: 'Appointments', icon: Calendar, category: 'Clinical' },
@@ -62,6 +64,8 @@ function ReportsContent() {
     switch (activeTab) {
       case 'dashboard':
         return <ReportsDashboard />;
+      case 'ai_reports':
+        return <AIReportAssistant />;
       case 'patient':
         return <PatientReports />;
       case 'opd':

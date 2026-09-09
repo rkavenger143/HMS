@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UtensilsCrossed, Plus, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, Clock } from 'lucide-react';
+import { UtensilsCrossed, Plus, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, Clock, Sparkles, Brain, ShieldCheck } from 'lucide-react';
 import { useDiet } from '../../context/DietContext';
 import type { DietType, DietStatus, MealType, MealScheduleItem } from '../../../../types';
 
@@ -94,9 +94,63 @@ export default function CreateDietChartModal({ onClose, initialAdmissionId }: Cr
   const [fluidRequirementMl, setFluidRequirementMl] = useState(2000);
   const [restrictions, setRestrictions] = useState('Low Sodium, No Refined Sugar');
   const [specialInstructions, setSpecialInstructions] = useState('Serve warm. Avoid spicy seasonings.');
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiAppliedBadge, setAiAppliedBadge] = useState(false);
 
   // 7 Meal Schedules
   const [mealSchedules, setMealSchedules] = useState<MealScheduleItem[]>(DEFAULT_7_MEAL_SLOTS);
+
+  const handleAISuggestDiet = async () => {
+    if (!selectedAdm) return;
+    setAiSuggesting(true);
+    await new Promise(r => setTimeout(r, 700));
+
+    const diagStr = selectedAdm.diagnosis?.join(', ') || '';
+    if (diagStr.toLowerCase().includes('diabet') || diagStr.toLowerCase().includes('sugar')) {
+      setDietType('diabetic');
+      setDietConsistency('regular');
+      setEstimatedCalories(1600);
+      setProteinGrams(75);
+      setCarbsGrams(160);
+      setFatGrams(40);
+      setFluidRequirementMl(2200);
+      setRestrictions('Zero Refined Sugar, Low Glycemic Index Carbohydrates, High Soluble Fiber');
+      setSpecialInstructions('Small frequent meals. Avoid fruit juices and potatoes. Monitor post-prandial blood glucose.');
+    } else if (diagStr.toLowerCase().includes('cardiac') || diagStr.toLowerCase().includes('coronary') || diagStr.toLowerCase().includes('hypertens')) {
+      setDietType('cardiac');
+      setDietConsistency('regular');
+      setEstimatedCalories(1700);
+      setProteinGrams(70);
+      setCarbsGrams(200);
+      setFatGrams(35);
+      setFluidRequirementMl(1800);
+      setRestrictions('Strict Low Sodium (<2g NaCl/day), Zero Trans Fats, High Potassium Steamed Vegetables');
+      setSpecialInstructions('Avoid table salt, processed snacks, and saturated fats. Provide steamed greens.');
+    } else if (diagStr.toLowerCase().includes('renal') || diagStr.toLowerCase().includes('kidney')) {
+      setDietType('renal');
+      setDietConsistency('soft');
+      setEstimatedCalories(1750);
+      setProteinGrams(45);
+      setCarbsGrams(240);
+      setFatGrams(45);
+      setFluidRequirementMl(1200);
+      setRestrictions('Low Protein (0.6g/kg), Low Potassium, Low Phosphate, Strict Fluid Restriction 1.2L');
+      setSpecialInstructions('Leach vegetables before cooking. Strictly avoid citrus fruits and dairy.');
+    } else {
+      setDietType('high_protein');
+      setDietConsistency('regular');
+      setEstimatedCalories(2000);
+      setProteinGrams(90);
+      setCarbsGrams(230);
+      setFatGrams(50);
+      setFluidRequirementMl(2400);
+      setRestrictions('Balanced Macro Targets, Low Sodium');
+      setSpecialInstructions('High biological value proteins (egg whites, paneer, lentils) to accelerate recovery.');
+    }
+
+    setAiAppliedBadge(true);
+    setAiSuggesting(false);
+  };
 
   // Simulated patient allergies
   const patientAllergies = selectedAdm ? ['Peanuts', 'Seafood'] : [];
@@ -171,16 +225,67 @@ export default function CreateDietChartModal({ onClose, initialAdmissionId }: Cr
         onClick={e => e.stopPropagation()}
         style={{ maxWidth: 880, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
       >
-        <div className="modal-header">
+        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <UtensilsCrossed size={18} style={{ color: 'var(--color-primary)' }} />
           <div className="modal-title">Prescribe Clinical Inpatient Diet Plan</div>
-          <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={onClose} style={{ marginLeft: 'auto' }}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={handleAISuggestDiet}
+            disabled={aiSuggesting || !selectedAdm}
+            style={{
+              marginLeft: 'auto',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              color: '#ffffff',
+              border: 'none',
+              padding: '5px 12px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '11.5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Sparkles size={13} /> {aiSuggesting ? 'Analyzing Condition...' : 'AI Suggest Diet Plan'}
+          </button>
+          <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={onClose}>
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {aiAppliedBadge && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: 'rgba(79, 70, 229, 0.08)',
+                  border: '1px solid rgba(79, 70, 229, 0.25)',
+                  fontSize: '12px',
+                  color: '#4338ca',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={15} style={{ color: '#6366f1', flexShrink: 0 }} />
+                  <span>
+                    <strong>AI Diet Recommendation Applied:</strong> Macro targets and restrictions tailored to {selectedAdm?.diagnosis[0] || 'clinical diagnosis'}. <em>Dietitian clinical review and sign-off required.</em>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiAppliedBadge(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontWeight: 700 }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             {/* Patient Selector */}
             <div className="card" style={{ padding: 14, background: 'var(--bg-surface)' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>

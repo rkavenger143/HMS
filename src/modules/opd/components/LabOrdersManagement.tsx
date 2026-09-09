@@ -200,7 +200,6 @@ export default function LabOrdersManagement() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>#</th>
                       <th>Test Name</th>
                       <th>Sample Type</th>
                       <th style={{ textAlign: 'right' }}>Price (₹)</th>
@@ -209,9 +208,8 @@ export default function LabOrdersManagement() {
                   </thead>
                   <tbody>
                     {selectedTests.length > 0 ? (
-                      selectedTests.map((test, idx) => (
+                      selectedTests.map((test) => (
                         <tr key={test.testId}>
-                          <td style={{ color: 'var(--text-tertiary)', width: 30 }}>{idx + 1}</td>
                           <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
                             {test.testName}
                           </td>

@@ -45,17 +45,16 @@ function DiagnosticsModuleContent() {
 
   const unackCritical = criticalAlerts.filter(a => a.status === 'new').length;
 
-  // 9 Clean Logical Diagnostic Hospital Navigation Tabs in Exact Order
   const NAV_TABS = [
-    { id: 'dashboard', label: '1. Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'requests', label: '2. Test Requests', icon: <FileText size={14} />, badge: kpis.todayRequests },
-    { id: 'categories', label: '3. Diagnostic Categories', icon: <Layers size={14} /> },
-    { id: 'sample_collection', label: '4. Sample Collection', icon: <Barcode size={14} />, badge: kpis.samplesCollected > 0 ? kpis.samplesCollected : undefined },
-    { id: 'processing', label: '5. Test Processing', icon: <FlaskConical size={14} />, badge: kpis.inProgress > 0 ? kpis.inProgress : undefined },
-    { id: 'results', label: '6. Diagnostic Results', icon: <ShieldCheck size={14} />, badge: kpis.reportsReady > 0 ? kpis.reportsReady : undefined },
-    { id: 'critical_results', label: '7. Critical Results', icon: <AlertTriangle size={14} />, badge: unackCritical > 0 ? unackCritical : undefined, isDanger: unackCritical > 0 },
-    { id: 'reports', label: '8. Reports', icon: <Printer size={14} /> },
-    { id: 'report_history', label: '9. Report History', icon: <History size={14} /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'requests', label: 'Test Requests', icon: <FileText size={14} />, badge: kpis.todayRequests },
+    { id: 'categories', label: 'Diagnostic Categories', icon: <Layers size={14} /> },
+    { id: 'sample_collection', label: 'Sample Collection', icon: <Barcode size={14} />, badge: kpis.samplesCollected > 0 ? kpis.samplesCollected : undefined },
+    { id: 'processing', label: 'Test Processing', icon: <FlaskConical size={14} />, badge: kpis.inProgress > 0 ? kpis.inProgress : undefined },
+    { id: 'results', label: 'Diagnostic Results', icon: <ShieldCheck size={14} />, badge: kpis.reportsReady > 0 ? kpis.reportsReady : undefined },
+    { id: 'critical_results', label: 'Critical Results', icon: <AlertTriangle size={14} />, badge: unackCritical > 0 ? unackCritical : undefined, isDanger: unackCritical > 0 },
+    { id: 'reports', label: 'Reports', icon: <Printer size={14} /> },
+    { id: 'report_history', label: 'Report History', icon: <History size={14} /> },
   ];
 
   return (

@@ -8,7 +8,6 @@ import { LabProvider, useLab, LabTab } from './context/LabContext';
 import { BillingProvider } from '../billing/context/BillingContext';
 import LabDashboard from './components/LabDashboard';
 import LabOrderManagement from './components/LabOrderManagement';
-import LabDiagnosticsView from './components/LabDiagnosticsView';
 import SampleCollectionQueue from './components/SampleCollectionQueue';
 import SampleReceiving from './components/SampleReceiving';
 import SampleTrackingTimeline from './components/SampleTrackingTimeline';
@@ -125,13 +124,6 @@ function LaboratoryModuleContent() {
         </button>
 
         <button
-          className={`tab ${activeTab === 'diagnostics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('diagnostics')}
-        >
-          <Scan size={14} /> Diagnostics & Radiology
-        </button>
-
-        <button
           className={`tab ${activeTab === 'billing' ? 'active' : ''}`}
           onClick={() => setActiveTab('billing')}
         >
@@ -239,7 +231,6 @@ function LaboratoryModuleContent() {
       <div>
         {activeTab === 'dashboard' && <LabDashboard />}
         {activeTab === 'orders' && <LabOrderManagement />}
-        {activeTab === 'diagnostics' && <LabDiagnosticsView />}
         {activeTab === 'billing' && <LabBillingTab />}
         {activeTab === 'sample_collection' && <SampleCollectionQueue />}
         {activeTab === 'sample_receiving' && <SampleReceiving />}

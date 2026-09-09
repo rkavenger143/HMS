@@ -143,7 +143,7 @@ export interface AppointmentSettingsConfig {
   autoNoShowAfterMin: number;
   maxDailyAppointmentsPerDoctor: number;
   requireSmsConfirmation: boolean;
-  enablePatientPortalBooking: boolean;
+  enableOnlineWalkinTriage: boolean;
 }
 
 export interface IPDSettingsConfig {
@@ -452,7 +452,7 @@ const DEFAULT_APPOINTMENTS: AppointmentSettingsConfig = {
   autoNoShowAfterMin: 30,
   maxDailyAppointmentsPerDoctor: 40,
   requireSmsConfirmation: true,
-  enablePatientPortalBooking: true,
+  enableOnlineWalkinTriage: true,
 };
 
 const DEFAULT_IPD: IPDSettingsConfig = {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   History, Search, User, Calendar, Stethoscope, Pill, FlaskConical,
   Scan, ReceiptText, Clock, ChevronRight, Eye, AlertCircle, FileText,
-  Activity, ArrowRight
+  Activity, ArrowRight, Sparkles, Bot, ShieldCheck, Brain
 } from 'lucide-react';
 import { useOPD } from '../context/OPDContext';
 import type { OPDVisit, Patient } from '../../../types';
@@ -25,6 +25,7 @@ export default function PatientOPDHistory() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'visits' | 'prescriptions' | 'consultations' | 'followups' | 'bills' | 'labs' | 'radiology'>('visits');
   const [inspectVisit, setInspectVisit] = useState<OPDVisit | null>(null);
+  const [showAiSummary, setShowAiSummary] = useState(true);
 
   // Active Patient selection
   const currentPatientId = selectedPatientId || patients[0]?.id;
@@ -108,25 +109,22 @@ export default function PatientOPDHistory() {
       {/* Selected Patient Banner */}
       {currentPatient && (
         <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid var(--color-primary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="avatar avatar-lg" style={{ background: 'linear-gradient(135deg, #0A84FF, #BF5AF2)', fontWeight: 800, fontSize: 16 }}>
+              <div className="avatar avatar-lg" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: 18, fontWeight: 700 }}>
                 {currentPatient.firstName[0]}{currentPatient.lastName[0]}
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 18, fontWeight: 800 }}>{currentPatient.firstName} {currentPatient.lastName}</span>
-                  <span className="patient-id">{currentPatient.id}</span>
-                  <span className="badge" style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}>
-                    {patientVisits.length} Total Encounters
-                  </span>
+                  <span className="badge badge-primary">{currentPatient.id}</span>
+                  <span className="badge badge-neutral">{currentPatient.gender.toUpperCase()} · {age} yrs</span>
+                  <span className="badge badge-outline" style={{ fontWeight: 700 }}>Blood: {currentPatient.bloodGroup}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, flexWrap: 'wrap' }}>
-                  <span>{age} Yrs · {currentPatient.gender}</span>
+                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  <span>Phone: <strong>{currentPatient.phone}</strong></span>
                   <span>·</span>
-                  <span>Blood: <strong style={{ color: 'var(--color-danger)' }}>{currentPatient.bloodGroup}</strong></span>
-                  <span>·</span>
-                  <span>Phone: {currentPatient.phone}</span>
+                  <span>Registered: {currentPatient.registrationDate}</span>
                   <span>·</span>
                   <span>City: {currentPatient.city}, {currentPatient.state}</span>
                 </div>
@@ -139,6 +137,37 @@ export default function PatientOPDHistory() {
               </div>
             )}
           </div>
+
+          {/* AI Longitudinal Summary Panel */}
+          {showAiSummary && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: '12px 16px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%)',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: 700, color: '#4338ca' }}>
+                  <Sparkles size={15} style={{ color: '#6366f1' }} />
+                  AI Longitudinal EHR Synthesis ({patientVisits.length} Encounters, {patientPrescriptions.length} Prescriptions)
+                </div>
+                <span style={{ fontSize: '10.5px', color: '#64748b' }}>Automated Clinical Timeline Summary</span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#334155', margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                Patient has <strong>{patientVisits.length} recorded OPD visits</strong> with <strong>{patientConsultations.length} clinical consultations</strong>.
+                {patientConsultations.length > 0 && patientConsultations[0].diagnosis
+                  ? ` Primary documented condition: "${Array.isArray(patientConsultations[0].diagnosis) ? patientConsultations[0].diagnosis.join(', ') : patientConsultations[0].diagnosis}".`
+                  : ' Baseline health indicators stable across regular follow-ups.'}
+                {currentPatient.allergies.length > 0 && ` ⚠️ Known active hypersensitivity to ${currentPatient.allergies.join(', ')}.`}
+              </p>
+              <div style={{ fontSize: '10.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ShieldCheck size={12} style={{ color: '#6366f1' }} /> AI assistive timeline synthesis — refer to primary physician notes for official diagnosis.
+              </div>
+            </div>
+          )}
         </div>
       )}
 

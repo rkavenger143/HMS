@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Brain, Send, RefreshCw, Sparkles, AlertCircle, CheckCircle2,
   Mic, Volume2, VolumeX, Activity, ShieldCheck, Clock,
@@ -9,7 +9,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   processAICommand, AICommandResponse, AISearchResult,
   DetectedLanguage, computeLiveHospitalMetrics,
-  getAIAuditLogs, AIAuditLogEntry, evaluateRealtimeVoiceStream
+  getAIAuditLogs, AIAuditLogEntry, evaluateRealtimeVoiceStream,
+  getProactiveAIAlerts, ProactiveAIAlert
 } from '../../services/aiCommandEngine';
 import MedicalIcon from '../../components/common/MedicalIcons';
 
@@ -23,48 +24,28 @@ interface Message {
   approved?: boolean;
 }
 
-const COMMAND_MATRIX = {
-  english: [
-    { cmd: 'Open OPD', desc: 'Navigates to Outpatient Clinic' },
-    { cmd: 'Open IPD', desc: 'Navigates to Inpatient & Bed Management' },
-    { cmd: 'Show available beds', desc: 'Queries real-time hospital bed vacancy' },
-    { cmd: 'Open Pharmacy', desc: 'Opens Pharmacy POS & Drug Inventory' },
-    { cmd: 'Show low stock medicines', desc: 'Lists medicines below reorder level' },
-    { cmd: 'Open Laboratory', desc: 'Opens Clinical Pathology diagnostics' },
-    { cmd: 'Show pending lab tests', desc: 'Shows lab diagnostic orders in queue' },
-    { cmd: 'Open Blood Bank', desc: 'Shows verified blood units inventory' },
-    { cmd: 'Open Billing', desc: 'Navigates to Central Billing Desk' },
-    { cmd: 'Show today\'s revenue', desc: 'Calculates realized hospital revenue' },
-  ],
-  telugu: [
-    { cmd: 'OPD ఓపెన్ చేయి', desc: 'OPD విభాగానికి నావిగేట్ చేస్తుంది' },
-    { cmd: 'IPD ఓపెన్ చేయండి', desc: 'ఇన్-పేషెంట్ మరియు బెడ్స్ విభాగానికి వెళ్తుంది' },
-    { cmd: 'అందుబాటులో ఉన్న బెడ్స్ చూపించు', desc: 'ఖాళీ బెడ్ల వివరాలను లెక్కిస్తుంది' },
-    { cmd: 'ఫార్మసీ ఓపెన్ చేయి', desc: 'ఫార్మసీ ఇన్వెంటరీ ఓపెన్ చేస్తుంది' },
-    { cmd: 'ల్యాబ్ ఓపెన్ చేయి', desc: 'ల్యాబొరేటరీ టెస్ట్స్ విభాగాన్ని ఓపెన్ చేస్తుంది' },
-    { cmd: 'బ్లడ్ బ్యాంక్ ఓపెన్ చేయి', desc: 'రక్త నిధి వివరాలను ప్రదర్శిస్తుంది' },
-    { cmd: 'బిల్లింగ్ ఓపెన్ చేయి', desc: 'సెంట్రల్ బిల్లింగ్ కౌంటర్ ఓపెన్ చేస్తుంది' },
-    { cmd: 'ఈరోజు OPD patients చూపించు', desc: 'ఈరోజు OPD క్యూ వివరాలు' },
-  ],
-  mixed: [
-    { cmd: 'OPD section open cheyyi', desc: 'Direct navigation to OPD' },
-    { cmd: 'IPD beds chupinchu', desc: 'Shows inpatient admissions & beds' },
-    { cmd: 'Available beds chupinchu', desc: 'Live vacancy calculation' },
-    { cmd: 'Pharmacy stock chupinchu', desc: 'Opens pharmacy inventory' },
-    { cmd: 'Pending lab reports chupinchu', desc: 'Shows active diagnostic worklist' },
-    { cmd: 'Blood bank inventory chupinchu', desc: 'Displays blood units' },
-    { cmd: 'Billing outstanding chupinchu', desc: 'Shows unpaid hospital dues' },
-    { cmd: 'Today OPD queue chupinchu', desc: 'Active triage token flow' },
-  ]
-};
+const QUICK_PROMPT_CHIPS = [
+  'Which beds are available?',
+  'Which patients need attention?',
+  "Show today's admitted patients",
+  'Show critical lab results',
+  'Which insurance claims are pending?',
+  "Show today's OPD statistics",
+  'Show emergency cases',
+  'Summary of patient Ramesh',
+  'Show proactive alerts',
+  'ఈ రోజు available beds ఎంత ఉన్నాయి?',
+  'Pending lab reports చూపించు',
+  'నాకు pending insurance claims చూపించు'
+];
 
 export default function AIAssistant() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { state } = useAuth();
   const userRole = state.user?.role || 'super_admin';
 
   const [activeTab, setActiveTab] = useState<'console' | 'chat' | 'matrix' | 'audit'>('console');
-  const [selectedLang, setSelectedLang] = useState<'auto' | 'en' | 'te'>('auto');
   const [voiceQuery, setVoiceQuery] = useState('');
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing' | 'navigating'>('idle');
   const [speechError, setSpeechError] = useState<string | null>(null);
@@ -72,23 +53,29 @@ export default function AIAssistant() {
   const [autoNavEnabled, setAutoNavEnabled] = useState(true);
   const [commandResponse, setCommandResponse] = useState<AICommandResponse | null>(null);
   const [auditLogs, setAuditLogs] = useState<AIAuditLogEntry[]>(() => getAIAuditLogs());
+  const [proactiveAlerts, setProactiveAlerts] = useState<ProactiveAIAlert[]>(() => getProactiveAIAlerts(userRole, location.pathname));
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
       role: 'assistant',
-      content: `Hello **${state.user?.name || 'Administrator'}**! I am the **ALN Cure Central AI Command Center**.\n\nYou can speak or type natural language commands in **English**, **తెలుగు (Telugu)**, or **Tanglish (Telugu-English Mixed)** to navigate modules, search hospital records, check live ICU/bed availability, or review clinical operations.`,
+      content: `Hello **${state.user?.name || 'Administrator'}**! I am the **ALN Cure Central AI Command Center**.\n\nI automatically understand **English**, **తెలుగు (Telugu)**, and **Tanglish (Telugu-English Mixed)**. You can ask me to navigate modules, check live bed vacancies, review panic laboratory results, synthesize patient longitudinal dossiers, or monitor emergency trauma cases.`,
       timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  const isCancelledRef = useRef(false);
 
   const recognitionRef = useRef<any>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const hasExecutedRef = useRef(false);
   const metrics = computeLiveHospitalMetrics();
+
+  useEffect(() => {
+    setProactiveAlerts(getProactiveAIAlerts(userRole, location.pathname));
+  }, [userRole, location.pathname]);
 
   // Web Speech API Setup
   useEffect(() => {
@@ -97,7 +84,7 @@ export default function AIAssistant() {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = selectedLang === 'te' ? 'te-IN' : 'en-IN';
+      recognition.lang = 'en-IN';
 
       recognition.onstart = () => {
         setVoiceStatus('listening');
@@ -125,7 +112,7 @@ export default function AIAssistant() {
         if (hasExecutedRef.current) return;
 
         // REAL-TIME STREAMING EVALUATION (0ms lag)
-        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin', selectedLang);
+        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin');
         if (evalResult.isConfident && evalResult.confidence === 'HIGH' && evalResult.response) {
           hasExecutedRef.current = true;
           stopVoice();
@@ -160,7 +147,7 @@ export default function AIAssistant() {
 
       recognitionRef.current = recognition;
     }
-  }, [selectedLang, voiceStatus, state.user?.role]);
+  }, [voiceStatus, state.user?.role]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -186,7 +173,6 @@ export default function AIAssistant() {
       try {
         setSpeechError(null);
         setVoiceStatus('listening');
-        recognitionRef.current.lang = selectedLang === 'te' ? 'te-IN' : 'en-IN';
         recognitionRef.current.start();
       } catch (e) {
         console.warn('Start voice failed:', e);
@@ -211,7 +197,7 @@ export default function AIAssistant() {
     if (!cmdText.trim()) return;
     stopVoice();
 
-    const res = processAICommand(cmdText, userRole, selectedLang);
+    const res = processAICommand(cmdText, userRole, location.pathname);
     setCommandResponse(res);
     setAuditLogs(getAIAuditLogs());
 
@@ -223,16 +209,33 @@ export default function AIAssistant() {
       setVoiceStatus('navigating');
       setTimeout(() => {
         navigate(res.targetRoute!);
-      }, 1800);
+      }, 1500);
     } else {
       setVoiceStatus('idle');
     }
+  };
+
+  const stopGenerating = () => {
+    isCancelledRef.current = true;
+    setIsThinking(false);
+  };
+
+  const clearChat = () => {
+    setMessages([
+      {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Conversation history cleared. How can I assist you today?`,
+        timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      }
+    ]);
   };
 
   const sendChatMessage = async (queryText?: string) => {
     const text = queryText || chatInput.trim();
     if (!text || isThinking) return;
 
+    isCancelledRef.current = false;
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -244,10 +247,13 @@ export default function AIAssistant() {
     setChatInput('');
     setIsThinking(true);
 
-    const res = processAICommand(text, userRole, selectedLang);
+    const res = processAICommand(text, userRole, location.pathname);
     setAuditLogs(getAIAuditLogs());
 
-    await new Promise(r => setTimeout(r, 600));
+    // Instant/near-instant AI response (<150ms)
+    await new Promise(r => setTimeout(r, 120));
+
+    if (isCancelledRef.current) return;
 
     let content = res.displayText;
     if (res.statSummary) {
@@ -270,6 +276,14 @@ export default function AIAssistant() {
     setIsThinking(false);
   };
 
+  useEffect(() => {
+    const passedQuery = (location.state as any)?.query;
+    if (passedQuery) {
+      setActiveTab('console');
+      handleRunCommand(passedQuery);
+    }
+  }, [location.state]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
@@ -291,9 +305,9 @@ export default function AIAssistant() {
               <Brain size={22} style={{ color: 'white' }} />
             </div>
             <div>
-              <div>ALN Cure AI Command Center</div>
+              <div>ALN Cure Central AI Assistant</div>
               <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
-                Centralized Voice Control · Global Search · Operations Intelligence · Multilingual NLP
+                Active Operations Intelligence · Proactive Triage · Multilingual NLP (English · తెలుగు · Tanglish)
               </div>
             </div>
           </div>
@@ -316,12 +330,6 @@ export default function AIAssistant() {
               <Brain size={13} /> AI Chat
             </button>
             <button
-              className={`btn btn-sm ${activeTab === 'matrix' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setActiveTab('matrix')}
-            >
-              <Sparkles size={13} /> Command Matrix
-            </button>
-            <button
               className={`btn btn-sm ${activeTab === 'audit' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('audit')}
             >
@@ -340,6 +348,61 @@ export default function AIAssistant() {
           </button>
         </div>
       </div>
+
+      {/* Proactive AI Alarms Banner */}
+      {proactiveAlerts.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(245, 158, 11, 0.08))',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            borderRadius: 12,
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertCircle size={16} /> Proactive AI Clinical & Operational Alerts ({proactiveAlerts.length} Actionable Events)
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>Zero-Latency Real-Time Monitoring</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+            {proactiveAlerts.slice(0, 3).map(pa => (
+              <div
+                key={pa.id}
+                style={{
+                  background: 'var(--bg-card)',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  border: '1px solid var(--border-default)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {pa.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {pa.description}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-sm btn-primary"
+                  style={{ fontSize: 11, padding: '4px 10px', height: 28, flexShrink: 0 }}
+                  onClick={() => navigate(pa.actionRoute)}
+                >
+                  {pa.actionLabel}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Live Operational Metrics Ribbon */}
       <div
@@ -400,6 +463,34 @@ export default function AIAssistant() {
         </div>
       </div>
 
+      {/* Suggested Question Chips Ribbon */}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        {QUICK_PROMPT_CHIPS.map((chip, idx) => (
+          <button
+            key={idx}
+            className="btn btn-sm btn-ghost"
+            style={{
+              whiteSpace: 'nowrap',
+              fontSize: 12,
+              padding: '5px 12px',
+              borderRadius: 20,
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+            }}
+            onClick={() => {
+              if (activeTab === 'chat') {
+                sendChatMessage(chip);
+              } else {
+                setVoiceQuery(chip);
+                handleRunCommand(chip);
+              }
+            }}
+          >
+            ✦ {chip}
+          </button>
+        ))}
+      </div>
+
       {/* TAB 1: VOICE CONSOLE */}
       {activeTab === 'console' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16 }}>
@@ -410,29 +501,23 @@ export default function AIAssistant() {
                 <Mic size={18} style={{ color: 'var(--color-primary)' }} /> Live Multilingual Voice Console
               </div>
 
-              {/* Language Switcher */}
-              <div style={{ display: 'flex', background: 'var(--bg-surface)', padding: 2, borderRadius: 8, border: '1px solid var(--border-default)' }}>
-                <button
-                  className={`btn btn-sm ${selectedLang === 'auto' ? 'btn-primary' : 'btn-ghost'}`}
-                  style={{ fontSize: 11, padding: '2px 8px', height: 24 }}
-                  onClick={() => setSelectedLang('auto')}
+              {/* Automatic Language Detection Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    background: 'var(--color-primary-muted)',
+                    color: 'var(--color-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
                 >
-                  Auto Detect
-                </button>
-                <button
-                  className={`btn btn-sm ${selectedLang === 'en' ? 'btn-primary' : 'btn-ghost'}`}
-                  style={{ fontSize: 11, padding: '2px 8px', height: 24 }}
-                  onClick={() => setSelectedLang('en')}
-                >
-                  English
-                </button>
-                <button
-                  className={`btn btn-sm ${selectedLang === 'te' ? 'btn-primary' : 'btn-ghost'}`}
-                  style={{ fontSize: 11, padding: '2px 8px', height: 24 }}
-                  onClick={() => setSelectedLang('te')}
-                >
-                  తెలుగు
-                </button>
+                  <Sparkles size={12} /> Auto-Detect Active (English · తెలుగు · Tanglish)
+                </span>
               </div>
             </div>
 
@@ -484,7 +569,7 @@ export default function AIAssistant() {
                     : 'Click microphone to speak'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                  Examples: "Open OPD", "IPD beds chupinchu", "ఫార్మసీ ఓపెన్ చేయి", "Available beds"
+                  Examples: "Which beds are available?", "Critical patients ఎవరు?", "Show today's admitted patients", "Pending lab reports చూపించు"
                 </div>
               </div>
 
@@ -507,7 +592,7 @@ export default function AIAssistant() {
               <input
                 className="form-input"
                 style={{ flex: 1 }}
-                placeholder="Type command here (English, Telugu, Tanglish)..."
+                placeholder="Type command or query in English, Telugu, or Tanglish..."
                 value={voiceQuery}
                 onChange={e => setVoiceQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleRunCommand(voiceQuery)}
@@ -541,15 +626,17 @@ export default function AIAssistant() {
                       {commandResponse.intentType}
                     </span>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {commandResponse.displayText}
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                    {commandResponse.displayText.split('\n').map((l, i) => (
+                      <div key={i}>{l}</div>
+                    ))}
                   </div>
                 </div>
 
                 {commandResponse.statSummary && (
                   <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 10 }}>
                     <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>{commandResponse.statSummary.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-primary)', marginTop: 2 }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary)', marginTop: 2 }}>
                       {commandResponse.statSummary.value}
                     </div>
                     {commandResponse.statSummary.subtitle && (
@@ -616,8 +703,24 @@ export default function AIAssistant() {
 
       {/* TAB 2: AI CHAT */}
       {activeTab === 'chat' && (
-        <div style={{ height: 'calc(100vh - 300px)', display: 'flex', gap: 16 }}>
+        <div style={{ height: 'calc(100vh - 280px)', display: 'flex', gap: 16 }}>
           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid var(--border-default)', marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Brain size={16} style={{ color: 'var(--color-primary)' }} /> Live Hospital Assistant
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {isThinking && (
+                  <button className="btn btn-sm btn-ghost" style={{ fontSize: 11, color: 'var(--color-danger)' }} onClick={stopGenerating}>
+                    Stop Generating
+                  </button>
+                )}
+                <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={clearChat}>
+                  Clear Chat
+                </button>
+              </div>
+            </div>
+
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 6 }}>
               {messages.map(msg => (
                 <div key={msg.id} style={{ display: 'flex', gap: 12, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
@@ -687,117 +790,7 @@ export default function AIAssistant() {
         </div>
       )}
 
-      {/* TAB 3: COMMAND MATRIX */}
-      {activeTab === 'matrix' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-          {/* English Matrix */}
-          <div className="card" style={{ padding: '16px' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              🇬🇧 English Voice Commands
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {COMMAND_MATRIX.english.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    setActiveTab('console');
-                    setVoiceQuery(item.cmd);
-                    handleRunCommand(item.cmd);
-                  }}
-                  style={{
-                    padding: '8px 12px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 6,
-                    border: '1px solid var(--border-default)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>"{item.cmd}"</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{item.desc}</div>
-                  </div>
-                  <Play size={12} style={{ color: 'var(--color-primary)' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Telugu Matrix */}
-          <div className="card" style={{ padding: '16px' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              🇮🇳 Telugu Voice Commands (తెలుగు)
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {COMMAND_MATRIX.telugu.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    setActiveTab('console');
-                    setVoiceQuery(item.cmd);
-                    handleRunCommand(item.cmd);
-                  }}
-                  style={{
-                    padding: '8px 12px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 6,
-                    border: '1px solid var(--border-default)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>"{item.cmd}"</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{item.desc}</div>
-                  </div>
-                  <Play size={12} style={{ color: 'var(--color-primary)' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Mixed Tanglish Matrix */}
-          <div className="card" style={{ padding: '16px' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              ⚡ Telugu-English Mixed (Tanglish)
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {COMMAND_MATRIX.mixed.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    setActiveTab('console');
-                    setVoiceQuery(item.cmd);
-                    handleRunCommand(item.cmd);
-                  }}
-                  style={{
-                    padding: '8px 12px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 6,
-                    border: '1px solid var(--border-default)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>"{item.cmd}"</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{item.desc}</div>
-                  </div>
-                  <Play size={12} style={{ color: 'var(--color-primary)' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: AUDIT LOGS */}
+      {/* TAB 3: AUDIT LOGS */}
       {activeTab === 'audit' && (
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

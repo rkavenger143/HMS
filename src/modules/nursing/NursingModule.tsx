@@ -49,15 +49,15 @@ function NursingModuleContent() {
   const onDutyCount = nurses.filter(n => n.status === 'on_duty').length;
 
   const NAV_TABS: { id: NursingTab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'dashboard', label: '1. Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'nurses', label: '2. Nurses', icon: <UserCheck size={14} />, badge: onDutyCount },
-    { id: 'shifts', label: '3. Shifts', icon: <Clock size={14} /> },
-    { id: 'patients', label: '4. Assigned Patients', icon: <Users size={14} />, badge: kpis.totalAssignedPatients },
-    { id: 'tasks', label: '5. Nursing Tasks', icon: <CheckCircle2 size={14} />, badge: pendingTasks > 0 ? pendingTasks : undefined },
-    { id: 'medication', label: '6. Medication (MAR)', icon: <Pill size={14} />, badge: kpis.medicationDueCount > 0 ? kpis.medicationDueCount : undefined },
-    { id: 'vitals', label: '7. Vital Signs', icon: <Activity size={14} /> },
-    { id: 'notes', label: '8. Nursing Notes', icon: <ClipboardList size={14} /> },
-    { id: 'handover', label: '9. Shift Handover', icon: <FileText size={14} /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'nurses', label: 'Nurses', icon: <UserCheck size={14} />, badge: onDutyCount },
+    { id: 'shifts', label: 'Shifts', icon: <Clock size={14} /> },
+    { id: 'patients', label: 'Assigned Patients', icon: <Users size={14} />, badge: kpis.totalAssignedPatients },
+    { id: 'tasks', label: 'Nursing Tasks', icon: <CheckCircle2 size={14} />, badge: pendingTasks > 0 ? pendingTasks : undefined },
+    { id: 'medication', label: 'Medication (MAR)', icon: <Pill size={14} />, badge: kpis.medicationDueCount > 0 ? kpis.medicationDueCount : undefined },
+    { id: 'vitals', label: 'Vital Signs', icon: <Activity size={14} /> },
+    { id: 'notes', label: 'Nursing Notes', icon: <ClipboardList size={14} /> },
+    { id: 'handover', label: 'Shift Handover', icon: <FileText size={14} /> },
   ];
 
   return (

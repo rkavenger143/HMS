@@ -7,7 +7,7 @@ import {
   AlertCircle, ShieldAlert, Sparkles, Building2, UserPlus,
   FileText, Calendar, ArrowRight, Siren, CheckCheck, ChevronRight,
   Printer, BarChart3, FlaskConical, Pill, Check, X, Shield,
-  Layers, ChevronDown, CheckCircle, Share2, Download
+  Layers, ChevronDown, CheckCircle, Share2, Download, Bot, Brain, ShieldCheck, Zap
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -490,6 +490,242 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* ============================================================
+          2.5 AI OPERATIONAL INSIGHTS & CLINICAL DECISION SUPPORT HUB
+          ============================================================ */}
+      <div
+        className="card"
+        style={{
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #172554 100%)',
+          color: '#ffffff',
+          borderRadius: '16px',
+          padding: '20px 24px',
+          boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.25), 0 8px 10px -6px rgba(15, 23, 42, 0.2)',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: -60,
+            right: -60,
+            width: 220,
+            height: 220,
+            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, rgba(147, 51, 234, 0) 70%)',
+            borderRadius: '50%',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* AI Hub Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
+              }}
+            >
+              <Bot size={22} style={{ color: '#ffffff' }} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.2px', color: '#ffffff' }}>
+                  AI Operational Intelligence & Decision Support
+                </span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: 'rgba(34, 197, 94, 0.2)',
+                    color: '#4ade80',
+                    border: '1px solid rgba(34, 197, 94, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80' }} />
+                  Live HMS Telemetry Active
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 2 }}>
+                Real-time operational anomaly detection, clinical workload balancing, and bed-turnover optimization
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              id="dash-open-ai-btn"
+              className="btn btn-sm"
+              onClick={() => navigate('/ai-assistant')}
+              style={{
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 8px rgba(79, 70, 229, 0.35)',
+              }}
+            >
+              <Sparkles size={14} /> Open AI Assistant Console <ArrowRight size={13} />
+            </button>
+          </div>
+        </div>
+
+        {/* AI Insight Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
+          {/* Card 1: Operational Flow */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '13px', fontWeight: 700, color: '#e2e8f0' }}>
+                <Activity size={16} style={{ color: '#38bdf8' }} /> Clinical & Bed Throughput
+              </div>
+              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>{metrics.bedOccupancyRate}% Occupancy</span>
+            </div>
+            <p style={{ fontSize: '12.5px', color: '#cbd5e1', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+              <strong>{metrics.opdPatientsToday}</strong> OPD consults active. <strong>{metrics.ipdPatients}</strong> inpatients admitted across {metrics.totalBeds} licensed beds (<strong>{metrics.availableBeds}</strong> beds available).
+            </p>
+            <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CheckCircle2 size={12} style={{ color: '#4ade80' }} /> Floor nursing capacity balanced at {metrics.nursesOnDuty} nurses on active shift.
+            </div>
+          </div>
+
+          {/* Card 2: Diagnostics & Pharmacy Pulse */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '13px', fontWeight: 700, color: '#e2e8f0' }}>
+                <FlaskConical size={16} style={{ color: '#a78bfa' }} /> Diagnostic & Pharmacy Watch
+              </div>
+              <span style={{ fontSize: '11px', color: metrics.alerts.length > 0 ? '#f87171' : '#4ade80', fontWeight: 600 }}>
+                {metrics.alerts.length} Critical Alerts
+              </span>
+            </div>
+            <p style={{ fontSize: '12.5px', color: '#cbd5e1', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+              AI triage monitoring pathology & imaging queues in real-time. Automated panic-value escalation active for biochemistry and hematology.
+            </p>
+            <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <ShieldCheck size={12} style={{ color: '#38bdf8' }} /> Drug interaction and allergy checks enabled for all prescriber orders.
+            </div>
+          </div>
+
+          {/* Card 3: AI Anomaly & Optimization Engine */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '13px', fontWeight: 700, color: '#e2e8f0' }}>
+                <Zap size={16} style={{ color: '#facc15' }} /> AI Predictive Optimization
+              </div>
+              <span style={{ fontSize: '11px', color: '#facc15', fontWeight: 600 }}>Operational Pulse: Normal</span>
+            </div>
+            <p style={{ fontSize: '12.5px', color: '#cbd5e1', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+              {metrics.bedOccupancyRate > 80
+                ? 'High inpatient census detected. Recommend initiating early discharge clearance in General Ward A to optimize incoming triage.'
+                : 'Hospital bed throughput is optimal with adequate surge capacity across ICU and Semi-Special wards.'}
+            </p>
+            <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Brain size={12} style={{ color: '#facc15' }} /> Multilingual staff query engine online (English, Telugu, Tanglish).
+            </div>
+          </div>
+        </div>
+
+        {/* AI Quick Query Interactive Chips */}
+        <div style={{ paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                💡 Instant AI Staff Queries:
+              </span>
+              {[
+                { label: "Summarize today's hospital operations", query: "Summarize today's hospital operations" },
+                { label: "Show today's OPD summary", query: "Show today's OPD summary" },
+                { label: "Which IPD patients have pending nursing tasks?", query: "Which IPD patients have pending nursing tasks?" },
+                { label: "Show pending laboratory reports", query: "Show pending laboratory reports" },
+                { label: "Show critical diagnostic results", query: "Show critical diagnostic results" },
+                { label: "Which insurance claims are pending?", query: "Which insurance claims are pending?" },
+              ].map(chip => (
+                <button
+                  key={chip.label}
+                  className="btn btn-sm"
+                  onClick={() => navigate('/ai-assistant', { state: { query: chip.query } })}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    color: '#e2e8f0',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')}
+                >
+                  ⚡ {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Clinical Disclaimer */}
+          <div
+            style={{
+              marginTop: 12,
+              padding: '6px 12px',
+              borderRadius: '8px',
+              background: 'rgba(0, 0, 0, 0.3)',
+              fontSize: '11px',
+              color: '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Shield size={12} style={{ color: '#a5b4fc', flexShrink: 0 }} />
+            <span>
+              <strong>Clinical Review Notice:</strong> AI-generated information is a clinical and operational decision-support tool. All treatment, prescription, and patient care decisions must be verified and authorized by certified medical professionals.
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* ============================================================
           3. HOSPITAL OVERVIEW CARDS (6 Key Healthcare Metrics)

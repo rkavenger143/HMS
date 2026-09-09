@@ -53,19 +53,19 @@ function RadiologyModuleContent() {
   const unackCritical = criticalAlerts.filter(a => a.status === 'new').length;
 
   const NAV_TABS = [
-    { id: 'dashboard', label: '1. Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'orders', label: '2. Study Orders', icon: <FileText size={14} />, badge: kpis.totalOrdersToday },
-    { id: 'scheduling', label: '3. Scheduling', icon: <Calendar size={14} />, badge: kpis.scheduledExaminations },
-    { id: 'check_in', label: '4. Patient Preparation', icon: <ShieldCheck size={14} /> },
-    { id: 'worklist', label: '5. Modality Worklist', icon: <Play size={14} />, badge: kpis.examinationsInProgress },
-    { id: 'studies', label: '6. DICOM & Studies', icon: <Camera size={14} /> },
-    { id: 'reporting', label: '7. Report Entry', icon: <Eye size={14} />, badge: kpis.reportsPending },
-    { id: 'verification', label: '8. Report Verification', icon: <ShieldCheck size={14} /> },
-    { id: 'reports_archive', label: '9. Completed Reports', icon: <Printer size={14} /> },
-    { id: 'critical_findings', label: '10. Critical Findings', icon: <AlertTriangle size={14} />, badge: unackCritical > 0 ? unackCritical : undefined },
-    { id: 'modalities', label: '11. Modality Master', icon: <Scan size={14} /> },
-    { id: 'patient_history', label: '12. Imaging History', icon: <History size={14} /> },
-    { id: 'statistical_reports', label: '13. Radiology Reports', icon: <BarChart3 size={14} /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'orders', label: 'Study Orders', icon: <FileText size={14} />, badge: kpis.totalOrdersToday },
+    { id: 'scheduling', label: 'Scheduling', icon: <Calendar size={14} />, badge: kpis.scheduledExaminations },
+    { id: 'check_in', label: 'Patient Preparation', icon: <ShieldCheck size={14} /> },
+    { id: 'worklist', label: 'Modality Worklist', icon: <Play size={14} />, badge: kpis.examinationsInProgress },
+    { id: 'studies', label: 'DICOM & Studies', icon: <Camera size={14} /> },
+    { id: 'reporting', label: 'Report Entry', icon: <Eye size={14} />, badge: kpis.reportsPending },
+    { id: 'verification', label: 'Report Verification', icon: <ShieldCheck size={14} /> },
+    { id: 'reports_archive', label: 'Completed Reports', icon: <Printer size={14} /> },
+    { id: 'critical_findings', label: 'Critical Findings', icon: <AlertTriangle size={14} />, badge: unackCritical > 0 ? unackCritical : undefined },
+    { id: 'modalities', label: 'Modality Master', icon: <Scan size={14} /> },
+    { id: 'patient_history', label: 'Imaging History', icon: <History size={14} /> },
+    { id: 'statistical_reports', label: 'Radiology Reports', icon: <BarChart3 size={14} /> },
   ];
 
   return (

@@ -9,23 +9,40 @@ import type {
   RadiologyModality, PaymentMode, BillStatus,
   InsuranceProvider, InsurancePlan, InsuranceAuditLog, PatientInsurancePolicy, PreAuthRequest,
   InsuranceClaimRecord, SettlementRecord, EligibilityVerificationRecord,
-  InsuranceDashboardStats
+  InsuranceDashboardStats,
+  CleaningTask, FacilityMaintenanceRequest, FacilityAsset,
+  Employee, AttendanceRecord, LeaveRequest, PayrollRecord,
+  SupportTicket, KnowledgeBaseArticle,
+  EmergencyPatient
 } from '../types';
 import {
   DEMO_PATIENTS, DEMO_DOCTORS, DEMO_APPOINTMENTS, DEMO_ADMISSIONS,
   DEMO_BEDS, DEMO_LAB_REQUESTS, DEMO_RADIOLOGY_STUDIES, DEMO_MEDICINES,
-  DEMO_BILLS, DEMO_DIET_CHARTS, DEMO_NURSES
+  DEMO_BILLS, DEMO_DIET_CHARTS, DEMO_NURSES,
+  DEMO_AMBULANCES, DEMO_PRESCRIPTIONS, AmbulanceVehicle, SimplePrescription
 } from '../data/seedData';
 import {
   DEMO_INSURANCE_PROVIDERS, DEMO_INSURANCE_PLANS, DEMO_INSURANCE_AUDIT_LOGS,
   DEMO_PATIENT_POLICIES, DEMO_PREAUTH_REQUESTS,
   DEMO_CLAIMS, DEMO_SETTLEMENTS, DEMO_ELIGIBILITY_RECORDS
 } from '../data/insuranceSeedData';
+import {
+  DEMO_CLEANING_TASKS, DEMO_FACILITY_REQUESTS, DEMO_FACILITY_ASSETS
+} from '../data/facilitySeedData';
+import {
+  DEMO_EMPLOYEES, DEMO_ATTENDANCE, DEMO_LEAVE_REQUESTS, DEMO_PAYROLL_RECORDS
+} from '../data/hrSeedData';
+import {
+  DEMO_SUPPORT_TICKETS, DEMO_KB_ARTICLES
+} from '../data/supportSeedData';
+import {
+  DEMO_EMERGENCY_PATIENTS
+} from '../data/emergencySeedData';
 
 
 export interface HospitalActivity {
   id: string;
-  type: 'admission' | 'discharge' | 'appointment' | 'diagnostic' | 'prescription' | 'bed_assigned' | 'emergency' | 'insurance';
+  type: 'admission' | 'discharge' | 'appointment' | 'diagnostic' | 'prescription' | 'bed_assigned' | 'emergency' | 'insurance' | 'housekeeping' | 'support';
   title: string;
   description: string;
   timestamp: string;
@@ -70,6 +87,19 @@ const STORAGE_KEYS = {
   INSURANCE_CLAIMS: 'aln_hms_insurance_claims_v1',
   SETTLEMENTS: 'aln_hms_settlements_v1',
   ELIGIBILITY_RECORDS: 'aln_hms_eligibility_records_v1',
+  // New Master Modules
+  CLEANING_TASKS: 'aln_hms_cleaning_tasks_v1',
+  FACILITY_REQUESTS: 'aln_hms_facility_requests_v1',
+  FACILITY_ASSETS: 'aln_hms_facility_assets_v1',
+  EMPLOYEES: 'aln_hms_employees_v1',
+  ATTENDANCE: 'aln_hms_attendance_v1',
+  LEAVE_REQUESTS: 'aln_hms_leave_requests_v1',
+  PAYROLL: 'aln_hms_payroll_v1',
+  SUPPORT_TICKETS: 'aln_hms_support_tickets_v1',
+  KB_ARTICLES: 'aln_hms_kb_articles_v1',
+  EMERGENCY_PATIENTS: 'aln_hms_emergency_patients_v1',
+  AMBULANCES: 'aln_hms_ambulances_v1',
+  PRESCRIPTIONS: 'aln_hms_prescriptions_v1',
 };
 
 
@@ -986,7 +1016,404 @@ class StorageService {
       averageProcessingDays: 3.2
     };
   }
+
+  // ============================================================
+  // ---- HOUSEKEEPING & FACILITIES DATA METHODS ----
+  // ============================================================
+
+  getCleaningTasks(): CleaningTask[] {
+    return this.get<CleaningTask[]>(STORAGE_KEYS.CLEANING_TASKS, DEMO_CLEANING_TASKS);
+  }
+
+  saveCleaningTasks(tasks: CleaningTask[]): void {
+    this.set(STORAGE_KEYS.CLEANING_TASKS, tasks);
+  }
+
+  addCleaningTask(taskData: Omit<CleaningTask, 'id' | 'taskNumber' | 'requestedAt'>): CleaningTask {
+    const tasks = this.getCleaningTasks();
+    const count = tasks.length + 1;
+    const taskNumber = `CLN-2026-${String(count).padStart(4, '0')}`;
+    const newTask: CleaningTask = {
+      ...taskData,
+      id: `cln-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      taskNumber,
+      requestedAt: new Date().toISOString(),
+    };
+    tasks.unshift(newTask);
+    this.saveCleaningTasks(tasks);
+
+    this.logActivity({
+      type: 'housekeeping',
+      title: 'Cleaning Task Created',
+      description: `${newTask.title} for ${newTask.location}`,
+      department: 'Housekeeping',
+      priority: newTask.priority === 'stat_emergency' ? 'critical' : newTask.priority === 'urgent' ? 'high' : 'normal',
+    });
+
+    return newTask;
+  }
+
+  updateCleaningTask(id: string, updates: Partial<CleaningTask>): CleaningTask | null {
+    const tasks = this.getCleaningTasks();
+    const index = tasks.findIndex(t => t.id === id);
+    if (index === -1) return null;
+
+    tasks[index] = { ...tasks[index], ...updates };
+    this.saveCleaningTasks(tasks);
+    return tasks[index];
+  }
+
+  getFacilityRequests(): FacilityMaintenanceRequest[] {
+    return this.get<FacilityMaintenanceRequest[]>(STORAGE_KEYS.FACILITY_REQUESTS, DEMO_FACILITY_REQUESTS);
+  }
+
+  saveFacilityRequests(requests: FacilityMaintenanceRequest[]): void {
+    this.set(STORAGE_KEYS.FACILITY_REQUESTS, requests);
+  }
+
+  addFacilityRequest(reqData: Omit<FacilityMaintenanceRequest, 'id' | 'ticketNumber' | 'reportedAt'>): FacilityMaintenanceRequest {
+    const requests = this.getFacilityRequests();
+    const count = requests.length + 1;
+    const ticketNumber = `MNT-2026-${String(count).padStart(4, '0')}`;
+    const newReq: FacilityMaintenanceRequest = {
+      ...reqData,
+      id: `maint-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      ticketNumber,
+      reportedAt: new Date().toISOString(),
+    };
+    requests.unshift(newReq);
+    this.saveFacilityRequests(requests);
+    return newReq;
+  }
+
+  updateFacilityRequest(id: string, updates: Partial<FacilityMaintenanceRequest>): FacilityMaintenanceRequest | null {
+    const requests = this.getFacilityRequests();
+    const index = requests.findIndex(r => r.id === id);
+    if (index === -1) return null;
+
+    requests[index] = { ...requests[index], ...updates };
+    this.saveFacilityRequests(requests);
+    return requests[index];
+  }
+
+  getFacilityAssets(): FacilityAsset[] {
+    return this.get<FacilityAsset[]>(STORAGE_KEYS.FACILITY_ASSETS, DEMO_FACILITY_ASSETS);
+  }
+
+  saveFacilityAssets(assets: FacilityAsset[]): void {
+    this.set(STORAGE_KEYS.FACILITY_ASSETS, assets);
+  }
+
+  // ============================================================
+  // ---- HR & EMPLOYEES DATA METHODS ----
+  // ============================================================
+
+  getEmployees(): Employee[] {
+    return this.get<Employee[]>(STORAGE_KEYS.EMPLOYEES, DEMO_EMPLOYEES);
+  }
+
+  saveEmployees(employees: Employee[]): void {
+    this.set(STORAGE_KEYS.EMPLOYEES, employees);
+  }
+
+  addEmployee(empData: Omit<Employee, 'id' | 'employeeCode'>): Employee {
+    const employees = this.getEmployees();
+    const count = employees.length + 101;
+    const employeeCode = `EMP-0${count}`;
+    const newEmp: Employee = {
+      ...empData,
+      id: `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      employeeCode,
+    };
+    employees.unshift(newEmp);
+    this.saveEmployees(employees);
+    return newEmp;
+  }
+
+  updateEmployee(id: string, updates: Partial<Employee>): Employee | null {
+    const employees = this.getEmployees();
+    const index = employees.findIndex(e => e.id === id);
+    if (index === -1) return null;
+
+    employees[index] = { ...employees[index], ...updates };
+    this.saveEmployees(employees);
+    return employees[index];
+  }
+
+  getAttendanceRecords(): AttendanceRecord[] {
+    return this.get<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, DEMO_ATTENDANCE);
+  }
+
+  saveAttendanceRecords(records: AttendanceRecord[]): void {
+    this.set(STORAGE_KEYS.ATTENDANCE, records);
+  }
+
+  getLeaveRequests(): LeaveRequest[] {
+    return this.get<LeaveRequest[]>(STORAGE_KEYS.LEAVE_REQUESTS, DEMO_LEAVE_REQUESTS);
+  }
+
+  saveLeaveRequests(requests: LeaveRequest[]): void {
+    this.set(STORAGE_KEYS.LEAVE_REQUESTS, requests);
+  }
+
+  addLeaveRequest(reqData: Omit<LeaveRequest, 'id' | 'appliedAt'>): LeaveRequest {
+    const requests = this.getLeaveRequests();
+    const newReq: LeaveRequest = {
+      ...reqData,
+      id: `lve-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      appliedAt: new Date().toISOString(),
+    };
+    requests.unshift(newReq);
+    this.saveLeaveRequests(requests);
+    return newReq;
+  }
+
+  updateLeaveRequest(id: string, updates: Partial<LeaveRequest>): LeaveRequest | null {
+    const requests = this.getLeaveRequests();
+    const index = requests.findIndex(r => r.id === id);
+    if (index === -1) return null;
+
+    requests[index] = { ...requests[index], ...updates };
+    this.saveLeaveRequests(requests);
+    return requests[index];
+  }
+
+  getPayrollRecords(): PayrollRecord[] {
+    return this.get<PayrollRecord[]>(STORAGE_KEYS.PAYROLL, DEMO_PAYROLL_RECORDS);
+  }
+
+  savePayrollRecords(records: PayrollRecord[]): void {
+    this.set(STORAGE_KEYS.PAYROLL, records);
+  }
+
+  // ============================================================
+  // ---- HELP & SUPPORT DESK DATA METHODS ----
+  // ============================================================
+
+  getSupportTickets(): SupportTicket[] {
+    return this.get<SupportTicket[]>(STORAGE_KEYS.SUPPORT_TICKETS, DEMO_SUPPORT_TICKETS);
+  }
+
+  saveSupportTickets(tickets: SupportTicket[]): void {
+    this.set(STORAGE_KEYS.SUPPORT_TICKETS, tickets);
+  }
+
+  addSupportTicket(ticketData: Omit<SupportTicket, 'id' | 'ticketNumber' | 'createdAt' | 'comments'>): SupportTicket {
+    const tickets = this.getSupportTickets();
+    const count = tickets.length + 81;
+    const ticketNumber = `TKT-2026-${String(count).padStart(4, '0')}`;
+    const newTicket: SupportTicket = {
+      ...ticketData,
+      id: `tkt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      ticketNumber,
+      createdAt: new Date().toISOString(),
+      comments: [],
+    };
+    tickets.unshift(newTicket);
+    this.saveSupportTickets(tickets);
+
+    this.logActivity({
+      type: 'support',
+      title: 'Support Ticket Raised',
+      description: `${newTicket.ticketNumber}: ${newTicket.title}`,
+      department: newTicket.department,
+      priority: newTicket.priority === 'critical' ? 'critical' : newTicket.priority === 'high' ? 'high' : 'normal',
+    });
+
+    return newTicket;
+  }
+
+  updateSupportTicket(id: string, updates: Partial<SupportTicket>): SupportTicket | null {
+    const tickets = this.getSupportTickets();
+    const index = tickets.findIndex(t => t.id === id);
+    if (index === -1) return null;
+
+    tickets[index] = { ...tickets[index], ...updates };
+    this.saveSupportTickets(tickets);
+    return tickets[index];
+  }
+
+  addTicketComment(ticketId: string, comment: Omit<import('../types').TicketComment, 'id' | 'createdAt'>): SupportTicket | null {
+    const tickets = this.getSupportTickets();
+    const index = tickets.findIndex(t => t.id === ticketId);
+    if (index === -1) return null;
+
+    const newComment: import('../types').TicketComment = {
+      ...comment,
+      id: `cm-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    tickets[index].comments = [...(tickets[index].comments || []), newComment];
+    this.saveSupportTickets(tickets);
+    return tickets[index];
+  }
+
+  getKBArticles(): KnowledgeBaseArticle[] {
+    return this.get<KnowledgeBaseArticle[]>(STORAGE_KEYS.KB_ARTICLES, DEMO_KB_ARTICLES);
+  }
+
+  saveKBArticles(articles: KnowledgeBaseArticle[]): void {
+    this.set(STORAGE_KEYS.KB_ARTICLES, articles);
+  }
+
+  // ============================================================
+  // ---- EMERGENCY & TRAUMA TRIAGE DATA METHODS ----
+  // ============================================================
+
+  getEmergencyPatients(): EmergencyPatient[] {
+    return this.get<EmergencyPatient[]>(STORAGE_KEYS.EMERGENCY_PATIENTS, DEMO_EMERGENCY_PATIENTS);
+  }
+
+  saveEmergencyPatients(patients: EmergencyPatient[]): void {
+    this.set(STORAGE_KEYS.EMERGENCY_PATIENTS, patients);
+  }
+
+  addEmergencyPatient(data: Omit<EmergencyPatient, 'id' | 'erNumber' | 'intakeTime'>): EmergencyPatient {
+    const patients = this.getEmergencyPatients();
+    const count = patients.length + 41;
+    const erNumber = `ER-2026-${String(count).padStart(4, '0')}`;
+    const newPatient: EmergencyPatient = {
+      ...data,
+      id: `er-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      erNumber,
+      intakeTime: new Date().toISOString(),
+    };
+    patients.unshift(newPatient);
+    this.saveEmergencyPatients(patients);
+
+    this.logActivity({
+      type: 'emergency',
+      title: `Emergency Intake: ${newPatient.patientName}`,
+      description: `${newPatient.chiefComplaint} | Bed: ${newPatient.erBed}`,
+      patientName: newPatient.patientName,
+      patientId: newPatient.erNumber,
+      department: 'Emergency',
+      priority: newPatient.triageCategory === 'red_resuscitation' ? 'critical' : 'high',
+    });
+
+    if (newPatient.triageCategory === 'red_resuscitation') {
+      this.addCriticalAlert({
+        title: `RED CODE ER TRIAGE: ${newPatient.patientName}`,
+        description: `Critical emergency patient arrived in ${newPatient.erBed}. GCS: ${newPatient.glasgowComaScale || 'N/A'}. Doctor: ${newPatient.assignedDoctor}`,
+        category: 'emergency',
+        severity: 'critical',
+        timestamp: 'Just now',
+        patientName: newPatient.patientName,
+        bedNumber: newPatient.erBed,
+      });
+    }
+
+    return newPatient;
+  }
+
+  updateEmergencyPatient(id: string, updates: Partial<EmergencyPatient>): EmergencyPatient | null {
+    const patients = this.getEmergencyPatients();
+    const index = patients.findIndex(p => p.id === id);
+    if (index === -1) return null;
+
+    patients[index] = { ...patients[index], ...updates };
+    this.saveEmergencyPatients(patients);
+    return patients[index];
+  }
+
+  // ---- AMBULANCE FLEET & DISPATCH ----
+  getAmbulances(): AmbulanceVehicle[] {
+    return this.get<AmbulanceVehicle[]>(STORAGE_KEYS.AMBULANCES, DEMO_AMBULANCES);
+  }
+
+  updateAmbulance(id: string, updates: Partial<AmbulanceVehicle>): AmbulanceVehicle | null {
+    const list = this.getAmbulances();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates };
+    this.set(STORAGE_KEYS.AMBULANCES, list);
+    return list[idx];
+  }
+
+  dispatchAmbulance(
+    ambulanceId: string,
+    dispatchInfo: {
+      callerName: string;
+      phone: string;
+      address: string;
+      emergencyType: string;
+    }
+  ): AmbulanceVehicle | null {
+    const list = this.getAmbulances();
+    const idx = list.findIndex(a => a.id === ambulanceId);
+    if (idx === -1) return null;
+
+    list[idx] = {
+      ...list[idx],
+      status: 'dispatched',
+      lastLocation: dispatchInfo.address,
+    };
+    this.set(STORAGE_KEYS.AMBULANCES, list);
+
+    this.logActivity({
+      type: 'emergency',
+      title: `Ambulance Dispatched (${list[idx].vehicleNumber})`,
+      description: `${dispatchInfo.emergencyType} reported by ${dispatchInfo.callerName} at ${dispatchInfo.address}`,
+      department: 'Emergency & Ambulance',
+      priority: 'critical',
+    });
+
+    this.addCriticalAlert({
+      title: `AMBULANCE DISPATCHED: ${list[idx].vehicleNumber}`,
+      description: `${dispatchInfo.emergencyType} at ${dispatchInfo.address}. Driver: ${list[idx].driverName} (${list[idx].driverPhone})`,
+      category: 'emergency',
+      severity: 'high',
+      timestamp: 'Just now',
+    });
+
+    return list[idx];
+  }
+
+  // ---- PRESCRIPTIONS (PIS) ----
+  getPrescriptions(): SimplePrescription[] {
+    return this.get<SimplePrescription[]>(STORAGE_KEYS.PRESCRIPTIONS, DEMO_PRESCRIPTIONS);
+  }
+
+  addPrescription(rx: Partial<SimplePrescription>): SimplePrescription {
+    const list = this.getPrescriptions();
+    const newRx: SimplePrescription = {
+      id: rx.id || `rx-${String(list.length + 1).padStart(3, '0')}`,
+      patientId: rx.patientId || 'ALN-2026-00001',
+      patientName: rx.patientName || 'Patient',
+      doctorId: rx.doctorId || 'doc-001',
+      doctorName: rx.doctorName || 'Dr. Physician',
+      date: rx.date || new Date().toISOString().split('T')[0],
+      diagnosis: rx.diagnosis || 'Clinical Consult',
+      dispensed: rx.dispensed || false,
+      medicines: rx.medicines || [],
+    };
+    const updated = [newRx, ...list];
+    this.set(STORAGE_KEYS.PRESCRIPTIONS, updated);
+
+    this.logActivity({
+      type: 'prescription',
+      title: `Medication Prescribed: ${newRx.patientName}`,
+      description: `${newRx.medicines.length} medicine(s) prescribed by ${newRx.doctorName}`,
+      patientId: newRx.patientId,
+      patientName: newRx.patientName,
+      department: 'Pharmacy',
+      priority: 'normal',
+    });
+
+    return newRx;
+  }
+
+  updatePrescription(id: string, updates: Partial<SimplePrescription>): SimplePrescription | null {
+    const list = this.getPrescriptions();
+    const idx = list.findIndex(r => r.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates };
+    this.set(STORAGE_KEYS.PRESCRIPTIONS, list);
+    return list[idx];
+  }
 }
 
 
 export const storageService = new StorageService();
+

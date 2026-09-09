@@ -3,8 +3,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Eye, EyeOff, Shield, Smartphone, Loader2, ChevronRight } from 'lucide-react';
 
-type LoginMode = 'staff' | 'patient';
-
 const DEMO_ACCOUNTS = [
   { email: 'admin@alnhms.com', password: 'Admin@123', role: 'Super Admin', color: '#BF5AF2' },
   { email: 'dr.rajesh@alnhms.com', password: 'Doctor@123', role: 'Doctor (Cardiology)', color: '#0A84FF' },
@@ -17,15 +15,11 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function LoginPage() {
-  const { loginWithCredentials, loginWithOTP, state } = useAuth();
+  const { loginWithCredentials, state } = useAuth();
   const { toast } = useToast();
-  const [mode, setMode] = useState<LoginMode>('staff');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
 
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,29 +29,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleSendOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (phone.length !== 10) {
-      toast.error('Invalid Phone', 'Please enter a 10-digit mobile number.');
-      return;
-    }
-    await new Promise(r => setTimeout(r, 600));
-    setOtpSent(true);
-    toast.success('OTP Sent', `For demo, use OTP: 1234`);
-  };
-
-  const handlePatientLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const result = await loginWithOTP(phone, otp);
-    if (!result.success) {
-      toast.error('Login Failed', result.error);
-    }
-  };
-
   const fillDemo = (acc: typeof DEMO_ACCOUNTS[0]) => {
     setEmail(acc.email);
     setPassword(acc.password);
-    setMode('staff');
   };
 
   return (
@@ -90,17 +64,17 @@ export default function LoginPage() {
             Smarter Hospital<br />Management
           </h1>
           <p className="login-hero-desc">
-            Complete hospital operations platform connecting patients, doctors, diagnostics, pharmacy, billing, and administration through one intelligent system.
+            Complete enterprise hospital operations platform connecting clinical workflows, OPD, IPD, diagnostics, pharmacy, billing, and administration through one intelligent system.
           </p>
 
           <div className="login-features">
             {[
-              { icon: '🏥', text: 'Complete Patient Journey Management' },
-              { icon: '🤖', text: 'AI-Assisted Clinical Operations' },
-              { icon: '📊', text: 'Real-Time Hospital Analytics' },
-              { icon: '🔒', text: 'Enterprise-Grade Security & RBAC' },
-              { icon: '📱', text: 'Mobile-First Patient Portal' },
-              { icon: '⚡', text: 'Emergency & Ambulance Ready' },
+              { icon: '🏥', text: 'Integrated Patient Journey & Records' },
+              { icon: '🤖', text: 'AI-Assisted Multi-Department Intelligence' },
+              { icon: '📊', text: 'Real-Time Hospital Operations Analytics' },
+              { icon: '🔒', text: 'Enterprise-Grade Security & RBAC Matrix' },
+              { icon: '⚡', text: 'Emergency & Ambulance Command Ready' },
+              { icon: '🛡️', text: 'Clinical Decision Support Safeguards' },
             ].map((f, i) => (
               <div key={i} className="login-feature-item">
                 <span className="login-feature-icon">{f.icon}</span>
@@ -119,167 +93,81 @@ export default function LoginPage() {
         <div className="login-form-panel">
           <div className="login-form-card">
             <div className="login-form-header">
-              <h2 className="login-form-title">Welcome Back</h2>
-              <p className="login-form-sub">Sign in to ALN Cure HMS</p>
+              <h2 className="login-form-title">Staff Portal Sign In</h2>
+              <p className="login-form-sub">Sign in with authorized hospital staff credentials</p>
             </div>
 
-            {/* Mode Toggle */}
-            <div className="login-mode-toggle">
-              <button
-                className={`login-mode-btn ${mode === 'staff' ? 'active' : ''}`}
-                onClick={() => setMode('staff')}
-                type="button"
-              >
-                <Shield size={15} />
-                Staff Login
-              </button>
-              <button
-                className={`login-mode-btn ${mode === 'patient' ? 'active' : ''}`}
-                onClick={() => setMode('patient')}
-                type="button"
-              >
-                <Smartphone size={15} />
-                Patient Portal
-              </button>
-            </div>
-
-            {mode === 'staff' ? (
-              <form onSubmit={handleStaffLogin} className="login-form">
-                <div className="form-group">
-                  <label className="form-label">Email Address</label>
+            <form onSubmit={handleStaffLogin} className="login-form">
+              <div className="form-group">
+                <label className="form-label">Hospital Email Address</label>
+                <input
+                  id="login-email"
+                  type="email"
+                  className="form-input"
+                  placeholder="your@alnhms.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <div style={{ position: 'relative' }}>
                   <input
-                    id="login-email"
-                    type="email"
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
                     className="form-input"
-                    placeholder="your@alnhms.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
                     required
-                    autoComplete="email"
+                    autoComplete="current-password"
+                    style={{ paddingRight: '44px' }}
                   />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Password</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      className="form-input"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      required
-                      autoComplete="current-password"
-                      style={{ paddingRight: '44px' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex'
-                      }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                <button
-                  id="login-submit"
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={state.isLoading}
-                  style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
-                >
-                  {state.isLoading ? (
-                    <><Loader2 size={16} className="spin" /> Signing in...</>
-                  ) : (
-                    <>Sign In <ChevronRight size={16} /></>
-                  )}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={otpSent ? handlePatientLogin : handleSendOTP} className="login-form">
-                <div className="form-group">
-                  <label className="form-label">Mobile Number</label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{
-                      position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
-                      color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 600
-                    }}>+91</span>
-                    <input
-                      id="patient-phone"
-                      type="tel"
-                      className="form-input"
-                      placeholder="10-digit mobile number"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      required
-                      maxLength={10}
-                      style={{ paddingLeft: '48px' }}
-                    />
-                  </div>
-                  <div className="form-hint">Demo: Try 9876543210 (Mohan Das)</div>
-                </div>
-                {otpSent && (
-                  <div className="form-group">
-                    <label className="form-label">Enter OTP</label>
-                    <input
-                      id="patient-otp"
-                      type="text"
-                      className="form-input"
-                      placeholder="4-digit OTP"
-                      value={otp}
-                      onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      maxLength={4}
-                      required
-                      style={{ letterSpacing: '8px', textAlign: 'center', fontSize: '20px', fontWeight: 700 }}
-                    />
-                    <div className="form-hint">Demo OTP: <strong>1234</strong></div>
-                  </div>
-                )}
-                <button
-                  id="patient-login-submit"
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={state.isLoading}
-                  style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
-                >
-                  {state.isLoading ? (
-                    <><Loader2 size={16} className="spin" /> Processing...</>
-                  ) : otpSent ? (
-                    <>Verify & Sign In <ChevronRight size={16} /></>
-                  ) : (
-                    <>Send OTP <ChevronRight size={16} /></>
-                  )}
-                </button>
-                {otpSent && (
-                  <button type="button" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={() => { setOtpSent(false); setOtp(''); }}>
-                    ← Change Number
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex'
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                )}
-              </form>
-            )}
-
-            {/* Demo Accounts */}
-            {mode === 'staff' && (
-              <div className="login-demo-section">
-                <div className="login-demo-title">
-                  <div className="login-demo-line" />
-                  <span>Demo Accounts</span>
-                  <div className="login-demo-line" />
-                </div>
-                <div className="login-demo-grid">
-                  {DEMO_ACCOUNTS.map((acc, i) => (
-                    <button key={i} type="button" className="login-demo-chip" onClick={() => fillDemo(acc)}>
-                      <span className="login-demo-dot" style={{ background: acc.color }} />
-                      {acc.role}
-                    </button>
-                  ))}
                 </div>
               </div>
-            )}
+              <button
+                id="login-submit"
+                type="submit"
+                className="btn btn-primary"
+                disabled={state.isLoading}
+                style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+              >
+                {state.isLoading ? (
+                  <><Loader2 size={16} className="spin" /> Signing in...</>
+                ) : (
+                  <>Sign In <ChevronRight size={16} /></>
+                )}
+              </button>
+            </form>
+
+            {/* Demo Accounts */}
+            <div className="login-demo-section">
+              <div className="login-demo-title">
+                <div className="login-demo-line" />
+                <span>Authorized Demo Accounts</span>
+                <div className="login-demo-line" />
+              </div>
+              <div className="login-demo-grid">
+                {DEMO_ACCOUNTS.map((acc, i) => (
+                  <button key={i} type="button" className="login-demo-chip" onClick={() => fillDemo(acc)}>
+                    <span className="login-demo-dot" style={{ background: acc.color }} />
+                    {acc.role}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <p className="login-footer-text">

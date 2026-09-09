@@ -2863,3 +2863,270 @@ export interface DiagnosticDashboardKPIs {
 // ---- INSURANCE MANAGEMENT TYPES ----
 export * from './insurance';
 
+// ============================================================
+// HOUSEKEEPING & FACILITIES MANAGEMENT TYPES
+// ============================================================
+export type CleaningRequestType = 'bed_turnover' | 'room_terminal' | 'ward_routine' | 'ot_sterile' | 'emergency_spill' | 'common_area' | 'toilet_sanitation';
+export type CleaningTaskStatus = 'pending' | 'assigned' | 'in_progress' | 'completed' | 'verified' | 'cancelled';
+export type CleaningPriority = 'routine' | 'urgent' | 'stat_emergency';
+
+export interface CleaningTask {
+  id: string;
+  taskNumber: string;
+  type: CleaningRequestType;
+  title: string;
+  location: string; // e.g. "Bed W-A-03 (General Ward A)", "OT-02", "ICU Floor 2"
+  ward?: string;
+  bedNumber?: string;
+  priority: CleaningPriority;
+  status: CleaningTaskStatus;
+  assignedStaffId?: string;
+  assignedStaffName?: string;
+  requestedBy: string;
+  requestedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  specialInstructions?: string;
+  checklist: { item: string; done: boolean }[];
+  remarks?: string;
+}
+
+export type MaintenanceCategory = 'electrical' | 'plumbing' | 'hvac' | 'medical_gas' | 'biomedical_equipment' | 'civil_carpentry' | 'fire_safety';
+export type MaintenancePriority = 'low' | 'medium' | 'high' | 'critical';
+export type MaintenanceStatus = 'pending' | 'assigned' | 'in_progress' | 'on_hold' | 'resolved' | 'closed';
+
+export interface FacilityMaintenanceRequest {
+  id: string;
+  ticketNumber: string;
+  category: MaintenanceCategory;
+  title: string;
+  description: string;
+  location: string;
+  department: string;
+  assetId?: string;
+  assetName?: string;
+  priority: MaintenancePriority;
+  status: MaintenanceStatus;
+  reportedBy: string;
+  reportedAt: string;
+  assignedTechnician?: string;
+  technicianPhone?: string;
+  scheduledDate?: string;
+  estimatedCost?: number;
+  actualCost?: number;
+  resolutionNotes?: string;
+  resolvedAt?: string;
+}
+
+export interface FacilityAsset {
+  id: string;
+  assetCode: string;
+  name: string;
+  category: MaintenanceCategory;
+  location: string;
+  department: string;
+  modelNumber?: string;
+  manufacturer?: string;
+  installDate: string;
+  lastServiceDate: string;
+  nextServiceDue: string;
+  status: 'operational' | 'under_maintenance' | 'faulty' | 'decommissioned';
+}
+
+// ============================================================
+// HR & EMPLOYEES MANAGEMENT TYPES
+// ============================================================
+export type EmployeeDepartment = 'Clinical - Doctors' | 'Nursing' | 'Laboratory' | 'Radiology' | 'Pharmacy' | 'Dietetics' | 'Finance & Billing' | 'Administration' | 'Housekeeping' | 'Security' | 'IT & Biomedical';
+export type EmploymentType = 'full_time' | 'part_time' | 'contract' | 'visiting_consultant' | 'intern_trainee';
+export type EmployeeStatus = 'active' | 'on_leave' | 'probation' | 'resigned' | 'terminated';
+export type LeaveType = 'casual' | 'sick' | 'earned' | 'maternity' | 'paternity' | 'compensatory' | 'unpaid';
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface Employee {
+  id: string;
+  employeeCode: string; // e.g. "EMP-0104"
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  gender: 'male' | 'female' | 'other';
+  dateOfBirth: string;
+  bloodGroup?: string;
+  department: EmployeeDepartment;
+  designation: string;
+  employmentType: EmploymentType;
+  joiningDate: string;
+  status: EmployeeStatus;
+  currentShift: 'morning' | 'evening' | 'night' | 'rotational' | 'general';
+  qualification: string;
+  specialization?: string;
+  medicalRegistrationNumber?: string;
+  experienceYears: number;
+  emergencyContact: {
+    name: string;
+    relationship: string;
+    phone: string;
+  };
+  address: string;
+  salary: {
+    basic: number;
+    allowances: number;
+    deductions: number;
+    netMonthly: number;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+  };
+  documents: {
+    id: string;
+    title: string;
+    type: 'id_proof' | 'medical_license' | 'degree' | 'experience_cert' | 'police_verification';
+    uploadedAt: string;
+    status: 'verified' | 'pending';
+  }[];
+  certifications: {
+    name: string;
+    issuedBy: string;
+    issueDate: string;
+    expiryDate: string;
+    status: 'valid' | 'expiring_soon' | 'expired';
+  }[];
+}
+
+export interface AttendanceRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode: string;
+  department: string;
+  date: string;
+  checkInTime: string;
+  checkOutTime?: string;
+  status: 'present' | 'late' | 'half_day' | 'absent' | 'on_leave';
+  hoursWorked?: number;
+  shift: string;
+}
+
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode: string;
+  department: string;
+  leaveType: LeaveType;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  reason: string;
+  status: LeaveStatus;
+  appliedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewRemarks?: string;
+}
+
+export interface PayrollRecord {
+  id: string;
+  monthYear: string; // e.g. "September 2026"
+  employeeId: string;
+  employeeName: string;
+  employeeCode: string;
+  department: string;
+  designation: string;
+  basicSalary: number;
+  hra: number;
+  specialAllowance: number;
+  grossSalary: number;
+  pfDeduction: number;
+  taxDeduction: number;
+  totalDeductions: number;
+  netPayable: number;
+  paymentStatus: 'paid' | 'pending' | 'processing';
+  paymentDate?: string;
+  paymentMode?: 'bank_transfer' | 'cheque' | 'cash';
+  transactionReference?: string;
+}
+
+// ============================================================
+// HELP & SUPPORT DESK TYPES
+// ============================================================
+export type TicketCategory = 'his_software' | 'hardware_biomedical' | 'network_telecom' | 'billing_claim_issue' | 'clinical_workflow' | 'pharmacy_system' | 'lab_integration' | 'general_query';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TicketStatus = 'open' | 'assigned' | 'in_progress' | 'waiting_for_user' | 'resolved' | 'closed' | 'reopened';
+
+export interface TicketComment {
+  id: string;
+  authorName: string;
+  authorRole: string;
+  authorAvatar?: string;
+  content: string;
+  isInternalNote: boolean;
+  createdAt: string;
+  attachments?: string[];
+}
+
+export interface SupportTicket {
+  id: string;
+  ticketNumber: string; // e.g. "TKT-2026-084"
+  title: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  description: string;
+  location?: string;
+  department: string;
+  createdBy: string;
+  createdRole: string;
+  createdAt: string;
+  assignedStaffId?: string;
+  assignedStaffName?: string;
+  slaDueDate: string;
+  comments: TicketComment[];
+  resolutionNotes?: string;
+  resolvedAt?: string;
+  closedAt?: string;
+}
+
+export interface KnowledgeBaseArticle {
+  id: string;
+  title: string;
+  category: string;
+  snippet: string;
+  content: string;
+  views: number;
+  updatedAt: string;
+  tags: string[];
+}
+
+// ============================================================
+// EMERGENCY MANAGEMENT TYPES
+// ============================================================
+export type TriageCategory = 'red_resuscitation' | 'yellow_emergent' | 'green_non_urgent' | 'black_deceased';
+
+export interface EmergencyPatient {
+  id: string;
+  erNumber: string; // e.g. "ER-2026-0042"
+  patientName: string;
+  gender: 'male' | 'female' | 'other';
+  age: number;
+  broughtBy: string; // e.g. "Ambulance ALN-01", "Family / Walk-in", "Police"
+  chiefComplaint: string;
+  triageCategory: TriageCategory;
+  glasgowComaScale?: number; // 3 to 15
+  vitals: {
+    bp: string;
+    pulse: number;
+    spo2: number;
+    temp: number;
+    respRate: number;
+  };
+  isMLC: boolean; // Medico-Legal Case
+  policeStation?: string;
+  assignedDoctor: string;
+  erBed: string; // e.g. "ER-Bay-01", "Trauma-OT", "Resuscitation-1"
+  intakeTime: string;
+  status: 'triage' | 'treatment' | 'admitted_icu' | 'admitted_ward' | 'discharged' | 'referred' | 'deceased';
+  clinicalNotes: string;
+}
+

@@ -16,6 +16,7 @@ import type { Patient, Doctor, Appointment, Admission, Bed, LabRequest, Radiolog
 
 export type ReportTab =
   | 'dashboard'
+  | 'ai_reports'
   | 'patient'
   | 'opd'
   | 'appointments'

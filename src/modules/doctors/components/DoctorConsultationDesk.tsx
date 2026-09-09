@@ -6,11 +6,14 @@ import {
 } from 'lucide-react';
 import { useDoctor } from '../context/DoctorContext';
 import { useBilling } from '../../billing/context/BillingContext';
+import { storageService } from '../../../services/storageService';
+import { useToast } from '../../../contexts/ToastContext';
 import PrintPrescriptionModal from './modals/PrintPrescriptionModal';
 import PrintConsultationSummaryModal from './modals/PrintConsultationSummaryModal';
 import type { DepartmentChargeItem } from '../../../types';
 
 export default function DoctorConsultationDesk() {
+  const { showToast } = useToast();
   const {
     doctors,
     patients,
@@ -95,7 +98,7 @@ export default function DoctorConsultationDesk() {
 
   const handleCompleteConsultation = () => {
     if (!primaryDiagnosis.trim()) {
-      alert('Please enter a Primary Diagnosis before completing consultation.');
+      showToast('Please enter a Primary Diagnosis before completing consultation.', 'warning');
       return;
     }
 
@@ -126,7 +129,72 @@ export default function DoctorConsultationDesk() {
       status: 'completed',
     });
 
-    // Automatically create consultation charge in Central Billing
+    // 1. Cross-module: Dispatch Lab orders to Laboratory Module (LIS)
+    if (selectedLabTests.length > 0) {
+      storageService.addLabRequest({
+        patientId: activePatient.id,
+        patientName: `${activePatient.firstName} ${activePatient.lastName}`,
+        doctorId: activeDoctor.id,
+        doctorName: activeDoctor.name,
+        tests: selectedLabTests.map((t, idx) => ({
+          testId: `t-${idx + 1}`,
+          testName: t,
+          status: 'ordered',
+          sampleType: 'Blood',
+          price: 450,
+        })),
+        priority: 'routine',
+      });
+    }
+
+    // 2. Cross-module: Dispatch Radiology scans to RIS / Radiology Module
+    if (selectedRadScans.length > 0) {
+      selectedRadScans.forEach(scan => {
+        const modality = scan.toLowerCase().includes('mri')
+          ? 'mri'
+          : scan.toLowerCase().includes('ct')
+          ? 'ct'
+          : scan.toLowerCase().includes('ultrasound') || scan.toLowerCase().includes('usg')
+          ? 'ultrasound'
+          : 'xray';
+
+        storageService.addRadiologyStudy({
+          patientId: activePatient.id,
+          patientName: `${activePatient.firstName} ${activePatient.lastName}`,
+          doctorId: activeDoctor.id,
+          doctorName: activeDoctor.name,
+          modality: modality as any,
+          bodyPart: scan,
+          price: 1200,
+          scheduledDate: new Date().toISOString().split('T')[0],
+          scheduledTime: '11:00 AM',
+          status: 'scheduled',
+          priority: 'routine',
+          clinicalHistory: `${primaryDiagnosis} — ${chiefComplaint}`,
+        });
+      });
+    }
+
+    // 3. Cross-module: Dispatch Medication Prescription to Pharmacy Module (PIS)
+    if (medicines.length > 0) {
+      storageService.addPrescription({
+        patientId: activePatient.id,
+        patientName: `${activePatient.firstName} ${activePatient.lastName}`,
+        doctorId: activeDoctor.id,
+        doctorName: activeDoctor.name,
+        date: new Date().toISOString().split('T')[0],
+        diagnosis: primaryDiagnosis,
+        dispensed: false,
+        medicines: medicines.map(m => ({
+          medicineName: m.name,
+          dosage: m.dosage,
+          frequency: m.frequency,
+          duration: m.duration,
+        })),
+      });
+    }
+
+    // 4. Cross-module: Automatically create consultation charge in Central Billing
     const chargeItem: DepartmentChargeItem = {
       id: `chg-doc-${Date.now()}`,
       patientId: activePatient.id,
@@ -167,7 +235,7 @@ export default function DoctorConsultationDesk() {
       createdBy: 'Doctor Chamber',
     });
 
-    alert(`Consultation successfully recorded for ${activePatient.firstName} ${activePatient.lastName}.\nPrescriptions and diagnostic requests dispatched.`);
+    showToast(`Consultation successfully recorded for ${activePatient.firstName} ${activePatient.lastName}. Prescriptions and diagnostic requests dispatched.`, 'success');
     setPrintRxData(newConsult);
   };
 

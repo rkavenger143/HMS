@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { ShoppingCart, Search, Plus, Trash2, CheckCircle2, Printer, CreditCard, DollarSign, QrCode } from 'lucide-react';
 import { usePharmacy } from '../context/PharmacyContext';
+import { useToast } from '../../../contexts/ToastContext';
 import PrintPharmacyReceiptModal from './modals/PrintPharmacyReceiptModal';
 import type { ComprehensiveMedicineItem, PharmacySaleRecord } from '../../../types';
 
 export default function PharmacyPOS() {
+  const { showToast } = useToast();
   const { medicines, batches, processPOSSale } = usePharmacy();
 
   const [search, setSearch] = useState('');
@@ -39,7 +41,7 @@ export default function PharmacyPOS() {
       .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
 
     if (availableBatches.length === 0) {
-      alert(`No available stock batches for ${med.brandName}`);
+      showToast(`No available stock batches for ${med.brandName}`, 'warning');
       return;
     }
 

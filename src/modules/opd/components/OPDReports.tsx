@@ -266,7 +266,6 @@ export default function OPDReports() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>#</th>
                     <th>ICD-10 Diagnostic Classification</th>
                     <th>Incident Encounters</th>
                     <th>Prevalence %</th>
@@ -275,7 +274,6 @@ export default function OPDReports() {
                 <tbody>
                   {diagnosisReportData.map((d, i) => (
                     <tr key={i}>
-                      <td>{i + 1}</td>
                       <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{d.name}</td>
                       <td style={{ fontWeight: 700, color: 'var(--color-primary)' }}>{d.count}</td>
                       <td>{Math.round((d.count / 104) * 100)}%</td>

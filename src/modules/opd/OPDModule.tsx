@@ -44,18 +44,18 @@ function OPDModuleContent() {
 
   // Logical Clinical Workflow: Patient → Appointment → Billing → Queue → Consultation → Follow-up
   const NAV_TABS: NavTabItem[] = [
-    { id: 'dashboard', label: '1. OPD Dashboard', icon: <LayoutDashboard size={14} /> },
-    { id: 'patients', label: '2. Patients Directory', icon: <Users size={14} /> },
-    { id: 'appointments', label: '3. Appointments', icon: <Calendar size={14} /> },
-    { id: 'billing', label: '4. OPD Billing', icon: <ReceiptText size={14} /> },
-    { id: 'queue', label: '5. Queue Management', icon: <Clock size={14} />, badge: kpis.waitingPatients },
-    { id: 'consultation', label: '6. Consultation', icon: <Stethoscope size={14} /> },
-    { id: 'vitals', label: '7. Vitals Station', icon: <Activity size={14} /> },
-    { id: 'prescriptions', label: '8. Prescription (Rx)', icon: <Pill size={14} /> },
-    { id: 'follow_ups', label: '9. Follow-up', icon: <CalendarDays size={14} /> },
-    { id: 'history', label: '10. OPD History', icon: <History size={14} /> },
-    { id: 'reports', label: '11. OPD Reports', icon: <BarChart3 size={14} /> },
-    { id: 'settings', label: '12. OPD Settings', icon: <Settings size={14} /> },
+    { id: 'dashboard', label: 'OPD Dashboard', icon: <LayoutDashboard size={14} /> },
+    { id: 'patients', label: 'Patients Directory', icon: <Users size={14} /> },
+    { id: 'appointments', label: 'Appointments', icon: <Calendar size={14} /> },
+    { id: 'billing', label: 'OPD Billing', icon: <ReceiptText size={14} /> },
+    { id: 'queue', label: 'Queue Management', icon: <Clock size={14} />, badge: kpis.waitingPatients },
+    { id: 'consultation', label: 'Consultation', icon: <Stethoscope size={14} /> },
+    { id: 'vitals', label: 'Vitals Station', icon: <Activity size={14} /> },
+    { id: 'prescriptions', label: 'Prescription (Rx)', icon: <Pill size={14} /> },
+    { id: 'follow_ups', label: 'Follow-up', icon: <CalendarDays size={14} /> },
+    { id: 'history', label: 'OPD History', icon: <History size={14} /> },
+    { id: 'reports', label: 'OPD Reports', icon: <BarChart3 size={14} /> },
+    { id: 'settings', label: 'OPD Settings', icon: <Settings size={14} /> },
   ];
 
   return (

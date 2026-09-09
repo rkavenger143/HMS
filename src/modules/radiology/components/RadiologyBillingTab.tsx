@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useRadiology } from '../context/RadiologyContext';
 import { useBilling } from '../../billing/context/BillingContext';
+import { useToast } from '../../../contexts/ToastContext';
 import PrintInvoiceModal from '../../billing/components/modals/PrintInvoiceModal';
 import PrintPaymentReceiptModal from '../../billing/components/modals/PrintPaymentReceiptModal';
 import RecordPaymentModal from '../../billing/components/modals/RecordPaymentModal';
@@ -13,6 +14,7 @@ import ProcessRefundModal from '../../billing/components/modals/ProcessRefundMod
 import type { CentralInvoiceItem, BillingPaymentRecord, DepartmentChargeItem } from '../../../types';
 
 export default function RadiologyBillingTab() {
+  const { showToast } = useToast();
   const { radiologyOrders, examinations } = useRadiology();
   const { invoices, payments, departmentCharges, addDepartmentCharge, createInvoice } = useBilling();
 
@@ -113,7 +115,7 @@ export default function RadiologyBillingTab() {
       createdBy: 'Radiology Billing Counter',
     });
 
-    alert(`Radiology Diagnostic Tax Invoice ${newInvoice.invoiceNumber} generated for ${order.patientName} (₹${totalScanPrice}).`);
+    showToast(`Radiology Diagnostic Tax Invoice ${newInvoice.invoiceNumber} generated for ${order.patientName} (₹${totalScanPrice}).`, 'success');
   };
 
   return (

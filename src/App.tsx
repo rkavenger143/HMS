@@ -13,22 +13,26 @@ import AIAssistant from './modules/ai/AIAssistant';
 import PatientsModule from './modules/patients/PatientsModule';
 import AppointmentsModule from './modules/appointments/AppointmentsModule';
 import OPDModule from './modules/opd/OPDModule';
+import EmergencyModule from './modules/emergency/EmergencyModule';
 import IPDModule from './modules/ipd/IPDModule';
+import DoctorsModule from './modules/doctors/DoctorsModule';
 import NursingModule from './modules/nursing/NursingModule';
+import LaboratoryModule from './modules/laboratory/LaboratoryModule';
+import RadiologyModule from './modules/radiology/RadiologyModule';
 import DiagnosticsModule from './modules/diagnostics/DiagnosticsModule';
 import PharmacyModule from './modules/pharmacy/PharmacyModule';
+import DietModule from './modules/diet/DietModule';
 import BillingModule from './modules/billing/BillingModule';
-import DoctorsModule from './modules/doctors/DoctorsModule';
+import InsuranceModule from './modules/insurance/InsuranceModule';
 import AmbulanceModule from './modules/ambulance/AmbulanceModule';
 import BloodBankModule from './modules/blood-bank/BloodBankModule';
+import HousekeepingModule from './modules/housekeeping/HousekeepingModule';
+import HRModule from './modules/hr/HRModule';
+import SupportDeskModule from './modules/support/SupportDeskModule';
 import ReportsModule from './modules/reports/ReportsModule';
+import NotificationsModule from './modules/notifications/NotificationsModule';
 import AdminPanel from './modules/admin/AdminPanel';
 import SettingsModule from './modules/settings/SettingsModule';
-import DietModule from './modules/diet/DietModule';
-import NotificationsModule from './modules/notifications/NotificationsModule';
-import InsuranceModule from './modules/insurance/InsuranceModule';
-import PatientPortal from './modules/portal/PatientPortal';
-
 function AppLayout() {
   const { state } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -62,50 +66,87 @@ function AppLayout() {
     return <LoginPage />;
   }
 
-  const isPatient = state.user?.role === 'patient';
-
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <div className="main-area">
         <Header sidebarCollapsed={sidebarCollapsed} />
         <main className="main-content">
-          {isPatient ? (
-            <Routes>
-              <Route path="/" element={<Navigate to="/portal" replace />} />
-              <Route path="/portal" element={<PatientPortal />} />
-              <Route path="/portal/*" element={<PatientPortal />} />
-              <Route path="*" element={<Navigate to="/portal" replace />} />
-            </Routes>
-          ) : (
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/patients" element={<PatientsModule />} />
-              <Route path="/patients/:id" element={<PatientsModule />} />
-              <Route path="/appointments" element={<AppointmentsModule />} />
-              <Route path="/opd" element={<OPDModule />} />
-              <Route path="/ipd" element={<IPDModule />} />
-              <Route path="/doctors" element={<DoctorsModule />} />
-              <Route path="/nursing" element={<NursingModule />} />
-              <Route path="/diagnostics" element={<DiagnosticsModule />} />
-              <Route path="/laboratory" element={<DiagnosticsModule />} />
-              <Route path="/radiology" element={<DiagnosticsModule />} />
-              <Route path="/diet" element={<DietModule />} />
-              <Route path="/pharmacy" element={<PharmacyModule />} />
-              <Route path="/billing" element={<BillingModule />} />
-              <Route path="/insurance" element={<InsuranceModule />} />
-              <Route path="/insurance/*" element={<InsuranceModule />} />
-              <Route path="/reports" element={<ReportsModule />} />
-              <Route path="/notifications" element={<NotificationsModule />} />
-              <Route path="/ambulance" element={<AmbulanceModule />} />
-              <Route path="/blood-bank" element={<BloodBankModule />} />
-              <Route path="/ai" element={<AIAssistant />} />
-              <Route path="/admin" element={<AdminPanel />} />
-              <Route path="/settings" element={<SettingsModule />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          )}
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* 1. Dashboard */}
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/ai" element={<AIAssistant />} />
+
+            {/* 2. Patients */}
+            <Route path="/patients" element={<PatientsModule />} />
+            <Route path="/patients/:id" element={<PatientsModule />} />
+
+            {/* 3. Appointments */}
+            <Route path="/appointments" element={<AppointmentsModule />} />
+
+            {/* 4. OPD */}
+            <Route path="/opd" element={<OPDModule />} />
+
+            {/* 5. Emergency */}
+            <Route path="/emergency" element={<EmergencyModule />} />
+
+            {/* 6. IPD & Beds */}
+            <Route path="/ipd" element={<IPDModule />} />
+
+            {/* 7. Doctors */}
+            <Route path="/doctors" element={<DoctorsModule />} />
+
+            {/* 8. Nursing */}
+            <Route path="/nursing" element={<NursingModule />} />
+
+            {/* 9. Laboratory (Dedicated LIS) */}
+            <Route path="/laboratory" element={<LaboratoryModule />} />
+
+            {/* 10. Diagnostics & Radiology (Dedicated RIS) */}
+            <Route path="/radiology" element={<RadiologyModule />} />
+            <Route path="/diagnostics" element={<DiagnosticsModule />} />
+
+            {/* 11. Pharmacy */}
+            <Route path="/pharmacy" element={<PharmacyModule />} />
+
+            {/* 12. Diet & Nutrition */}
+            <Route path="/diet" element={<DietModule />} />
+
+            {/* 13. Billing & Finance */}
+            <Route path="/billing" element={<BillingModule />} />
+
+            {/* 14. Insurance */}
+            <Route path="/insurance" element={<InsuranceModule />} />
+            <Route path="/insurance/*" element={<InsuranceModule />} />
+
+            {/* 15. Ambulance */}
+            <Route path="/ambulance" element={<AmbulanceModule />} />
+
+            {/* 16. Blood Bank */}
+            <Route path="/blood-bank" element={<BloodBankModule />} />
+
+            {/* 17. Housekeeping & Facilities */}
+            <Route path="/housekeeping" element={<HousekeepingModule />} />
+
+            {/* 18. HR & Employees */}
+            <Route path="/hr" element={<HRModule />} />
+
+            {/* 19. Help & Support Desk */}
+            <Route path="/support" element={<SupportDeskModule />} />
+
+            {/* 20. Reports */}
+            <Route path="/reports" element={<ReportsModule />} />
+
+            {/* 21. Notifications */}
+            <Route path="/notifications" element={<NotificationsModule />} />
+
+            {/* 22. Administration / Settings */}
+            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/settings" element={<SettingsModule />} />
+
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </main>
       </div>
       <ToastContainer />

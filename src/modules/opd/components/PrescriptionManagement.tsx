@@ -354,7 +354,6 @@ export default function PrescriptionManagement() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>#</th>
                       <th>Medicine Name</th>
                       <th>Dosage / Route</th>
                       <th>Frequency</th>
@@ -365,9 +364,8 @@ export default function PrescriptionManagement() {
                   </thead>
                   <tbody>
                     {items.length > 0 ? (
-                      items.map((item, idx) => (
+                      items.map((item) => (
                         <tr key={item.id}>
-                          <td style={{ color: 'var(--text-tertiary)', width: 30 }}>{idx + 1}</td>
                           <td>
                             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
                               {item.medicineName} {item.strength && `(${item.strength})`}

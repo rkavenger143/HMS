@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { useBilling } from '../../billing/context/BillingContext';
+import { useToast } from '../../../contexts/ToastContext';
 import PrintInvoiceModal from '../../billing/components/modals/PrintInvoiceModal';
 import PrintPaymentReceiptModal from '../../billing/components/modals/PrintPaymentReceiptModal';
 import RecordPaymentModal from '../../billing/components/modals/RecordPaymentModal';
@@ -13,6 +14,7 @@ import ProcessRefundModal from '../../billing/components/modals/ProcessRefundMod
 import type { CentralInvoiceItem, BillingPaymentRecord, DepartmentChargeItem } from '../../../types';
 
 export default function PharmacyBillingTab() {
+  const { showToast } = useToast();
   const { prescriptions, sales, medicines } = usePharmacy();
   const { invoices, payments, departmentCharges, addDepartmentCharge, createInvoice } = useBilling();
 
@@ -129,7 +131,7 @@ export default function PharmacyBillingTab() {
       createdBy: 'Pharmacy Cash Counter',
     });
 
-    alert(`Pharmacy Prescription Invoice ${newInvoice.invoiceNumber} generated for ${rx.patientName} (₹${totalRxPrice}).`);
+    showToast(`Pharmacy Prescription Invoice ${newInvoice.invoiceNumber} generated for ${rx.patientName} (₹${totalRxPrice}).`, 'success');
   };
 
   return (

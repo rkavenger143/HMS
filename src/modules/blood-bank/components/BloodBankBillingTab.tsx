@@ -5,8 +5,10 @@ import {
 } from 'lucide-react';
 import { useBilling } from '../../billing/context/BillingContext';
 import { useBloodBank } from '../context/BloodBankContext';
+import { useToast } from '../../../contexts/ToastContext';
 
 export default function BloodBankBillingTab() {
+  const { showToast } = useToast();
   const { invoices, recordPayment } = useBilling();
   const { bloodRequests } = useBloodBank();
 
@@ -29,7 +31,7 @@ export default function BloodBankBillingTab() {
       status: 'successful',
       counterName: 'Blood Bank Cash Counter 01',
     });
-    alert(`Payment of ₹${inv.netPayable} collected successfully for ${inv.patientName}.`);
+    showToast(`Payment of ₹${inv.netPayable} collected successfully for ${inv.patientName}.`, 'success');
   };
 
   return (

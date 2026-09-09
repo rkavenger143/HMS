@@ -4,10 +4,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types';
 import {
   LogOut, ChevronLeft, ChevronRight, Bell, Shield, ShieldCheck,
-  LayoutDashboard, Users, CalendarCheck, BedDouble,
-  Stethoscope, HeartPulse, FlaskConical, UtensilsCrossed,
+  LayoutDashboard, Users, CalendarCheck, Calendar, BedDouble,
+  Stethoscope, HeartPulse, FlaskConical, Scan, UtensilsCrossed,
   Pill, ReceiptText, BarChart3, Settings as SettingsIcon,
-  Sparkles
+  Sparkles, Siren, Building2, UserCheck, LifeBuoy, Briefcase
 } from 'lucide-react';
 import MedicalIcon, { MedicalBrandLogo } from '../common/MedicalIcons';
 import { storageService } from '../../services/storageService';
@@ -34,59 +34,97 @@ export default function Sidebar({
 }) {
   const { state, logout } = useAuth();
   const location = useLocation();
-  const isPatient = state.user?.role === 'patient';
   const [liveStats, setLiveStats] = useState(() => storageService.getDashboardMetrics());
   const [liveInsMetrics, setLiveInsMetrics] = useState(() => storageService.getInsuranceMetrics());
+  const [liveErCount, setLiveErCount] = useState(() => storageService.getEmergencyPatients().filter(p => p.status !== 'discharged').length);
+  const [liveCleaningCount, setLiveCleaningCount] = useState(() => storageService.getCleaningTasks().filter(t => t.status === 'pending' || t.status === 'assigned').length);
+  const [liveSupportCount, setLiveSupportCount] = useState(() => storageService.getSupportTickets().filter(t => t.status === 'open' || t.status === 'assigned').length);
 
   useEffect(() => {
     const handleUpdate = () => {
       setLiveStats(storageService.getDashboardMetrics());
       setLiveInsMetrics(storageService.getInsuranceMetrics());
+      setLiveErCount(storageService.getEmergencyPatients().filter(p => p.status !== 'discharged').length);
+      setLiveCleaningCount(storageService.getCleaningTasks().filter(t => t.status === 'pending' || t.status === 'assigned').length);
+      setLiveSupportCount(storageService.getSupportTickets().filter(t => t.status === 'open' || t.status === 'assigned').length);
     };
     window.addEventListener('hms_storage_updated', handleUpdate);
     return () => window.removeEventListener('hms_storage_updated', handleUpdate);
   }, []);
 
-
-  // Standard Organized Hospital Order (1 to 13)
+  // Standard Master 22-Module HMS Order
   const NAV_ITEMS: NavItem[] = [
+    // Dashboard
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <LayoutDashboard size={18} />,
       path: '/dashboard',
-      section: 'Overview'
+      section: 'Core Management'
     },
     {
+      id: 'ai-assistant',
+      label: 'AI Command Center',
+      icon: <Sparkles size={18} style={{ color: 'var(--color-ai, #2563eb)' }} />,
+      path: '/ai',
+      badge: undefined,
+      section: 'Core Management',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'dietitian', 'lab_technician', 'radiology_technician', 'pharmacist', 'billing_staff', 'insurance_coordinator', 'ambulance_staff', 'blood_bank_staff', 'receptionist', 'management']
+    },
+    // Patients
+    {
       id: 'patients',
-      label: 'Patient Management',
+      label: 'Patients',
       icon: <Users size={18} />,
       path: '/patients',
       badge: liveStats.totalPatients,
       badgeVariant: 'primary',
-      section: 'Clinical Services',
+      section: 'Clinical Care',
       allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'billing_staff', 'management']
     },
+    // Appointments
     {
-      id: 'opd',
-      label: 'Appointments / OPD',
-      icon: <CalendarCheck size={18} />,
-      path: '/opd',
+      id: 'appointments',
+      label: 'Appointments',
+      icon: <Calendar size={18} />,
+      path: '/appointments',
       badge: liveStats.pendingAppointments > 0 ? liveStats.pendingAppointments : undefined,
       badgeVariant: 'warning',
-      section: 'Clinical Services',
+      section: 'Clinical Care',
       allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'management']
     },
+    // OPD
+    {
+      id: 'opd',
+      label: 'OPD & Consultations',
+      icon: <CalendarCheck size={18} />,
+      path: '/opd',
+      section: 'Clinical Care',
+      allowedRoles: ['super_admin', 'hospital_admin', 'receptionist', 'doctor', 'nurse', 'management']
+    },
+    // Emergency
+    {
+      id: 'emergency',
+      label: 'Emergency & Trauma',
+      icon: <Siren size={18} style={{ color: liveErCount > 0 ? '#ef4444' : 'inherit' }} />,
+      path: '/emergency',
+      badge: liveErCount > 0 ? liveErCount : undefined,
+      badgeVariant: 'danger',
+      section: 'Clinical Care',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'ambulance_staff', 'receptionist', 'management']
+    },
+    // IPD & Beds
     {
       id: 'ipd',
-      label: 'IPD & Bed Management',
+      label: 'IPD & Beds',
       icon: <BedDouble size={18} />,
       path: '/ipd',
       badge: liveStats.ipdPatients > 0 ? liveStats.ipdPatients : undefined,
       badgeVariant: 'primary',
-      section: 'Clinical Services',
+      section: 'Clinical Care',
       allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management']
     },
+    // Doctors
     {
       id: 'doctors',
       label: 'Doctors',
@@ -94,33 +132,37 @@ export default function Sidebar({
       path: '/doctors',
       badge: liveStats.doctorsOnDuty > 0 ? liveStats.doctorsOnDuty : undefined,
       badgeVariant: 'success',
-      section: 'Staff & Care',
+      section: 'Medical Staff',
       allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'management']
     },
+    // Nursing
     {
       id: 'nursing',
-      label: 'Nursing',
+      label: 'Nursing Care',
       icon: <HeartPulse size={18} />,
       path: '/nursing',
-      section: 'Staff & Care',
+      section: 'Medical Staff',
       allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management']
     },
+    // Laboratory (Dedicated LIS)
     {
-      id: 'diagnostics',
-      label: 'Diagnostic Services',
+      id: 'laboratory',
+      label: 'Laboratory',
       icon: <FlaskConical size={18} />,
-      path: '/diagnostics',
+      path: '/laboratory',
       section: 'Diagnostics & Pharmacy',
-      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'lab_technician', 'radiology_technician', 'nurse', 'management']
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'lab_technician', 'nurse', 'management']
     },
+    // Diagnostics & Radiology (Dedicated RIS)
     {
-      id: 'diet',
-      label: 'Diet Charts',
-      icon: <UtensilsCrossed size={18} />,
-      path: '/diet',
+      id: 'radiology',
+      label: 'Diagnostics & Radiology',
+      icon: <Scan size={18} />,
+      path: '/radiology',
       section: 'Diagnostics & Pharmacy',
-      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'dietitian', 'management']
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'radiology_technician', 'lab_technician', 'nurse', 'management']
     },
+    // Pharmacy
     {
       id: 'pharmacy',
       label: 'Pharmacy',
@@ -131,32 +173,94 @@ export default function Sidebar({
       section: 'Diagnostics & Pharmacy',
       allowedRoles: ['super_admin', 'hospital_admin', 'pharmacist', 'doctor', 'management']
     },
+    // Diet & Nutrition
+    {
+      id: 'diet',
+      label: 'Diet & Nutrition',
+      icon: <UtensilsCrossed size={18} />,
+      path: '/diet',
+      section: 'Diagnostics & Pharmacy',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'dietitian', 'management']
+    },
+    // Billing & Finance
     {
       id: 'billing',
-      label: 'Billing',
+      label: 'Billing & Finance',
       icon: <ReceiptText size={18} />,
       path: '/billing',
-      section: 'Finance & Analytics',
+      section: 'Finance & Insurance',
       allowedRoles: ['super_admin', 'hospital_admin', 'billing_staff', 'management']
     },
+    // Insurance
     {
       id: 'insurance',
-      label: 'Insurance Management',
+      label: 'Insurance & TPA',
       icon: <ShieldCheck size={18} />,
       path: '/insurance',
       badge: liveInsMetrics.pendingPreAuths + liveInsMetrics.pendingClaims > 0 ? liveInsMetrics.pendingPreAuths + liveInsMetrics.pendingClaims : undefined,
       badgeVariant: 'warning',
-      section: 'Finance & Analytics',
+      section: 'Finance & Insurance',
       allowedRoles: ['super_admin', 'hospital_admin', 'insurance_coordinator', 'billing_staff', 'management', 'doctor']
     },
+    // Ambulance
+    {
+      id: 'ambulance',
+      label: 'Ambulance Fleet',
+      icon: <MedicalIcon name="ambulance" size={18} />,
+      path: '/ambulance',
+      section: 'Support Services',
+      allowedRoles: ['super_admin', 'hospital_admin', 'ambulance_staff', 'receptionist', 'doctor', 'management']
+    },
+    // Blood Bank
+    {
+      id: 'blood-bank',
+      label: 'Blood Bank',
+      icon: <MedicalIcon name="bloodbank" size={18} />,
+      path: '/blood-bank',
+      section: 'Support Services',
+      allowedRoles: ['super_admin', 'hospital_admin', 'blood_bank_staff', 'doctor', 'management']
+    },
+    // Housekeeping & Facilities
+    {
+      id: 'housekeeping',
+      label: 'Housekeeping & Facilities',
+      icon: <Building2 size={18} />,
+      path: '/housekeeping',
+      badge: liveCleaningCount > 0 ? liveCleaningCount : undefined,
+      badgeVariant: 'warning',
+      section: 'Support Services',
+      allowedRoles: ['super_admin', 'hospital_admin', 'nurse', 'doctor', 'management']
+    },
+    // HR & Employees
+    {
+      id: 'hr',
+      label: 'HR & Employees',
+      icon: <Briefcase size={18} />,
+      path: '/hr',
+      section: 'Administration',
+      allowedRoles: ['super_admin', 'hospital_admin', 'management']
+    },
+    // Help & Support Desk
+    {
+      id: 'support',
+      label: 'Help & Support Desk',
+      icon: <LifeBuoy size={18} />,
+      path: '/support',
+      badge: liveSupportCount > 0 ? liveSupportCount : undefined,
+      badgeVariant: 'primary',
+      section: 'Administration',
+      allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management', 'billing_staff', 'receptionist', 'pharmacist', 'lab_technician']
+    },
+    // Reports
     {
       id: 'reports',
-      label: 'Reports',
+      label: 'Reports & Analytics',
       icon: <BarChart3 size={18} />,
       path: '/reports',
-      section: 'Finance & Analytics',
+      section: 'Administration',
       allowedRoles: ['super_admin', 'hospital_admin', 'management', 'billing_staff']
     },
+    // Notifications
     {
       id: 'notifications',
       label: 'Notifications',
@@ -166,6 +270,15 @@ export default function Sidebar({
       badgeVariant: 'danger',
       section: 'Administration',
       allowedRoles: ['super_admin', 'hospital_admin', 'doctor', 'nurse', 'management', 'billing_staff', 'receptionist', 'pharmacist', 'lab_technician']
+    },
+    // Administration / Settings
+    {
+      id: 'admin',
+      label: 'Admin Panel',
+      icon: <Shield size={18} />,
+      path: '/admin',
+      section: 'Administration',
+      allowedRoles: ['super_admin', 'hospital_admin']
     },
     {
       id: 'settings',
@@ -177,22 +290,10 @@ export default function Sidebar({
     },
   ];
 
-  // Patient portal nav items
-  const PATIENT_NAV: NavItem[] = [
-    { id: 'portal-dashboard', label: 'My Dashboard', icon: <LayoutDashboard size={18} />, path: '/portal', section: 'Patient Portal' },
-    { id: 'portal-appointments', label: 'Appointments', icon: <CalendarCheck size={18} />, path: '/portal/appointments', section: 'Patient Portal' },
-    { id: 'portal-reports', label: 'Lab Reports', icon: <FlaskConical size={18} />, path: '/portal/reports', section: 'Patient Portal' },
-    { id: 'portal-prescriptions', label: 'Prescriptions', icon: <Pill size={18} />, path: '/portal/prescriptions', section: 'Patient Portal' },
-    { id: 'portal-bills', label: 'Bills & Payments', icon: <ReceiptText size={18} />, path: '/portal/bills', section: 'Patient Portal' },
-    { id: 'portal-profile', label: 'My Profile', icon: <Users size={18} />, path: '/portal/profile', section: 'Patient Portal' },
-  ];
-
-  const filteredNav = isPatient
-    ? PATIENT_NAV
-    : NAV_ITEMS.filter(item => {
-        if (!item.allowedRoles) return true;
-        return item.allowedRoles.includes(state.user?.role as UserRole);
-      });
+  const filteredNav = NAV_ITEMS.filter(item => {
+    if (!item.allowedRoles) return true;
+    return item.allowedRoles.includes(state.user?.role as UserRole);
+  });
 
   // Group by section
   const sections: Record<string, NavItem[]> = {};

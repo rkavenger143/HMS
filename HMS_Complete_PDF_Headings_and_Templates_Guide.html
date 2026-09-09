@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HMS Master PDF Headings & Template Guide - Hospital Management System</title>
+  <style>
+    :root {
+      --primary: #0A84FF;
+      --primary-dark: #0056b3;
+      --primary-light: #EBF5FF;
+      --secondary: #10B981;
+      --accent: #6366F1;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border-color: #CBD5E1;
+      --bg-light: #F8FAFC;
+      --danger: #EF4444;
+      --warning: #F59E0B;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      background-color: #F1F5F9;
+      line-height: 1.5;
+      font-size: 13px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 20px auto;
+      background: white;
+      padding: 40px;
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+    }
+
+    /* Cover / Header */
+    .doc-banner {
+      background: linear-gradient(135deg, #0A84FF 0%, #1E40AF 100%);
+      color: white;
+      padding: 24px 30px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .doc-banner h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .doc-banner p {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .doc-badge {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    /* Section Styles */
+    .module-section {
+      margin-bottom: 35px;
+      page-break-inside: avoid;
+    }
+
+    .module-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #0F172A;
+      border-left: 5px solid var(--primary);
+      padding-left: 12px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-light);
+      padding: 8px 12px;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .module-title .tag {
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* Headings List Layout */
+    .headings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .heading-card {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 14px;
+      background: #FFFFFF;
+    }
+
+    .heading-card h3 {
+      font-size: 14px;
+      color: #1E40AF;
+      margin-bottom: 8px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .heading-card ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .heading-card ul li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: 5px;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .heading-card ul li::before {
+      content: "▪";
+      position: absolute;
+      left: 2px;
+      color: var(--primary);
+      font-size: 14px;
+      line-height: 14px;
+    }
+
+    /* Template Previews */
+    .template-box {
+      border: 2px dashed #93C5FD;
+      background: #F8FAFC;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 15px 0 25px 0;
+    }
+
+    .template-box-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: #2563EB;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .sample-hospital-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid #0A84FF;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .sample-hospital-header .h-name {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0A84FF;
+      text-transform: uppercase;
+    }
+
+    .sample-hospital-header .h-sub {
+      font-size: 10px;
+      color: #64748B;
+    }
+
+    .patient-demo-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      background: #EEF2F6;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 12px;
+      border: 1px solid #E2E8F0;
+    }
+
+    .patient-demo-bar strong {
+      color: #0F172A;
+    }
+
+    /* Tables in PDF */
+    table.pdf-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin: 10px 0;
+    }
+
+    table.pdf-table th {
+      background: #0A84FF;
+      color: white;
+      text-align: left;
+      padding: 6px 8px;
+      font-weight: 600;
+    }
+
+    table.pdf-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #E2E8F0;
+    }
+
+    table.pdf-table tr:nth-child(even) {
+      background-color: #F8FAFC;
+    }
+
+    .sign-area {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px dashed #CBD5E1;
+      font-size: 11px;
+    }
+
+    .sign-box {
+      text-align: center;
+      min-width: 160px;
+    }
+
+    .sign-line {
+      border-top: 1px solid #0F172A;
+      margin-top: 30px;
+      padding-top: 4px;
+      font-weight: 600;
+    }
+
+    .badge-pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .badge-high { background: #FEE2E2; color: #991B1B; }
+    .badge-normal { background: #DCFCE7; color: #166534; }
+    .badge-primary { background: #DBEAFE; color: #1E40AF; }
+
+    /* Print Specific Rules */
+    @media print {
+      body {
+        background: white;
+        font-size: 11pt;
+      }
+      .container {
+        max-width: 100%;
+        margin: 0;
+        padding: 10mm;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      .module-section {
+        page-break-inside: avoid;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+
+    .print-button-bar {
+      position: sticky;
+      top: 10px;
+      z-index: 100;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .btn-print {
+      background: #0A84FF;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 10px rgba(10, 132, 255, 0.3);
+    }
+
+    .btn-print:hover {
+      background: #0066CC;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Print Controls -->
+  <div class="print-button-bar no-print">
+    <button class="btn-print" onclick="window.print()">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+
+  <!-- Document Banner -->
+  <div class="doc-banner">
+    <div>
+      <h1>Hospital Management System (HMS)</h1>
+      <p>Comprehensive Master PDF Headings, Sections & Template Blueprint</p>
+    </div>
+    <div class="doc-badge">Standard v2026.1</div>
+  </div>
+
+  <!-- SECTION: UNIVERSAL FOUNDATION -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>1. Standard Universal Headings (Required on Every PDF)</span>
+      <span class="tag">Global Standard</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>🏢 Institutional Header Elements</h3>
+        <ul>
+          <li><strong>Hospital Name & Registered Logo</strong></li>
+          <li><strong>Accreditations:</strong> NABH / JCI / NABL & Hospital Reg. No.</li>
+          <li><strong>Address & Contact:</strong> Street, City, State, PIN, Emergency Helpline, Website</li>
+          <li><strong>Document Title:</strong> e.g., PRESCRIPTION, DISCHARGE SUMMARY, TAX INVOICE</li>
+          <li><strong>Document Metadata:</strong> Document ID, Issue Date & Time, Barcode/QR Code</li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>👤 Patient Demographic Bar (Top Ribbon)</h3>
+        <ul>
+          <li><strong>UHID / Patient ID:</strong> Unique Hospital Identification No.</li>
+          <li><strong>Patient Full Name, Age, Sex, Blood Group</strong></li>
+          <li><strong>Consulting Doctor & Clinical Department</strong></li>
+          <li><strong>IPD No. / Admission No. / Bed & Ward No.</strong> (for Inpatients)</li>
+          <li><strong>Insurance / TPA Sponsor & Policy ID</strong> (for insured patients)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: OPD -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>2. OPD (Outpatient Department) Headings & Templates</span>
+      <span class="tag">Outpatient Care</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>📄 Prescription (Rx) Slip Headings</h3>
+        <ul>
+          <li><strong>Vital Signs at Triage:</strong> BP, Pulse, SpO2, Temp, Height, Weight, BMI</li>
+          <li><strong>Chief Complaints & Duration:</strong> (e.g. Fever x 3 days, Cough x 1 week)</li>
+          <li><strong>Clinical History & Drug Allergies:</strong> (Severe drug/food reaction notes)</li>
+          <li><strong>Provisional / Final Diagnosis:</strong> (with ICD-10 Coding)</li>
+          <li><strong>Prescription Drugs Table (Rx):</strong> Drug Name, Dose, Route, Frequency, Duration</li>
+          <li><strong>Diagnostic Investigations Ordered:</strong> Lab tests, X-Ray, USG, ECG</li>
+          <li><strong>General Advice & Diet Guidelines</strong></li>
+          <li><strong>Follow-up Review Date & Emergency Warning Signs</strong></li>
+          <li><strong>Doctor's Signature, Reg. No. & Digital Seal</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>📋 OPD Consultation Case Sheet Headings</h3>
+        <ul>
+          <li><strong>History of Present Illness (HPI)</strong></li>
+          <li><strong>Past Medical, Surgical & Family History</strong></li>
+          <li><strong>General Physical Examination (GPE):</strong> PICLE findings</li>
+          <li><strong>Systemic Examination:</strong> CVS, RS, CNS, Per Abdomen (PA)</li>
+          <li><strong>Differential Diagnoses & Clinical Impression</strong></li>
+          <li><strong>Treatment & Referral Plan</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- OPD Preview Box -->
+    <div class="template-box">
+      <div class="template-box-header">
+        <span>Template Preview: Standard Clinical OPD Prescription (Rx)</span>
+        <span>NABH Standard</span>
+      </div>
+      <div class="sample-hospital-header">
+        <div>
+          <div class="h-name">ALN Cure Multispeciality Hospital</div>
+          <div class="h-sub">Department of Internal Medicine | NABH Accredited</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 700; color: #1E293B;">OPD RX: #OPD-2026-8841</div>
+          <div style="font-size: 10px; color: #64748B;">Date: 09 Sep 2026, 10:30 AM</div>
+        </div>
+      </div>
+      <div class="patient-demo-bar">
+        <div>UHID: <strong>ALN-2026-00104</strong></div>
+        <div>Patient: <strong>Rahul Sharma</strong></div>
+        <div>Age/Sex: <strong>34 Y / Male</strong></div>
+        <div>Consultant: <strong>Dr. Ananya Roy (MD)</strong></div>
+      </div>
+      <div style="background: #F1F5F9; padding: 6px 10px; border-radius: 4px; font-size: 11px; margin-bottom: 8px;">
+        <strong>Vitals:</strong> BP: 120/80 mmHg | PR: 74 bpm | Temp: 98.4°F | SpO2: 99% | Wt: 68 kg | <strong>Allergies:</strong> <span style="color:#DC2626; font-weight:700;">Penicillin</span>
+      </div>
+      <div style="font-size: 11px; margin-bottom: 8px;">
+        <strong>Diagnosis:</strong> Acute Upper Respiratory Tract Infection (ICD-10: J06.9)
+      </div>
+      <table class="pdf-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Medicine Name & Strength</th>
+            <th>Dosage Form</th>
+            <th>Frequency</th>
+            <th>Timing</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Tab. Azithromycin 500mg</td>
+            <td>Tablet</td>
+            <td>1 - 0 - 0</td>
+            <td>After Food</td>
+            <td>3 Days</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Tab. Paracetamol 650mg</td>
+            <td>Tablet</td>
+            <td>1 - 0 - 1</td>
+            <td>After Food (SOS)</td>
+            <td>5 Days</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="sign-area">
+        <div><strong>Follow Up:</strong> Review after 5 days or if symptoms worsen.</div>
+        <div class="sign-box">
+          <div class="sign-line">Dr. Ananya Roy, MD</div>
+          <div style="font-size: 9px; color: #64748B;">Reg No: MCI-2018-77412</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION: IPD -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>3. IPD (Inpatient Department) Headings & Templates</span>
+      <span class="tag">Inpatient Care</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>🏥 Inpatient Discharge Summary Headings</h3>
+        <ul>
+          <li><strong>Admission Date & Time vs. Discharge Date & Time</strong></li>
+          <li><strong>Length of Stay (LOS) & Ward/Bed History</strong></li>
+          <li><strong>Type of Discharge:</strong> Normal / DAMA / LAMA / Transfer / Expired</li>
+          <li><strong>Admitting vs. Final Diagnosis:</strong> (Primary & Secondary ICD-10)</li>
+          <li><strong>Chief Complaints & Reason for Admission</strong></li>
+          <li><strong>Summary of Clinical Course & Hospital Treatment Given</strong></li>
+          <li><strong>Significant Diagnostic, Lab & Imaging Findings</strong></li>
+          <li><strong>Surgeries & Procedures Performed:</strong> Date, Surgeon, Findings</li>
+          <li><strong>Condition at Discharge:</strong> Vitals, Wound status, Mobility</li>
+          <li><strong>Discharge Medications Schedule (Rx):</strong> Full Drug Table</li>
+          <li><strong>Dietary & Physical Activity Restrictions</strong></li>
+          <li><strong>Wound Care & Catheter/Drain Management</strong></li>
+          <li><strong>Emergency "Red Flag" Symptoms Requiring Immediate Visit</strong></li>
+          <li><strong>Follow-up Clinic Schedule & Doctor Signatures</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>🛏️ IPD Admission Slip & OT Record Headings</h3>
+        <ul>
+          <li><strong>IPD Admission Slip:</strong> IPD No., Admitting Unit, Room Category, Kin Details, Initial Advance Deposit</li>
+          <li><strong>Daily Doctor Rounds Sheet:</strong> Subjective Assessment, Objective Vitals, Clinical Impression, Daily Plan</li>
+          <li><strong>Operation Theatre (OT) Surgical Notes:</strong> Pre/Post-Op Diagnosis, Surgical Team, Anesthesia Type, Incision, Operative Steps, Implants Used, Sponge Count Verification</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- IPD Discharge Preview Box -->
+    <div class="template-box">
+      <div class="template-box-header">
+        <span>Template Preview: IPD Discharge Summary Sheet</span>
+        <span>NABH Compliant</span>
+      </div>
+      <div class="sample-hospital-header">
+        <div>
+          <div class="h-name">ALN Cure Multispeciality Hospital</div>
+          <div class="h-sub">Department of Inpatient Services | Discharge Summary</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 700; color: #1E293B;">IPD No: #IPD-2026-0391</div>
+          <div style="font-size: 10px; color: #64748B;">Adm: 04 Sep 2026 | Dis: 09 Sep 2026 (5 Days)</div>
+        </div>
+      </div>
+      <div class="patient-demo-bar">
+        <div>UHID: <strong>ALN-2026-00042</strong></div>
+        <div>Name: <strong>Suresh Patel</strong></div>
+        <div>Age/Sex: <strong>52 Y / Male</strong></div>
+        <div>Bed: <strong>ICU-Bed 04 &rarr; Deluxe 302</strong></div>
+      </div>
+      <div style="font-size: 11px; margin-bottom: 6px;">
+        <strong>Final Diagnosis:</strong> <span class="badge-pill badge-primary">Acute Calculus Cholecystitis</span> | <span class="badge-pill badge-normal">Post Laparoscopic Cholecystectomy</span>
+      </div>
+      <div style="font-size: 11px; margin-bottom: 6px;">
+        <strong>Hospital Course:</strong> Patient admitted with acute RUQ pain. Successfully underwent Laparoscopic Cholecystectomy on 05 Sep. Post-op recovery uneventful. Oral fluids and light diet tolerated well.
+      </div>
+      <div style="font-size: 11px; margin-bottom: 6px;">
+        <strong>Condition at Discharge:</strong> Hemodynamically stable, afebrile, surgical port sites clean and intact.
+      </div>
+      <div class="sign-area">
+        <div><strong>Follow-up:</strong> Surgery OPD with Dr. K. Verma on 16 Sep 2026 for stitch removal.</div>
+        <div class="sign-box">
+          <div class="sign-line">Dr. Rajesh Mehra, MS, MCh</div>
+          <div style="font-size: 9px; color: #64748B;">Chief Consultant Surgeon</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION: NURSING -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>4. Nursing & Ward Management Headings & Templates</span>
+      <span class="tag">Ward Operations</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>💉 Medication Administration Record (MAR)</h3>
+        <ul>
+          <li><strong>Prescribed Medication & Strength</strong></li>
+          <li><strong>Route & Frequency (IV, Oral, SC, IM)</strong></li>
+          <li><strong>Scheduled Dosage Time Slots (06:00, 14:00, 22:00)</strong></li>
+          <li><strong>Administered Status:</strong> Given / Omitted / Withheld / Refused</li>
+          <li><strong>Administering Nurse Initials & Exact Timestamp</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>📊 Vitals (TPR) & Fluid Balance (I/O)</h3>
+        <ul>
+          <li><strong>Temperature, Pulse, Blood Pressure, SpO2 Matrix</strong></li>
+          <li><strong>Blood Glucose (CBG / RBS) & Pain Score (0-10)</strong></li>
+          <li><strong>Intake:</strong> Oral, IV Infusion, Blood Products (Total mL)</li>
+          <li><strong>Output:</strong> Urine, Drains, Ryle's Tube, Vomitus (Total mL)</li>
+          <li><strong>24-Hour Cumulative Fluid Balance (+ / - mL)</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>🔄 Nursing Handover Sheet (SBAR)</h3>
+        <ul>
+          <li><strong>S - Situation:</strong> Patient name, bed no, current active problems</li>
+          <li><strong>B - Background:</strong> Clinical diagnosis, past medical history</li>
+          <li><strong>A - Assessment:</strong> Current vitals, IV lines, wounds, labs</li>
+          <li><strong>R - Recommendation:</strong> Pending tests, due medications</li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>✅ Inpatient Discharge Checklist</h3>
+        <ul>
+          <li><strong>Cannula & Catheter Removed Verification</strong></li>
+          <li><strong>Medicines & Discharge Summary Handed Over</strong></li>
+          <li><strong>Investigation Reports Handed to Attendant</strong></li>
+          <li><strong>Financial & Pharmacy Clearance Confirmed</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: LAB & RADIOLOGY -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>5. Laboratory & Radiology Diagnostic Reports</span>
+      <span class="tag">Diagnostics</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>🧪 Diagnostic Laboratory Report</h3>
+        <ul>
+          <li><strong>Specimen Type:</strong> Serum, Whole Blood, Urine, CSF, Tissue</li>
+          <li><strong>Sample Collection & Receiving Timestamp</strong></li>
+          <li><strong>Sample Barcode / Accession Number</strong></li>
+          <li><strong>Test Name, Measured Value, Standard Units</strong></li>
+          <li><strong>Biological Reference Range & Abnormality Flag</strong></li>
+          <li><strong>Test Methodology:</strong> (e.g., ECLIA, Automated Flow Cytometry)</li>
+          <li><strong>Pathologist / Biochemist Clinical Remarks & Signature</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>☢️ Radiology & Imaging Report</h3>
+        <ul>
+          <li><strong>Study Requested:</strong> (e.g., CT Brain Plain, MRI Lumbar Spine)</li>
+          <li><strong>Clinical Indication & Referring Physician</strong></li>
+          <li><strong>Technique & Contrast Protocol Used</strong></li>
+          <li><strong>Systematic Radiological Findings</strong></li>
+          <li><strong>Impression / Definitive Conclusion</strong></li>
+          <li><strong>Radiologist Digital Signature & License No.</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Lab Report Preview Box -->
+    <div class="template-box">
+      <div class="template-box-header">
+        <span>Template Preview: Clinical Biochemistry & Hematology Report</span>
+        <span>NABL ISO 15189</span>
+      </div>
+      <div class="sample-hospital-header">
+        <div>
+          <div class="h-name">ALN Central Diagnostic Laboratories</div>
+          <div class="h-sub">Accredited by NABL | ISO 15189:2022 Certified</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 700; color: #1E293B;">Sample ID: #LAB-2026-99120</div>
+          <div style="font-size: 10px; color: #64748B;">Collected: 09 Sep 2026, 08:00 AM</div>
+        </div>
+      </div>
+      <div class="patient-demo-bar">
+        <div>UHID: <strong>ALN-2026-00088</strong></div>
+        <div>Name: <strong>Kavita Sen</strong></div>
+        <div>Age/Sex: <strong>45 Y / Female</strong></div>
+        <div>Ref By: <strong>Dr. R. K. Joshi</strong></div>
+      </div>
+      <table class="pdf-table">
+        <thead>
+          <tr>
+            <th>Test Investigation</th>
+            <th>Observed Result</th>
+            <th>Unit</th>
+            <th>Biological Reference Interval</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Fasting Blood Sugar (Glucose)</strong></td>
+            <td><strong>158.0</strong></td>
+            <td>mg/dL</td>
+            <td>70.0 - 100.0</td>
+            <td><span class="badge-pill badge-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td><strong>HbA1c (Glycated Hemoglobin)</strong></td>
+            <td><strong>8.2</strong></td>
+            <td>%</td>
+            <td>4.0 - 5.6 (Normal), &gt;6.5 (Diabetic)</td>
+            <td><span class="badge-pill badge-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td><strong>Serum Creatinine</strong></td>
+            <td><strong>0.90</strong></td>
+            <td>mg/dL</td>
+            <td>0.60 - 1.20</td>
+            <td><span class="badge-pill badge-normal">NORMAL</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="sign-area">
+        <div><strong>Method:</strong> Hexokinase / Enzymatic Immunoassay</div>
+        <div class="sign-box">
+          <div class="sign-line">Dr. Manisha Rao, MD (Pathology)</div>
+          <div style="font-size: 9px; color: #64748B;">Consultant Pathologist</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION: BILLING & PHARMACY -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>6. Billing, Accounts & Pharmacy Tax Invoices</span>
+      <span class="tag">Financial & Accounts</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>💰 IPD Final Itemized Bill & Tax Invoice</h3>
+        <ul>
+          <li><strong>Invoice Number, GSTIN & Tax Category</strong></li>
+          <li><strong>Bed & Nursing Charges:</strong> Rate/day × Number of Days</li>
+          <li><strong>Consultation & Specialist Visit Fees</strong></li>
+          <li><strong>Operation Theatre (OT) & Anesthesia Charges</strong></li>
+          <li><strong>Diagnostic Lab & Radiology Investigation Charges</strong></li>
+          <li><strong>Pharmacy Drugs & Surgical Consumables</strong></li>
+          <li><strong>Total Gross Amount, Authorized Concession / Discount</strong></li>
+          <li><strong>Advance Payments & Interim Receipts Adjusted</strong></li>
+          <li><strong>TPA / Insurance Approved Amount & Co-Pay</strong></li>
+          <li><strong>Net Payable / Refund Amount (in Figures & Words)</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>💊 Pharmacy Dispensation Tax Invoice</h3>
+        <ul>
+          <li><strong>Drug License Numbers:</strong> Form 20B / 21B</li>
+          <li><strong>Itemized Drug Table:</strong> Drug Name, Batch No., Expiry Date, HSN, Quantity, MRP, Discount, GST %, Total</li>
+          <li><strong>GST Breakdown Table:</strong> CGST, SGST, IGST Subtotals</li>
+          <li><strong>Pharmacist Signature & Hospital Stamp</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: BLOOD BANK, DIET, EMERGENCY -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>7. Blood Bank, Dietetics & Emergency / MLC Reports</span>
+      <span class="tag">Specialty Modules</span>
+    </div>
+    <div class="headings-grid">
+      <div class="heading-card">
+        <h3>🩸 Blood Bank Cross-Match Report</h3>
+        <ul>
+          <li><strong>Recipient Blood Group & Rh Type</strong></li>
+          <li><strong>Donor Bag Unit No. & Blood Component Type</strong></li>
+          <li><strong>Major & Minor Cross-Match Compatibility</strong></li>
+          <li><strong>TTI Screening Status:</strong> HIV, HBV, HCV, Syphilis, Malaria</li>
+          <li><strong>Issue Timestamp & Transfusion Instructions</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>🥗 Clinical Diet Chart & Meal Card</h3>
+        <ul>
+          <li><strong>Diet Category:</strong> Diabetic, Renal, Low-Sodium, Soft, NPO</li>
+          <li><strong>Daily Caloric & Protein Targets (kcal / g)</strong></li>
+          <li><strong>Meal-by-Meal Schedule:</strong> Breakfast, Lunch, Dinner</li>
+          <li><strong>Special Food Restrictions & Food Allergies</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>🚨 Emergency Medico-Legal (MLC) Sheet</h3>
+        <ul>
+          <li><strong>MLC Registration Number & Police Station Informed</strong></li>
+          <li><strong>Arrival Mode & Accompanying Person / Officer</strong></li>
+          <li><strong>History of Incident:</strong> RTA, Assault, Poisoning, Burns</li>
+          <li><strong>Detailed Wound & Injury Chart (Nature & Size)</strong></li>
+          <li><strong>Casualty Medical Officer (CMO) Signature & Seal</strong></li>
+        </ul>
+      </div>
+      <div class="heading-card">
+        <h3>🚑 Ambulance Trip & Paramedic Run Sheet</h3>
+        <ul>
+          <li><strong>Ambulance Unit No. & Paramedic Crew Names</strong></li>
+          <li><strong>Dispatch, Scene Arrival & Hospital Arrival Timestamps</strong></li>
+          <li><strong>Patient Condition at Pickup vs. Hospital Handover</strong></li>
+          <li><strong>En-Route Interventions:</strong> O2, Defibrillation, IV Fluids</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: TECHNICAL REFERENCE -->
+  <div class="module-section">
+    <div class="module-title">
+      <span>8. Developer Technical Reference for CSS Print PDF Generation</span>
+      <span class="tag">Developer Guide</span>
+    </div>
+    <div class="heading-card" style="margin-bottom: 12px;">
+      <h3>🛠️ Recommended CSS Print Media Styles</h3>
+      <pre style="background: #0F172A; color: #38BDF8; padding: 12px; border-radius: 6px; font-size: 11px; overflow-x: auto;">
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 10pt;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .page-break {
+    page-break-before: always !important;
+  }
+  .patient-card, .table-container, .sign-area {
+    page-break-inside: avoid !important;
+  }
+}</pre>
+    </div>
+  </div>
+
+  <!-- Document Footer -->
+  <div style="text-align: center; border-top: 1px solid var(--border-color); padding-top: 12px; font-size: 11px; color: var(--text-muted);">
+    Generated for Hospital Management System (HMS) Architecture | © 2026 All Rights Reserved
+  </div>
+
+</div>
+
+</body>
+</html>

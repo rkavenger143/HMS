@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useLab } from '../context/LabContext';
 import { useBilling } from '../../billing/context/BillingContext';
+import { useToast } from '../../../contexts/ToastContext';
 import PrintInvoiceModal from '../../billing/components/modals/PrintInvoiceModal';
 import PrintPaymentReceiptModal from '../../billing/components/modals/PrintPaymentReceiptModal';
 import RecordPaymentModal from '../../billing/components/modals/RecordPaymentModal';
@@ -13,6 +14,7 @@ import ProcessRefundModal from '../../billing/components/modals/ProcessRefundMod
 import type { CentralInvoiceItem, BillingPaymentRecord, DepartmentChargeItem } from '../../../types';
 
 export default function LabBillingTab() {
+  const { showToast } = useToast();
   const { labOrders } = useLab();
   const { invoices, payments, departmentCharges, addDepartmentCharge, createInvoice } = useBilling();
 
@@ -129,7 +131,7 @@ export default function LabBillingTab() {
       createdBy: 'Laboratory Billing Desk',
     });
 
-    alert(`Laboratory Diagnostic Tax Invoice ${newInvoice.invoiceNumber} generated for ${order.patientName} (₹${totalTestPrice}).`);
+    showToast(`Laboratory Diagnostic Tax Invoice ${newInvoice.invoiceNumber} generated for ${order.patientName} (₹${totalTestPrice}).`, 'success');
   };
 
   return (
