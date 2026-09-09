@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   History, Search, User, Calendar, Stethoscope, Pill, FlaskConical,
   Scan, ReceiptText, Clock, ChevronRight, Eye, AlertCircle, FileText,
-  Activity, ArrowRight, Sparkles, Bot, ShieldCheck, Brain
+  Activity, ArrowRight, Sparkles, Bot, ShieldCheck
 } from 'lucide-react';
 import { useOPD } from '../context/OPDContext';
 import type { OPDVisit, Patient } from '../../../types';

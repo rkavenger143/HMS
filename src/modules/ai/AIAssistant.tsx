@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Brain, Send, RefreshCw, Sparkles, AlertCircle, CheckCircle2,
+  Send, RefreshCw, Sparkles, AlertCircle, CheckCircle2,
   Mic, Volume2, VolumeX, Activity, ShieldCheck, Clock,
   ArrowRight, Radio, Search, Play, FileText, Check, AlertTriangle, ChevronRight
 } from 'lucide-react';
@@ -292,17 +292,17 @@ export default function AIAssistant() {
           <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
-                width: 40,
-                height: 40,
-                background: 'linear-gradient(135deg, var(--color-primary), #10b981)',
+                width: 44,
+                height: 44,
                 borderRadius: 12,
+                background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: '0 4px 14px rgba(5,150,105,0.3)',
               }}
             >
-              <Brain size={22} style={{ color: 'white' }} />
+              <Sparkles size={22} style={{ color: 'white' }} />
             </div>
             <div>
               <div>ALN Cure Central AI Assistant</div>
@@ -327,7 +327,7 @@ export default function AIAssistant() {
               className={`btn btn-sm ${activeTab === 'chat' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('chat')}
             >
-              <Brain size={13} /> AI Chat
+              <Sparkles size={13} /> AI Chat
             </button>
             <button
               className={`btn btn-sm ${activeTab === 'audit' ? 'btn-primary' : 'btn-ghost'}`}
@@ -692,7 +692,7 @@ export default function AIAssistant() {
               </div>
             ) : (
               <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                <Brain size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+                <Sparkles size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
                 <div>No command executed yet.</div>
                 <div style={{ fontSize: 11, marginTop: 4 }}>Speak or click a prompt on the left to see live neural execution.</div>
               </div>
@@ -707,7 +707,7 @@ export default function AIAssistant() {
           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid var(--border-default)', marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Brain size={16} style={{ color: 'var(--color-primary)' }} /> Live Hospital Assistant
+                <Sparkles size={16} style={{ color: 'var(--color-primary)' }} /> Live Hospital Assistant
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {isThinking && (

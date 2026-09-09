@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Brain, Mic, MicOff, Search, Volume2, VolumeX, X,
+  Mic, MicOff, Search, Volume2, VolumeX, X,
   ChevronRight, Sparkles, CheckCircle2, AlertTriangle, RefreshCw,
   Clock, ArrowRight, ShieldCheck, Activity, Radio, AlertCircle
 } from 'lucide-react';
@@ -368,7 +368,7 @@ export default function AICommandBoard({
           maxWidth: 820,
           background: '#ffffff',
           borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(37, 99, 235, 0.2)',
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(5, 150, 105, 0.2)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -381,7 +381,7 @@ export default function AICommandBoard({
         <div
           style={{
             padding: '14px 20px',
-            background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.08), rgba(37, 99, 235, 0.04))',
+            background: 'linear-gradient(135deg, rgba(6, 95, 70, 0.08), rgba(5, 150, 105, 0.04))',
             borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
@@ -394,15 +394,15 @@ export default function AICommandBoard({
               style={{
                 width: 36,
                 height: 36,
-                background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+                background: 'linear-gradient(135deg, #065f46, #059669)',
                 borderRadius: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)',
+                boxShadow: '0 4px 10px rgba(5, 150, 105, 0.3)',
               }}
             >
-              <Brain size={20} style={{ color: '#ffffff' }} />
+              <Sparkles size={20} style={{ color: '#ffffff' }} />
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -438,7 +438,7 @@ export default function AICommandBoard({
               }}
               title={isAudioEnabled ? 'Voice readout enabled' : 'Voice readout muted'}
             >
-              {isAudioEnabled ? <Volume2 size={15} style={{ color: '#1e40af' }} /> : <VolumeX size={15} style={{ color: '#94a3b8' }} />}
+              {isAudioEnabled ? <Volume2 size={15} style={{ color: '#059669' }} /> : <VolumeX size={15} style={{ color: '#94a3b8' }} />}
             </button>
 
             <button

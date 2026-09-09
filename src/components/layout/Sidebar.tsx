@@ -65,7 +65,7 @@ export default function Sidebar({
     {
       id: 'ai-assistant',
       label: 'AI Command Center',
-      icon: <Sparkles size={18} style={{ color: 'var(--color-ai, #2563eb)' }} />,
+      icon: <Sparkles size={18} style={{ color: 'var(--color-primary, #059669)' }} />,
       path: '/ai',
       badge: undefined,
       section: 'Core Management',
@@ -314,8 +314,8 @@ export default function Sidebar({
         </div>
         {!collapsed && (
           <div className="sidebar-logo-text">
-            <div className="sidebar-logo-title" style={{ color: '#1e3a8a', fontWeight: 800 }}>ALN Cure HMS</div>
-            <div className="sidebar-logo-sub" style={{ color: '#2563eb' }}>Enterprise Health System</div>
+            <div className="sidebar-logo-title" style={{ color: '#065f46', fontWeight: 800 }}>ALN Cure HMS</div>
+            <div className="sidebar-logo-sub" style={{ color: '#059669', fontWeight: 600 }}>Enterprise Health System</div>
           </div>
         )}
       </div>
@@ -332,10 +332,10 @@ export default function Sidebar({
                   key={item.id}
                   to={item.path}
                   className={`sidebar-item ${isActive ? 'active' : ''}`}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? `${item.label}${item.badge ? ` (${item.badge})` : ''}` : undefined}
                 >
                   <span className="sidebar-item-icon">{item.icon}</span>
-                  {!collapsed && (
+                  {!collapsed ? (
                     <>
                       <span className="sidebar-item-label">{item.label}</span>
                       {item.badge !== undefined && item.badge > 0 && (
@@ -353,6 +353,10 @@ export default function Sidebar({
                         </span>
                       )}
                     </>
+                  ) : (
+                    item.badge !== undefined && item.badge > 0 && (
+                      <span className={`sidebar-badge badge-${item.badgeVariant || 'primary'}`} />
+                    )
                   )}
                 </NavLink>
               );
@@ -365,7 +369,7 @@ export default function Sidebar({
       <div className="sidebar-footer">
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <div className="avatar avatar-sm" style={{ flexShrink: 0, background: '#2563eb', color: 'white', fontWeight: 700 }}>
+            <div className="avatar avatar-sm" style={{ flexShrink: 0, background: '#059669', color: 'white', fontWeight: 700 }}>
               {initials}
             </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>

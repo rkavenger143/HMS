@@ -5,6 +5,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import ToastContainer from './components/common/ToastContainer';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
+import GlobalAIFloatingWidget from './components/ai/GlobalAIFloatingWidget';
 import LoginPage from './modules/auth/LoginPage';
 
 // Module imports
@@ -33,9 +34,26 @@ import ReportsModule from './modules/reports/ReportsModule';
 import NotificationsModule from './modules/notifications/NotificationsModule';
 import AdminPanel from './modules/admin/AdminPanel';
 import SettingsModule from './modules/settings/SettingsModule';
+
 function AppLayout() {
   const { state } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('aln_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('aln_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   if (state.isLoading) {
     return (
@@ -45,19 +63,19 @@ function AppLayout() {
         background: 'var(--bg-base)'
       }}>
         <div style={{
-          width: 52, height: 52, background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+          width: 52, height: 52, background: 'linear-gradient(135deg, #065f46, #059669)',
           borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 0 30px rgba(37,99,235,0.3)'
+          boxShadow: '0 0 30px rgba(5,150,105,0.3)'
         }}>
           <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
             <path d="M13 11H15V13H17V15H15V17H13V15H11V13H13V11Z" fill="white" />
           </svg>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a' }}>ALN Cure HMS</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#065f46' }}>ALN Cure HMS</div>
           <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 4 }}>Loading Hospital Suite...</div>
         </div>
-        <div className="spin" style={{ width: 28, height: 28, border: '3px solid var(--border-default)', borderTopColor: '#2563eb', borderRadius: '50%' }} />
+        <div className="spin" style={{ width: 28, height: 28, border: '3px solid var(--border-default)', borderTopColor: '#059669', borderRadius: '50%' }} />
       </div>
     );
   }
@@ -68,7 +86,7 @@ function AppLayout() {
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+      <Sidebar collapsed={sidebarCollapsed} onToggle={handleToggleSidebar} />
       <div className="main-area">
         <Header sidebarCollapsed={sidebarCollapsed} />
         <main className="main-content">
@@ -149,6 +167,8 @@ function AppLayout() {
           </Routes>
         </main>
       </div>
+      {/* Universal Floating Context-Aware AI Widget Accessible in Every HMS Module */}
+      <GlobalAIFloatingWidget />
       <ToastContainer />
     </div>
   );

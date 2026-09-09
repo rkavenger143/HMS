@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Brain, Sparkles, FileText, Download, Printer, CheckCircle2,
+  Sparkles, FileText, Download, Printer, CheckCircle2,
   TrendingUp, BarChart3, AlertTriangle, ShieldCheck, RefreshCw,
   Send, Calendar, Clock, ArrowRight, UserCheck
 } from 'lucide-react';
@@ -168,7 +168,7 @@ export default function AIReportAssistant() {
                 boxShadow: '0 4px 14px rgba(99, 102, 241, 0.45)',
               }}
             >
-              <Brain size={26} style={{ color: '#ffffff' }} />
+              <Sparkles size={26} style={{ color: '#ffffff' }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

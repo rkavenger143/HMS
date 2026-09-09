@@ -3,7 +3,7 @@ import {
   BarChart2, Users, Stethoscope, Calendar, BedDouble,
   Activity, Heart, TestTube, Film, Pill, Droplet,
   DollarSign, CreditCard, UserCheck, AlertTriangle,
-  TrendingUp, Clock, ShieldCheck, Download, Printer, Sparkles, Brain
+  TrendingUp, Clock, ShieldCheck, Download, Printer, Sparkles
 } from 'lucide-react';
 import { ReportsProvider, useReports, ReportTab } from './context/ReportsContext';
 

@@ -7,7 +7,7 @@ import {
   AlertCircle, ShieldAlert, Sparkles, Building2, UserPlus,
   FileText, Calendar, ArrowRight, Siren, CheckCheck, ChevronRight,
   Printer, BarChart3, FlaskConical, Pill, Check, X, Shield,
-  Layers, ChevronDown, CheckCircle, Share2, Download, Bot, Brain, ShieldCheck, Zap
+  Layers, ChevronDown, CheckCircle, Share2, Download, Bot, ShieldCheck, Zap
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -39,14 +39,14 @@ function OverviewStatCard({
     blue: {
       bg: '#ffffff',
       border: '#e2e8f0',
-      iconBg: '#eff6ff',
-      iconColor: '#1e40af',
+      iconBg: '#ecfdf5',
+      iconColor: '#059669',
     },
     indigo: {
       bg: '#ffffff',
       border: '#e2e8f0',
-      iconBg: '#eef2ff',
-      iconColor: '#4338ca',
+      iconBg: '#f0fdfa',
+      iconColor: '#0d9488',
     },
     emerald: {
       bg: '#ffffff',
@@ -319,10 +319,10 @@ export default function Dashboard() {
         className="card"
         style={{
           padding: '24px 28px',
-          background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 55%, #2563eb 100%)',
+          background: 'linear-gradient(135deg, #065f46 0%, #047857 55%, #059669 100%)',
           borderRadius: '16px',
           color: '#ffffff',
-          boxShadow: '0 10px 25px -5px rgba(30, 58, 138, 0.25)',
+          boxShadow: '0 10px 25px -5px rgba(6, 95, 70, 0.25)',
           border: 'none',
         }}
       >
@@ -395,7 +395,7 @@ export default function Dashboard() {
               disabled={isRefreshing}
               style={{
                 background: '#ffffff',
-                color: '#1e40af',
+                color: '#065f46',
                 fontWeight: 700,
                 border: 'none',
                 height: 42,
@@ -566,13 +566,16 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               id="dash-open-ai-btn"
               className="btn btn-sm"
-              onClick={() => navigate('/ai-assistant')}
+              onClick={() => {
+                try {
+                  window.dispatchEvent(new CustomEvent('aln_open_ai_assistant', { detail: {} }));
+                } catch {}
+              }}
               style={{
-                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                 color: '#ffffff',
                 border: 'none',
                 padding: '6px 14px',
@@ -582,12 +585,11 @@ export default function Dashboard() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                boxShadow: '0 2px 8px rgba(79, 70, 229, 0.35)',
+                boxShadow: '0 2px 8px rgba(5, 150, 105, 0.35)',
               }}
             >
-              <Sparkles size={14} /> Open AI Assistant Console <ArrowRight size={13} />
+              <Sparkles size={14} /> Open AI Assistant <ArrowRight size={13} />
             </button>
-          </div>
         </div>
 
         {/* AI Insight Grid */}
@@ -661,7 +663,7 @@ export default function Dashboard() {
                 : 'Hospital bed throughput is optimal with adequate surge capacity across ICU and Semi-Special wards.'}
             </p>
             <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Brain size={12} style={{ color: '#facc15' }} /> Multilingual staff query engine online (English, Telugu, Tanglish).
+              <Sparkles size={12} style={{ color: '#facc15' }} /> Multilingual staff query engine online (English, Telugu, Tanglish).
             </div>
           </div>
         </div>
@@ -680,11 +682,17 @@ export default function Dashboard() {
                 { label: "Show pending laboratory reports", query: "Show pending laboratory reports" },
                 { label: "Show critical diagnostic results", query: "Show critical diagnostic results" },
                 { label: "Which insurance claims are pending?", query: "Which insurance claims are pending?" },
+                { label: "ఈ రోజు available beds ఎంత ఉన్నాయి?", query: "ఈ రోజు available beds ఎంత ఉన్నాయి?" },
+                { label: "Pending lab reports చూపించు", query: "Pending lab reports చూపించు" },
               ].map(chip => (
                 <button
                   key={chip.label}
                   className="btn btn-sm"
-                  onClick={() => navigate('/ai-assistant', { state: { query: chip.query } })}
+                  onClick={() => {
+                    try {
+                      window.dispatchEvent(new CustomEvent('aln_open_ai_assistant', { detail: { query: chip.query } }));
+                    } catch {}
+                  }}
                   style={{
                     background: 'rgba(255, 255, 255, 0.1)',
                     color: '#e2e8f0',
@@ -733,7 +741,7 @@ export default function Dashboard() {
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Activity size={18} style={{ color: '#2563eb' }} />
+            <Activity size={18} style={{ color: '#059669' }} />
             Hospital Vital Overview
           </div>
           <span style={{ fontSize: '12px', color: '#64748b' }}>Live Clinical Telemetry</span>
@@ -822,7 +830,7 @@ export default function Dashboard() {
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               ⚡ Quick Clinical Actions:
             </span>
           </div>
@@ -843,7 +851,7 @@ export default function Dashboard() {
               className="btn btn-sm btn-secondary"
               onClick={() => setShowQuickAptModal(true)}
             >
-              <CalendarCheck size={14} style={{ color: '#2563eb' }} /> Book Appointment
+              <CalendarCheck size={14} style={{ color: '#059669' }} /> Book Appointment
             </button>
 
             {/* 3. Admit Patient */}
@@ -890,7 +898,7 @@ export default function Dashboard() {
           ============================================================ */}
       <div>
         <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Clock size={18} style={{ color: '#2563eb' }} />
+          <Clock size={18} style={{ color: '#059669' }} />
           Today's Hospital Activity
         </div>
 
@@ -901,7 +909,7 @@ export default function Dashboard() {
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>New Admissions</span>
               <span className="badge badge-primary" style={{ fontSize: '10px' }}>Inpatient</span>
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 800, color: '#2563eb', marginTop: 6 }}>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#059669', marginTop: 6 }}>
               {metrics.todayAdmissions}
             </div>
             <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -959,7 +967,7 @@ export default function Dashboard() {
       <div className="card" style={{ padding: '20px 24px', borderRadius: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={18} style={{ color: '#2563eb' }} />
+            <Sparkles size={18} style={{ color: '#059669' }} />
             <div>
               <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Patient Flow Overview</span>
               <div style={{ fontSize: '12px', color: '#64748b' }}>End-to-end patient journey throughout hospital clinical departments</div>
@@ -978,7 +986,7 @@ export default function Dashboard() {
           }}
         >
           {[
-            { step: '1', title: 'Registration', count: `${metrics.totalPatients}`, sub: 'Registered Patients', color: '#2563eb', bg: '#eff6ff' },
+            { step: '1', title: 'Registration', count: `${metrics.totalPatients}`, sub: 'Registered Patients', color: '#059669', bg: '#ecfdf5' },
             { step: '2', title: 'OPD Consultation', count: `${metrics.opdPatientsToday}`, sub: 'Daily Consultations', color: '#0d9488', bg: '#f0fdfa' },
             { step: '3', title: 'Admission', count: `${metrics.todayAdmissions}`, sub: 'New Inpatients', color: '#4f46e5', bg: '#eef2ff' },
             { step: '4', title: 'Treatment', count: `${metrics.ipdPatients}`, sub: 'Under Active Care', color: '#d97706', bg: '#fffbeb' },
@@ -1057,7 +1065,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: 6 }}>
                 <span style={{ fontWeight: 700, color: '#0f172a' }}>Overall Facility Capacity:</span>
-                <span style={{ fontWeight: 800, color: metrics.bedOccupancyRate > 85 ? '#ef4444' : '#1e40af' }}>
+                <span style={{ fontWeight: 800, color: metrics.bedOccupancyRate > 85 ? '#ef4444' : '#065f46' }}>
                   {metrics.occupiedBeds} / {metrics.totalBeds} Beds ({metrics.bedOccupancyRate}%)
                 </span>
               </div>
@@ -1065,7 +1073,7 @@ export default function Dashboard() {
                 <div
                   style={{
                     width: `${(metrics.occupiedBeds / metrics.totalBeds) * 100}%`,
-                    background: '#2563eb',
+                    background: '#059669',
                     transition: 'width 0.4s ease',
                   }}
                   title={`Occupied: ${metrics.occupiedBeds}`}
@@ -1107,12 +1115,12 @@ export default function Dashboard() {
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669' }} />
               </div>
 
-              <div style={{ padding: '10px 12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '10px 12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 600 }}>Occupied Beds</div>
-                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#2563eb' }}>{metrics.occupiedBeds}</div>
+                  <div style={{ fontSize: '11px', color: '#166534', fontWeight: 600 }}>Occupied Beds</div>
+                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#059669' }}>{metrics.occupiedBeds}</div>
                 </div>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb' }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669' }} />
               </div>
 
               <div style={{ padding: '10px 12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1138,7 +1146,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Building2 size={18} style={{ color: '#2563eb' }} />
+              <Building2 size={18} style={{ color: '#059669' }} />
               <div>
                 <span className="card-title">Ward Occupancy Distribution</span>
                 <div className="card-subtitle">Inpatient bed density by hospital unit</div>
@@ -1168,7 +1176,7 @@ export default function Dashboard() {
                           {ward.type}
                         </span>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: pct > 80 ? '#e11d48' : '#2563eb' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: pct > 80 ? '#e11d48' : '#059669' }}>
                         {ward.occupied}/{ward.total} ({pct}%)
                       </span>
                     </div>
@@ -1176,7 +1184,7 @@ export default function Dashboard() {
                       <div
                         style={{
                           width: `${pct}%`,
-                          background: pct > 80 ? '#e11d48' : '#2563eb',
+                          background: pct > 80 ? '#e11d48' : '#059669',
                           height: '100%',
                           borderRadius: '3px',
                         }}
@@ -1198,7 +1206,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <CalendarCheck size={18} style={{ color: '#2563eb' }} />
+              <CalendarCheck size={18} style={{ color: '#059669' }} />
               <div>
                 <span className="card-title">Appointments & Today's Schedule</span>
                 <div className="card-subtitle">Active OPD queue & upcoming clinical consultations</div>
@@ -1236,8 +1244,8 @@ export default function Dashboard() {
                           width: 34,
                           height: 34,
                           borderRadius: '50%',
-                          background: '#eff6ff',
-                          color: '#1e40af',
+                          background: '#ecfdf5',
+                          color: '#065f46',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1345,7 +1353,7 @@ export default function Dashboard() {
         <div className="modal-backdrop" onClick={() => setShowQuickPatientModal(false)}>
           <div className="modal modal-md" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <UserPlus size={18} style={{ color: '#1e40af' }} />
+              <UserPlus size={18} style={{ color: '#059669' }} />
               <span className="modal-title">Register New Patient</span>
               <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickPatientModal(false)}>✕</button>
             </div>
@@ -1424,7 +1432,7 @@ export default function Dashboard() {
         <div className="modal-backdrop" onClick={() => setShowQuickAptModal(false)}>
           <div className="modal modal-md" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <CalendarCheck size={18} style={{ color: '#1e40af' }} />
+              <CalendarCheck size={18} style={{ color: '#059669' }} />
               <span className="modal-title">Book OPD Appointment</span>
               <button className="btn btn-ghost btn-icon btn-icon-sm" onClick={() => setShowQuickAptModal(false)}>✕</button>
             </div>
@@ -1697,7 +1705,7 @@ export default function Dashboard() {
               <div style={{ background: '#f8fafc', padding: '16px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#1e3a8a', margin: 0 }}>ALN Cure Multi-Specialty Hospital</h3>
+                    <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#065f46', margin: 0 }}>ALN Cure Multi-Specialty Hospital</h3>
                     <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Daily Executive Operations & Census Briefing</p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1710,7 +1718,7 @@ export default function Dashboard() {
               <div className="form-grid form-grid-3" style={{ gap: 12, marginBottom: 16 }}>
                 <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>Total Registered Patients</div>
-                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e40af' }}>{metrics.totalPatients}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#059669' }}>{metrics.totalPatients}</div>
                 </div>
                 <div style={{ padding: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>OPD Consultations</div>

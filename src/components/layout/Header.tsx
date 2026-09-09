@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Search, Bell, AlertTriangle, X, ChevronRight,
-  Brain, Mic, User, Settings, LogOut
+  Mic, User, Settings, LogOut, Sparkles
 } from 'lucide-react';
 import { performGlobalSearch, AISearchResult } from '../../services/aiCommandEngine';
 import MedicalIcon from '../common/MedicalIcons';
-import AICommandBoard from '../ai/AICommandBoard';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -22,15 +21,24 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
-  const [isAIOpen, setIsAIOpen] = useState(false);
-  const [aiInitialQuery, setAiInitialQuery] = useState('');
-  const [autoStartVoice, setAutoStartVoice] = useState(false);
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = 3;
+
+  useEffect(() => {
+    const handleVoiceStart = () => setIsListeningVoice(true);
+    const handleVoiceEnd = () => setIsListeningVoice(false);
+    window.addEventListener('aln_voice_listening_start', handleVoiceStart);
+    window.addEventListener('aln_voice_listening_end', handleVoiceEnd);
+    return () => {
+      window.removeEventListener('aln_voice_listening_start', handleVoiceStart);
+      window.removeEventListener('aln_voice_listening_end', handleVoiceEnd);
+    };
+  }, []);
 
   useEffect(() => {
     if (searchQuery.trim().length >= 1) {
@@ -43,14 +51,12 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
     }
   }, [searchQuery, state.user?.role]);
 
-  // Global Keyboard Shortcut: Ctrl+K / Cmd+K to open AI Command Board
+  // Global Keyboard Shortcut: Ctrl+K / Cmd+K to open unified AI Assistant
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setAiInitialQuery('');
-        setAutoStartVoice(false);
-        setIsAIOpen(true);
+        openAIAssistant('');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -80,13 +86,13 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
     setShowSearch(false);
   };
 
-  const openAIBoard = (q = '', voice = false) => {
+  const openAIAssistant = (q = '', voice = false) => {
     setShowSearch(false);
     setShowNotifications(false);
     setShowProfileMenu(false);
-    setAiInitialQuery(q);
-    setAutoStartVoice(voice);
-    setIsAIOpen(true);
+    try {
+      window.dispatchEvent(new CustomEvent('aln_open_ai_assistant', { detail: { query: q, voice } }));
+    } catch {}
   };
 
   const initials = state.user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
@@ -107,7 +113,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
             onFocus={() => searchQuery.trim().length >= 1 && setShowSearch(true)}
             onKeyDown={e => {
               if (e.key === 'Enter' && searchQuery.trim()) {
-                openAIBoard(searchQuery, false);
+                openAIAssistant(searchQuery);
               }
             }}
           />
@@ -140,9 +146,9 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
                 <span>Global Hospital Results ({searchResults.length})</span>
                 <span
                   style={{ color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
-                  onClick={() => openAIBoard(searchQuery, false)}
+                  onClick={() => openAIAssistant(searchQuery)}
                 >
-                  Ask AI Command Center →
+                  Ask AI Assistant →
                 </span>
               </div>
               {searchResults.map(result => (
@@ -180,9 +186,9 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
               <button
                 className="btn btn-primary btn-sm"
                 style={{ marginTop: 8 }}
-                onClick={() => openAIBoard(searchQuery, false)}
+                onClick={() => openAIAssistant(searchQuery, false)}
               >
-                <Brain size={13} /> Ask AI Command Center
+                <Sparkles size={13} /> Ask AI Assistant
               </button>
             </div>
           )}
@@ -190,30 +196,18 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
 
         <div className="header-spacer" />
 
-        {/* 2. Actions: AI | AI Voice Command | Emergency | Notification | Profile */}
+        {/* 2. Actions: AI Voice Command | Emergency | Notification | Profile */}
         <div className="header-actions">
-          {/* AI Button */}
-          <button
-            id="header-ai-btn"
-            className="header-ai-btn"
-            onClick={() => openAIBoard('', false)}
-            title="Open AI Command Center (Ctrl+K)"
-            aria-label="Open AI Command Center"
-          >
-            <Brain size={16} />
-            <span>AI</span>
-          </button>
-
           {/* AI Voice Command Button */}
           <button
             id="ai-voice-btn"
-            className="header-voice-btn"
-            onClick={() => openAIBoard('', true)}
-            title="Start AI Voice Command (Auto-detects English / Telugu)"
-            aria-label="Start AI Voice Command"
+            className={`header-voice-btn ${isListeningVoice ? 'listening' : ''}`}
+            onClick={() => openAIAssistant('', true)}
+            title="AI Voice Command & Assistant (Ctrl+K)"
+            aria-label="AI Voice Command"
           >
-            <Mic size={15} />
-            <span className="voice-btn-label">AI Voice Command</span>
+            <Mic size={15} style={isListeningVoice ? { color: '#dc2626', animation: 'pulse 1s infinite' } : {}} />
+            <span>{isListeningVoice ? 'Listening...' : 'AI Voice Command'}</span>
           </button>
 
           {/* Emergency Button */}
@@ -333,11 +327,11 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
                   className="profile-menu-item"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    openAIBoard('', false);
+                    openAIAssistant('', false);
                   }}
                 >
-                  <Brain size={14} style={{ color: 'var(--color-ai)' }} />
-                  <span>AI Command Center</span>
+                  <Sparkles size={14} style={{ color: 'var(--color-primary)' }} />
+                  <span>AI Assistant</span>
                 </div>
 
                 <div
@@ -355,14 +349,6 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
           </div>
         </div>
       </header>
-
-      {/* AI Command Center Modal Dialog */}
-      <AICommandBoard
-        isOpen={isAIOpen}
-        onClose={() => setIsAIOpen(false)}
-        initialQuery={aiInitialQuery}
-        autoStartVoice={autoStartVoice}
-      />
 
       {/* Emergency Modal */}
       {showEmergency && (

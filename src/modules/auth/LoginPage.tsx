@@ -1,18 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { Eye, EyeOff, Shield, Smartphone, Loader2, ChevronRight } from 'lucide-react';
-
-const DEMO_ACCOUNTS = [
-  { email: 'admin@alnhms.com', password: 'Admin@123', role: 'Super Admin', color: '#BF5AF2' },
-  { email: 'dr.rajesh@alnhms.com', password: 'Doctor@123', role: 'Doctor (Cardiology)', color: '#0A84FF' },
-  { email: 'dr.sneha@alnhms.com', password: 'Doctor@123', role: 'Doctor (Gen. Medicine)', color: '#0A84FF' },
-  { email: 'nurse@alnhms.com', password: 'Nurse@123', role: 'Nurse', color: '#30D158' },
-  { email: 'receptionist@alnhms.com', password: 'Staff@123', role: 'Receptionist', color: '#FF6B35' },
-  { email: 'pharma@alnhms.com', password: 'Staff@123', role: 'Pharmacist', color: '#64D2FF' },
-  { email: 'lab@alnhms.com', password: 'Staff@123', role: 'Lab Technician', color: '#FFD60A' },
-  { email: 'billing@alnhms.com', password: 'Staff@123', role: 'Billing Staff', color: '#FF9F0A' },
-];
+import { Eye, EyeOff, Shield, Smartphone, Loader2, ChevronRight, Lock, Mail } from 'lucide-react';
 
 export default function LoginPage() {
   const { loginWithCredentials, state } = useAuth();
@@ -27,11 +16,6 @@ export default function LoginPage() {
     if (!result.success) {
       toast.error('Login Failed', result.error);
     }
-  };
-
-  const fillDemo = (acc: typeof DEMO_ACCOUNTS[0]) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
   };
 
   return (
@@ -84,7 +68,7 @@ export default function LoginPage() {
           </div>
 
           <div className="login-ai-badge">
-            <span style={{ color: 'var(--color-ai)' }}>✦</span>
+            <span style={{ color: 'var(--color-primary)' }}>✦</span>
             ALN Cure AI — Intelligent hospital assistance
           </div>
         </div>
@@ -93,26 +77,43 @@ export default function LoginPage() {
         <div className="login-form-panel">
           <div className="login-form-card">
             <div className="login-form-header">
+              <div className="login-card-icon-badge">
+                <Lock size={20} style={{ color: 'var(--color-primary, #059669)' }} />
+              </div>
               <h2 className="login-form-title">Staff Portal Sign In</h2>
-              <p className="login-form-sub">Sign in with authorized hospital staff credentials</p>
+              <p className="login-form-sub">Enter your authorized hospital staff credentials to continue</p>
             </div>
 
             <form onSubmit={handleStaffLogin} className="login-form">
               <div className="form-group">
-                <label className="form-label">Hospital Email Address</label>
-                <input
-                  id="login-email"
-                  type="email"
-                  className="form-input"
-                  placeholder="your@alnhms.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
+                <label className="form-label" htmlFor="login-email">Hospital Email Address</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="login-email"
+                    type="email"
+                    className="form-input"
+                    placeholder="name@alnhms.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    style={{ paddingLeft: '38px' }}
+                  />
+                  <Mail
+                    size={16}
+                    style={{
+                      position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+                      color: 'var(--text-tertiary)', pointerEvents: 'none'
+                    }}
+                  />
+                </div>
               </div>
+
               <div className="form-group">
-                <label className="form-label">Password</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" htmlFor="login-password" style={{ margin: 0 }}>Password</label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Required</span>
+                </div>
                 <div style={{ position: 'relative' }}>
                   <input
                     id="login-password"
@@ -123,7 +124,14 @@ export default function LoginPage() {
                     onChange={e => setPassword(e.target.value)}
                     required
                     autoComplete="current-password"
-                    style={{ paddingRight: '44px' }}
+                    style={{ paddingLeft: '38px', paddingRight: '44px' }}
+                  />
+                  <Lock
+                    size={16}
+                    style={{
+                      position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+                      color: 'var(--text-tertiary)', pointerEvents: 'none'
+                    }}
                   />
                   <button
                     type="button"
@@ -132,48 +140,37 @@ export default function LoginPage() {
                       position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
                       background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex'
                     }}
+                    title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
+
               <button
                 id="login-submit"
                 type="submit"
-                className="btn btn-primary"
+                className="btn btn-primary login-submit-btn"
                 disabled={state.isLoading}
-                style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
               >
                 {state.isLoading ? (
-                  <><Loader2 size={16} className="spin" /> Signing in...</>
+                  <><Loader2 size={16} className="spin" /> Authenticating...</>
                 ) : (
-                  <>Sign In <ChevronRight size={16} /></>
+                  <>Sign In to Workspace <ChevronRight size={16} /></>
                 )}
               </button>
             </form>
 
-            {/* Demo Accounts */}
-            <div className="login-demo-section">
-              <div className="login-demo-title">
-                <div className="login-demo-line" />
-                <span>Authorized Demo Accounts</span>
-                <div className="login-demo-line" />
-              </div>
-              <div className="login-demo-grid">
-                {DEMO_ACCOUNTS.map((acc, i) => (
-                  <button key={i} type="button" className="login-demo-chip" onClick={() => fillDemo(acc)}>
-                    <span className="login-demo-dot" style={{ background: acc.color }} />
-                    {acc.role}
-                  </button>
-                ))}
-              </div>
+            <div className="login-security-notice">
+              <Shield size={14} style={{ color: 'var(--color-primary, #059669)', flexShrink: 0 }} />
+              <span>Protected by end-to-end encrypted hospital access governance & session audit logging</span>
             </div>
           </div>
 
           <p className="login-footer-text">
-            © 2026 ALN Technologies. ALN Cure HMS v1.0<br />
+            © 2026 ALN Technologies · ALN Cure HMS Enterprise<br />
             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              This system is for authorized users only. All access is logged.
+              Authorized healthcare personnel only. Unauthorized access attempts are monitored and logged.
             </span>
           </p>
         </div>
@@ -194,9 +191,9 @@ export default function LoginPage() {
           filter: blur(80px);
           opacity: 0.15;
         }
-        .orb-1 { width: 600px; height: 600px; background: #0A84FF; top: -200px; left: -200px; }
-        .orb-2 { width: 400px; height: 400px; background: #BF5AF2; bottom: -100px; right: 200px; }
-        .orb-3 { width: 300px; height: 300px; background: #30D158; top: 50%; right: -100px; }
+        .orb-1 { width: 600px; height: 600px; background: #059669; top: -200px; left: -200px; }
+        .orb-2 { width: 400px; height: 400px; background: #10b981; bottom: -100px; right: 200px; }
+        .orb-3 { width: 300px; height: 300px; background: #047857; top: 50%; right: -100px; }
         .login-container {
           position: relative; z-index: 1;
           display: flex; width: 100%; min-height: 100vh;
@@ -204,42 +201,43 @@ export default function LoginPage() {
         .login-brand {
           flex: 1; padding: 48px 56px;
           display: flex; flex-direction: column; gap: 24px;
-          background: linear-gradient(135deg, rgba(10,132,255,0.08), rgba(191,90,242,0.05));
+          background: linear-gradient(135deg, rgba(5,150,105,0.06), rgba(16,185,129,0.04));
           border-right: 1px solid var(--border-default);
+          justify-content: center;
         }
         .login-logo { display: flex; align-items: center; gap: 14px; }
         .login-logo-icon {
           width: 52px; height: 52px;
-          background: linear-gradient(135deg, #0A84FF, #00D4AA);
+          background: linear-gradient(135deg, #065f46, #059669);
           border-radius: 14px;
           display: flex; align-items: center; justify-content: center;
-          box-shadow: var(--shadow-glow-blue);
+          box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
           flex-shrink: 0;
         }
-        .login-logo-name { font-size: 20px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
-        .login-logo-tag { font-size: 11px; color: var(--color-ai); font-weight: 500; letter-spacing: 0.5px; }
+        .login-logo-name { font-size: 22px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
+        .login-logo-tag { font-size: 11.5px; color: var(--color-primary); font-weight: 600; letter-spacing: 0.5px; }
         .login-hero-title {
-          font-size: 42px; font-weight: 800; line-height: 1.1;
+          font-size: 44px; font-weight: 800; line-height: 1.15;
           letter-spacing: -1.5px; color: var(--text-primary);
-          background: linear-gradient(135deg, var(--text-primary) 40%, var(--color-primary));
+          background: linear-gradient(135deg, var(--text-primary) 30%, #059669);
           -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .login-hero-desc { font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 440px; }
-        .login-features { display: flex; flex-direction: column; gap: 10px; }
+        .login-hero-desc { font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 460px; }
+        .login-features { display: flex; flex-direction: column; gap: 12px; margin: 8px 0; }
         .login-feature-item {
-          display: flex; align-items: center; gap: 10px;
+          display: flex; align-items: center; gap: 12px;
           font-size: 14px; color: var(--text-secondary);
         }
         .login-feature-icon { font-size: 18px; width: 24px; text-align: center; }
         .login-ai-badge {
           display: inline-flex; align-items: center; gap: 8px;
-          background: var(--color-ai-muted); border: 1px solid var(--color-ai-border);
+          background: var(--color-primary-muted, #ecfdf5); border: 1px solid var(--color-primary-border, #a7f3d0);
           border-radius: var(--radius-full);
           padding: 8px 16px; font-size: 13px; font-weight: 600;
-          color: var(--color-ai); width: fit-content;
+          color: var(--color-primary-dark, #065f46); width: fit-content;
         }
         .login-form-panel {
-          width: 480px; padding: 48px 40px;
+          width: 500px; padding: 48px 44px;
           display: flex; flex-direction: column; gap: 24px;
           justify-content: center; background: var(--bg-base);
         }
@@ -247,47 +245,46 @@ export default function LoginPage() {
           background: var(--bg-card);
           border: 1px solid var(--border-default);
           border-radius: var(--radius-xl);
-          padding: 32px;
-          display: flex; flex-direction: column; gap: 24px;
+          padding: 38px 34px;
+          display: flex; flex-direction: column; gap: 26px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
         }
-        .login-form-title { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
-        .login-form-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
-        .login-mode-toggle {
-          display: flex; background: var(--bg-surface);
-          border-radius: var(--radius-md); padding: 3px; gap: 3px;
+        .login-card-icon-badge {
+          width: 42px; height: 42px;
+          border-radius: 12px;
+          background: var(--color-primary-muted, #ecfdf5);
+          border: 1px solid var(--color-primary-border, #a7f3d0);
+          display: flex; align-items: center; justify-content: center;
+          margin-bottom: 12px;
         }
-        .login-mode-btn {
-          flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-          padding: 8px; border-radius: calc(var(--radius-md) - 2px);
-          font-size: 13px; font-weight: 600; cursor: pointer;
+        .login-form-title { font-size: 24px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
+        .login-form-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+        .login-form { display: flex; flex-direction: column; gap: 20px; }
+        .login-submit-btn {
+          width: 100%; justify-content: center; padding: 13px;
+          font-size: 14.5px; font-weight: 700; border-radius: var(--radius-md);
+          background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          box-shadow: 0 3px 10px rgba(5, 150, 105, 0.28);
+          border: none;
           transition: all var(--transition-fast);
-          background: transparent; color: var(--text-secondary); border: none;
         }
-        .login-mode-btn.active {
-          background: var(--bg-card); color: var(--text-primary);
-          box-shadow: var(--shadow-sm);
+        .login-submit-btn:hover:not(:disabled) {
+          background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 5px 14px rgba(5, 150, 105, 0.36);
         }
-        .login-form { display: flex; flex-direction: column; gap: 16px; }
-        .login-demo-section { display: flex; flex-direction: column; gap: 12px; }
-        .login-demo-title {
-          display: flex; align-items: center; gap: 12px;
-          font-size: 12px; color: var(--text-tertiary); font-weight: 500;
+        .login-security-notice {
+          display: flex; align-items: center; gap: 8px;
+          font-size: 11.5px; color: var(--text-tertiary);
+          background: var(--bg-surface);
+          padding: 10px 12px; border-radius: var(--radius-md);
+          border: 1px solid var(--border-muted);
+          line-height: 1.4;
         }
-        .login-demo-line { flex: 1; height: 1px; background: var(--border-muted); }
-        .login-demo-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-        .login-demo-chip {
-          display: inline-flex; align-items: center; gap: 6px;
-          background: var(--bg-surface); border: 1px solid var(--border-muted);
-          border-radius: var(--radius-full); padding: 4px 10px;
-          font-size: 11px; font-weight: 500; color: var(--text-secondary);
-          cursor: pointer; transition: all var(--transition-fast);
-        }
-        .login-demo-chip:hover { background: var(--bg-surface-hover); color: var(--text-primary); border-color: var(--border-default); }
-        .login-demo-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .login-footer-text { font-size: 12px; color: var(--text-tertiary); text-align: center; line-height: 1.8; }
         @media (max-width: 1024px) {
           .login-brand { display: none; }
-          .login-form-panel { width: 100%; padding: 32px 24px; }
+          .login-form-panel { width: 100%; padding: 32px 20px; }
         }
       `}</style>
     </div>

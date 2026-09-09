@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Stethoscope, Brain, CheckCircle2, FileText, Plus, Trash2, Printer,
+  Stethoscope, CheckCircle2, FileText, Plus, Trash2, Printer,
   FlaskConical, Scan, Pill, AlertTriangle, Activity, Calendar, Save,
   RotateCcw, Sparkles, ChevronRight, User, HeartPulse, Scale, Info, ReceiptText
 } from 'lucide-react';
@@ -376,7 +376,7 @@ export default function DoctorConsultation() {
                 disabled={aiLoading || !chiefComplaint}
                 style={{ marginLeft: 'auto' }}
               >
-                <Brain size={13} /> {aiLoading ? 'Analyzing...' : 'AI DDx Assist'}
+                <Sparkles size={13} /> {aiLoading ? 'Analyzing...' : 'AI DDx Assist'}
               </button>
             </div>
             <div className="card-body">

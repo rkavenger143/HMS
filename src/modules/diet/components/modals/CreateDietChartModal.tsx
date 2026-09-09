@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UtensilsCrossed, Plus, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, Clock, Sparkles, Brain, ShieldCheck } from 'lucide-react';
+import { UtensilsCrossed, Plus, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, Clock, Sparkles, ShieldCheck } from 'lucide-react';
 import { useDiet } from '../../context/DietContext';
 import type { DietType, DietStatus, MealType, MealScheduleItem } from '../../../../types';
 
