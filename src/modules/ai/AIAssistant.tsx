@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Send, RefreshCw, Sparkles, AlertCircle, CheckCircle2,
   Mic, Volume2, VolumeX, Activity, ShieldCheck, Clock,
-  ArrowRight, Radio, Search, Play, FileText, Check, AlertTriangle, ChevronRight
+  ArrowRight, Radio, Search, Play, FileText, Check, AlertTriangle, ChevronRight, Square
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -12,6 +12,8 @@ import {
   getAIAuditLogs, AIAuditLogEntry, evaluateRealtimeVoiceStream,
   getProactiveAIAlerts, ProactiveAIAlert
 } from '../../services/aiCommandEngine';
+import { speechService } from '../../services/speechRecognitionService';
+import { ttsService } from '../../services/textToSpeechService';
 import MedicalIcon from '../../components/common/MedicalIcons';
 
 interface Message {
@@ -25,24 +27,22 @@ interface Message {
 }
 
 const QUICK_PROMPT_CHIPS = [
-  'Which beds are available?',
-  'Which patients need attention?',
-  "Show today's admitted patients",
-  'Show critical lab results',
-  'Which insurance claims are pending?',
-  "Show today's OPD statistics",
-  'Show emergency cases',
-  'Summary of patient Ramesh',
-  'Show proactive alerts',
-  'ఈ రోజు available beds ఎంత ఉన్నాయి?',
-  'Pending lab reports చూపించు',
-  'నాకు pending insurance claims చూపించు'
+  'OPD ఓపెన్ చేయి',
+  'అపాయింట్మెంట్స్ ఓపెన్ చేయి',
+  'అందుబాటులో ఉన్న బెడ్స్ చూపించు',
+  'క్రిటికల్ పేషెంట్స్ చూపించు',
+  'ఈరోజు అడ్మిట్ అయిన పేషెంట్స్ చూపించు',
+  'ల్యాబొరేటరీ ఓపెన్ చేయి',
+  'రేడియాలజీ ఓపెన్ చేయి',
+  'ఫార్మసీ ఓపెన్ చేయి',
+  'బిల్లింగ్ ఓపెన్ చేయి',
+  'Available beds chupinchu',
 ];
 
 export default function AIAssistant() {
+  const { state } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { state } = useAuth();
   const userRole = state.user?.role || 'super_admin';
 
   const [activeTab, setActiveTab] = useState<'console' | 'chat' | 'matrix' | 'audit'>('console');
@@ -54,6 +54,7 @@ export default function AIAssistant() {
   const [commandResponse, setCommandResponse] = useState<AICommandResponse | null>(null);
   const [auditLogs, setAuditLogs] = useState<AIAuditLogEntry[]>(() => getAIAuditLogs());
   const [proactiveAlerts, setProactiveAlerts] = useState<ProactiveAIAlert[]>(() => getProactiveAIAlerts(userRole, location.pathname));
+  const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>([
@@ -68,148 +69,113 @@ export default function AIAssistant() {
   const [isThinking, setIsThinking] = useState(false);
   const isCancelledRef = useRef(false);
 
-  const recognitionRef = useRef<any>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const hasExecutedRef = useRef(false);
   const metrics = computeLiveHospitalMetrics();
 
   useEffect(() => {
     setProactiveAlerts(getProactiveAIAlerts(userRole, location.pathname));
   }, [userRole, location.pathname]);
 
-  // Web Speech API Setup
+  // Clean up voice recognition and TTS on unmount
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-IN';
+    return () => {
+      speechService.abort();
+      ttsService.stop();
+    };
+  }, []);
 
-      recognition.onstart = () => {
-        setVoiceStatus('listening');
-        setSpeechError(null);
-        hasExecutedRef.current = false;
-      };
-
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const trans = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            final += trans;
-          } else {
-            interim += trans;
-          }
-        }
-
-        const streamText = (final || interim).trim();
-        if (!streamText) return;
-        setVoiceQuery(streamText);
-
-        if (hasExecutedRef.current) return;
-
-        // REAL-TIME STREAMING EVALUATION (0ms lag)
-        const evalResult = evaluateRealtimeVoiceStream(streamText, state.user?.role || 'super_admin');
-        if (evalResult.isConfident && evalResult.confidence === 'HIGH' && evalResult.response) {
-          hasExecutedRef.current = true;
-          stopVoice();
-          handleRunCommand(streamText);
-          return;
-        }
-
-        if (final.trim() && !hasExecutedRef.current) {
-          hasExecutedRef.current = true;
-          stopVoice();
-          handleRunCommand(final.trim());
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech error:', event.error);
-        if (event.error === 'not-allowed') {
-          setSpeechError('Microphone permission denied. Please allow microphone access.');
-        } else if (event.error === 'no-speech') {
-          setVoiceStatus('idle');
-        } else {
-          setSpeechError(`Voice error: ${event.error}. Please try again.`);
-        }
-        setVoiceStatus('idle');
-      };
-
-      recognition.onend = () => {
-        if (voiceStatus === 'listening') {
-          setVoiceStatus('idle');
-        }
-      };
-
-      recognitionRef.current = recognition;
-    }
-  }, [voiceStatus, state.user?.role]);
+  // Synchronize TTS state across components
+  useEffect(() => {
+    const handleTTSStateChange = (e: any) => {
+      const isSpeaking = e?.detail?.isSpeaking;
+      const id = e?.detail?.id;
+      if (isSpeaking && id) {
+        setCurrentlySpeakingId(id);
+      } else if (!isSpeaking) {
+        setCurrentlySpeakingId(null);
+      }
+    };
+    window.addEventListener('aln_tts_state_change', (handleTTSStateChange as EventListener));
+    return () => window.removeEventListener('aln_tts_state_change', (handleTTSStateChange as EventListener));
+  }, []);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
-  // Voice output
-  const speak = (text: string, lang: DetectedLanguage) => {
-    if (!isAudioEnabled || !('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'te' ? 'te-IN' : 'en-IN';
-      utterance.rate = 1.0;
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn('TTS error:', e);
+  // Voice output using centralized ttsService with strict Telugu isolation
+  const speak = (text: string, lang: DetectedLanguage, id?: string) => {
+    const msgId = id || `tts-${Date.now()}`;
+    if (currentlySpeakingId === msgId) {
+      stopSpeaking();
+      return;
     }
+    ttsService.speak({
+      id: msgId,
+      text,
+      lang,
+      onStart: () => setCurrentlySpeakingId(msgId),
+      onEnd: () => setCurrentlySpeakingId(null),
+      onError: () => setCurrentlySpeakingId(null),
+    });
+  };
+
+  const stopSpeaking = () => {
+    ttsService.stop();
+    setCurrentlySpeakingId(null);
   };
 
   const startVoice = () => {
-    hasExecutedRef.current = false;
-    if (recognitionRef.current) {
-      try {
-        setSpeechError(null);
-        setVoiceStatus('listening');
-        recognitionRef.current.start();
-      } catch (e) {
-        console.warn('Start voice failed:', e);
-      }
-    } else {
-      setSpeechError('Speech recognition is not supported in this browser.');
+    if (!speechService.isSupported()) {
+      setSpeechError('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
     }
+    setSpeechError(null);
+    stopSpeaking();
+    speechService.start({
+      lang: 'en-IN',
+      onInterim: (text) => {
+        setVoiceQuery(text);
+      },
+      onFinal: (text) => {
+        setVoiceQuery(text);
+        handleRunCommand(text);
+      },
+      onStateChange: (state, error) => {
+        if (state === 'listening') setVoiceStatus('listening');
+        else if (state === 'processing') setVoiceStatus('processing');
+        else setVoiceStatus('idle');
+
+        if (error) {
+          setSpeechError(error);
+        } else if (state === 'listening' || state === 'processing') {
+          setSpeechError(null);
+        }
+      }
+    });
   };
 
   const stopVoice = () => {
-    if (recognitionRef.current && voiceStatus === 'listening') {
-      try {
-        recognitionRef.current.stop();
-      } catch {
-        // ignore
-      }
-    }
+    speechService.abort();
     setVoiceStatus('idle');
   };
 
   const handleRunCommand = (cmdText: string) => {
     if (!cmdText.trim()) return;
     stopVoice();
+    stopSpeaking();
 
     const res = processAICommand(cmdText, userRole, location.pathname);
     setCommandResponse(res);
     setAuditLogs(getAIAuditLogs());
 
-    if (res.voiceText) {
-      speak(res.voiceText, res.detectedLanguage);
+    if (res.voiceText && isAudioEnabled) {
+      speak(res.voiceText, res.detectedLanguage, 'live-response');
     }
 
     if (res.intentType === 'NAVIGATE' && res.targetRoute && autoNavEnabled) {
       setVoiceStatus('navigating');
-      setTimeout(() => {
-        navigate(res.targetRoute!);
-      }, 1500);
+      navigate(res.targetRoute!);
     } else {
       setVoiceStatus('idle');
     }
@@ -631,6 +597,29 @@ export default function AIAssistant() {
                       <div key={i}>{l}</div>
                     ))}
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border-default)' }}>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      style={{ fontSize: 11, padding: '4px 10px', height: 26, gap: 5 }}
+                      onClick={() => {
+                        const textToSpeak = commandResponse.voiceText || commandResponse.displayText;
+                        speak(textToSpeak, commandResponse.detectedLanguage, 'live-response');
+                      }}
+                    >
+                      {currentlySpeakingId === 'live-response' ? (
+                        <>
+                          <Square size={10} style={{ fill: '#dc2626', color: '#dc2626' }} /> Stop Voice
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 size={11} /> Play Voice
+                        </>
+                      )}
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {commandResponse.detectedLanguage === 'te' ? 'తెలుగు (te-IN)' : commandResponse.detectedLanguage === 'te-mixed' ? 'తెలుగు / English' : 'English (en-IN)'}
+                    </span>
+                  </div>
                 </div>
 
                 {commandResponse.statSummary && (
@@ -754,6 +743,35 @@ export default function AIAssistant() {
                           >
                             Open {msg.responsePayload.targetRoute} <ArrowRight size={12} />
                           </button>
+                        </div>
+                      )}
+
+                      {msg.role === 'assistant' && (
+                        <div style={{ marginTop: 10, paddingTop: 6, borderTop: '1px dashed var(--border-default)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            className="btn btn-sm btn-ghost"
+                            style={{ fontSize: 10, padding: '2px 8px', height: 24, borderRadius: 6, border: '1px solid var(--border-default)', gap: 4 }}
+                            onClick={() => {
+                              const textToSpeak = msg.responsePayload?.voiceText || msg.content;
+                              const lang = msg.responsePayload?.detectedLanguage || 'en';
+                              speak(textToSpeak, lang, msg.id);
+                            }}
+                          >
+                            {currentlySpeakingId === msg.id ? (
+                              <>
+                                <Square size={10} style={{ fill: '#dc2626', color: '#dc2626' }} /> Stop Voice
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 size={11} /> Play Voice
+                              </>
+                            )}
+                          </button>
+                          {msg.responsePayload?.detectedLanguage && (
+                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                              {msg.responsePayload.detectedLanguage === 'te' ? 'తెలుగు (te-IN)' : msg.responsePayload.detectedLanguage === 'te-mixed' ? 'తెలుగు / English' : 'English'}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

@@ -11,6 +11,7 @@ import {
   DetectedLanguage, computeLiveHospitalMetrics,
   evaluateRealtimeVoiceStream
 } from '../../services/aiCommandEngine';
+import { ttsService } from '../../services/textToSpeechService';
 import MedicalIcon from '../common/MedicalIcons';
 
 export interface AICommandBoardProps {
@@ -259,30 +260,20 @@ export default function AICommandBoard({
     setVoiceStatus('idle');
   };
 
-  // Text-To-Speech Readout
+  // Text-To-Speech Readout using centralized ttsService with strict Telugu isolation
   const speakText = (text: string, lang: DetectedLanguage) => {
-    if (!isAudioEnabled || !('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'te' ? 'te-IN' : 'en-IN';
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn('TTS error:', e);
-    }
+    if (!isAudioEnabled) return;
+    ttsService.speak({
+      text,
+      lang,
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
   };
 
   const stopSpeaking = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    ttsService.stop();
     setIsSpeaking(false);
   };
 

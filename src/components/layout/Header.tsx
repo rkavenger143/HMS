@@ -21,7 +21,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
-  const [isListeningVoice, setIsListeningVoice] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing' | 'success' | 'error'>('idle');
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -30,13 +30,13 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   const unreadCount = 3;
 
   useEffect(() => {
-    const handleVoiceStart = () => setIsListeningVoice(true);
-    const handleVoiceEnd = () => setIsListeningVoice(false);
-    window.addEventListener('aln_voice_listening_start', handleVoiceStart);
-    window.addEventListener('aln_voice_listening_end', handleVoiceEnd);
+    const handleVoiceStateChange = (e: any) => {
+      const state = e?.detail?.state || 'idle';
+      setVoiceStatus(state);
+    };
+    window.addEventListener('aln_voice_state_change', handleVoiceStateChange);
     return () => {
-      window.removeEventListener('aln_voice_listening_start', handleVoiceStart);
-      window.removeEventListener('aln_voice_listening_end', handleVoiceEnd);
+      window.removeEventListener('aln_voice_state_change', handleVoiceStateChange);
     };
   }, []);
 
@@ -201,13 +201,28 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
           {/* AI Voice Command Button */}
           <button
             id="ai-voice-btn"
-            className={`header-voice-btn ${isListeningVoice ? 'listening' : ''}`}
+            className={`header-voice-btn ${voiceStatus === 'listening' ? 'listening' : ''}`}
             onClick={() => openAIAssistant('', true)}
             title="AI Voice Command & Assistant (Ctrl+K)"
             aria-label="AI Voice Command"
           >
-            <Mic size={15} style={isListeningVoice ? { color: '#dc2626', animation: 'pulse 1s infinite' } : {}} />
-            <span>{isListeningVoice ? 'Listening...' : 'AI Voice Command'}</span>
+            <Mic
+              size={15}
+              style={
+                voiceStatus === 'listening'
+                  ? { color: '#dc2626', animation: 'pulse 1s infinite' }
+                  : voiceStatus === 'processing'
+                  ? { color: '#2563eb' }
+                  : {}
+              }
+            />
+            <span>
+              {voiceStatus === 'listening'
+                ? 'Listening...'
+                : voiceStatus === 'processing'
+                ? 'Processing...'
+                : 'AI Voice Command'}
+            </span>
           </button>
 
           {/* Emergency Button */}

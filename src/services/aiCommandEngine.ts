@@ -281,6 +281,76 @@ export interface RealtimeVoiceEvaluation {
 }
 
 /**
+ * Robust Command Normalization Layer
+ * Handles:
+ * 1. Lowercasing, punctuation stripping, extra space trimming.
+ * 2. Telugu script phonetic variations and zero-width characters.
+ * 3. Tanglish verbal forms (open cheyyi, chupinchu, etc.).
+ * 4. Corrective / negative phrases (e.g. "బిల్డింగ్ కాదు, Billing ఓపెన్ చేయి").
+ * 5. Common conversational filler removal.
+ */
+export function normalizeCommandText(input: string): string {
+  if (!input) return '';
+  let text = input.trim().toLowerCase();
+
+  // Strip zero-width joiners / invisible characters
+  text = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+  // Handle corrective phrasing like "బిల్డింగ్ కాదు, Billing ఓపెన్ చేయి" or "not x, open y"
+  if (text.includes('కాదు') || text.includes('not ')) {
+    const parts = text.split(/కాదు|not /i);
+    if (parts.length > 1 && parts[parts.length - 1].trim().length >= 2) {
+      text = parts[parts.length - 1].trim();
+    }
+  }
+
+  // Normalize Telugu script synonyms to clean standard tokens
+  text = text
+    .replace(/డాష్\s*బోర్డ్|డాష్‌బోర్డ్|డాష్బోర్డ్/g, 'dashboard')
+    .replace(/ఓపీడీ|ఓపిడి|ఒపిడి|ఒపీడి|ఓ\s*పి\s*డి|ఒ\s*పి\s*డి/g, 'opd')
+    .replace(/ల్యాబొరేటరీ|లాబొరేటరీ|ల్యాబ్|పాథాలజీ/g, 'laboratory')
+    .replace(/ఫార్మసీ|మందులు|మందుల/g, 'pharmacy')
+    .replace(/బిల్లింగ్|బిల్లులు|చెల్లింపులు/g, 'billing')
+    .replace(/అపాయింట్మెంట్స్|అపాయింట్మెంట్|అపాయింట్‌మెంట్లు|అపాయింట్‌మెంట్|అపాయింట్మెంట్లు|బుకింగ్/g, 'appointments')
+    .replace(/రోగులు|పేషెంట్లు|పేషెంట్స్|పేషెంట్|రిజిస్ట్రేషన్/g, 'patients')
+    .replace(/ఇన్\s*పేషెంట్|ఐపీడీ|వార్డులు|వార్డు/g, 'ipd')
+    .replace(/నర్సింగ్|నర్సులు|వైటల్స్/g, 'nursing')
+    .replace(/రేడియాలజీ|రేడియోలజీ|ఎక్స్-రే|ఎక్స్రే|స్కానింగ్/g, 'radiology')
+    .replace(/డైట్|ఆహార\s*ప్రణాళిక/g, 'diet')
+    .replace(/వైద్యులు|డాక్టర్లు|స్పెషలిస్టులు|డాక్టర్/g, 'doctors')
+    .replace(/అంబులెన్స్/g, 'ambulance')
+    .replace(/ఎమర్జెన్సీ|ట్రామా|క్యాజువాలిటీ/g, 'emergency')
+    .replace(/బ్లడ్\s*బ్యాంక్|రక్త\s*నిధి|రక్తం|బ్లడ్/g, 'blood-bank')
+    .replace(/రిపోర్ట్స్|రిపోర్టులు|నివేదికలు/g, 'reports')
+    .replace(/నోటిఫికేషన్లు|హెచ్చరికలు/g, 'notifications')
+    .replace(/హౌస్\s*కీపింగ్|హౌస్‌కీపింగ్|పారిశుధ్యం/g, 'housekeeping')
+    .replace(/హెచ్ఆర్|సిబ్బంది|హాజరు/g, 'hr')
+    .replace(/సపోర్ట్|హెల్ప్‌డెస్క్|సహాయం/g, 'support')
+    .replace(/అడ్మిన్|అడ్మినిస్ట్రేషన్/g, 'admin')
+    .replace(/సెట్టింగ్స్|కాన్ఫిగరేషన్/g, 'settings')
+    .replace(/కమాండ్\s*సెంటర్|ఎఐ/g, 'ai')
+    .replace(/ఇన్సూరెన్స్|బీమా|క్లెయిమ్స్|టిపిఎ/g, 'insurance')
+    .replace(/ఖాళీ\s*బెడ్లు|అందుబాటులో\s*ఉన్న\s*బెడ్స్|అందుబాటులో\s*ఉన్న\s*బెడ్లు|బెడ్లు|బెడ్స్/g, 'available beds')
+    .replace(/క్రిటికల్\s*రోగులు|క్రిటికల్\s*పేషెంట్లు|క్రిటికల్\s*పేషెంట్స్/g, 'critical patients')
+    .replace(/ఈరోజు\s*అడ్మిట్\s*అయిన\s*పేషెంట్స్|ఈరోజు\s*అడ్మిట్\s*అయిన\s*పేషెంట్లు|ఈరోజు\s*అడ్మిట్\s*అయిన\s*రోగులు|అడ్మిట్\s*అయిన\s*పేషెంట్స్|అడ్మిట్\s*అయిన\s*పేషెంట్లు/g, 'today admitted patients');
+
+  // Normalize Telugu/Tanglish action verbs & common fillers
+  text = text
+    .replace(/(?:^|\s)(ఓపెన్\s*చేయి|ఓపెన్\s*చెయ్యి|ఓపెన్\s*చేయండి|ఓపెన్\s*చెయ్యండి|ఓపెన్|తెరవండి)(?:\s|$)/g, ' open ')
+    .replace(/\b(open\s*cheyyi|open\s*chey|open\s*cheyyandi|open\s*cheyandi|open\s*chesko|open\s*cheyyali)\b/g, ' open ')
+    .replace(/(?:^|\s)(చూపించు|చూపించండి|చూడాలి|చూడు|కనిపించు)(?:\s|$)/g, ' show ')
+    .replace(/\b(chupinchu|chupiyyi|chupinchandi|chudali|kanipinchu|choodu|chudu)\b/g, ' show ')
+    .replace(/(?:^|\s)(వెళ్లు|వెళ్ళండి|తీసుకెళ్లు|తీసుకెళ్ళండి|కి\s*వెళ్లు)(?:\s|$)/g, ' go to ')
+    .replace(/\b(vellu|vellandi|teesukellu)\b/g, ' go to ')
+    .replace(/\b(please|can you|could you|kindly|for me|now|fast ga|urgent|urgently|sir|madam|brother|andi|garu|twaraga|veganga|chusi)\b/g, '')
+    .replace(/[^\w\s\u0C00-\u0C7F-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return text;
+}
+
+/**
  * Real-Time Streaming Speech Evaluator (0ms Lag Intent Recognition)
  * Evaluates interim speech transcripts on the fly without waiting for silence or final results.
  */
@@ -289,45 +359,33 @@ export function evaluateRealtimeVoiceStream(
   userRole: UserRole = 'super_admin',
   forcedLang?: 'auto' | 'en' | 'te'
 ): RealtimeVoiceEvaluation {
-  const raw = transcript.trim();
+  const raw = (transcript || '').trim();
   if (!raw || raw.length < 2) {
     return { isConfident: false, confidence: 'LOW', response: null };
   }
 
-  const qLower = raw.toLowerCase();
+  const normalized = normalizeCommandText(raw);
 
-  // Strip common trailing/leading filler words for early intent detection
-  const normalized = qLower
-    .replace(/\b(please|can you|could you|kindly|for me|now|fast ga|urgent|urgently|sir|madam|brother|andi|garu|twaraga|veganga|chusi)\b/gi, '')
-    .trim();
+  // 1. Direct Master Navigation Routing (HIGH Confidence)
+  const navItem = matchNavigationCommand(normalized, raw);
+  if (navItem) {
+    const res = processAICommand(raw, userRole, forcedLang);
+    return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: navItem.route };
+  }
 
-  // 1. Destructive / Sensitive Write Action (HIGH Confidence)
+  // 2. Destructive / Sensitive Write Action (HIGH Confidence)
   const isDestructive = /(cancel|delete|discharge|transfer|refund|allocate|రద్దు|డిశ్చార్జ్|బదిలీ|తొలగించు|cancel chey|discharge chey|transfer chey)/i.test(normalized);
   if (isDestructive && (normalized.includes('appointment') || normalized.includes('patient') || normalized.includes('bed') || normalized.includes('admission') || normalized.includes('అపాయింట్‌మెంట్') || normalized.includes('డిశ్చార్జ్') || normalized.includes('బదిలీ'))) {
     const res = processAICommand(raw, userRole, forcedLang);
     return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: 'destructive_action' };
   }
 
-  // 2. Specific Live Hospital Statistics Query (HIGH Confidence)
+  // 3. Specific Live Hospital Statistics Query (HIGH Confidence)
   const isStat = /(available bed|available beds|icu bed|icu beds|bed vacancy|ఖాళీ బెడ్లు|బెడ్స్|beds enni|low stock|pharmacy stock|pending lab|lab reports|today's opd|today opd|opd queue|blood stock|blood units|today's revenue|today revenue|collections|outstanding)/i.test(normalized);
   if (isStat) {
     const res = processAICommand(raw, userRole, forcedLang);
     if (res.intentType === 'STAT_QUERY' || res.intentType === 'DENIED') {
       return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: 'stat_query' };
-    }
-  }
-
-  // 3. Direct Master Navigation Routing (HIGH Confidence)
-  for (const item of NAV_COMMAND_REGISTRY) {
-    const isDirectMatch = item.keywords.some(kw => {
-      const kwLower = kw.toLowerCase();
-      // Match whole word or exact token
-      return normalized.includes(kwLower);
-    });
-
-    if (isDirectMatch) {
-      const res = processAICommand(raw, userRole, forcedLang);
-      return { isConfident: true, confidence: 'HIGH', response: res, matchedEntity: item.route };
     }
   }
 
@@ -347,7 +405,9 @@ export function evaluateRealtimeVoiceStream(
  * Language Detector for English, Telugu Script, and Code-Mixed Tanglish
  */
 export function detectLanguage(input: string): DetectedLanguage {
-  const text = input.trim();
+  const text = (input || '').trim();
+  if (!text) return 'en';
+
   // Check for Telugu Unicode characters (U+0C00 to U+0C7F)
   const hasTeluguChars = /[\u0C00-\u0C7F]/.test(text);
   if (hasTeluguChars) {
@@ -356,9 +416,10 @@ export function detectLanguage(input: string): DetectedLanguage {
 
   // Tanglish / Telugu-English code-mixed keywords & verb patterns
   const tanglishPatterns = [
-    /\b(chupinchu|chupiyyi|choodu|chudali|kanipinchu|enti|enni|entha|unnayi|unnaru|undhi|undha|cheyi|cheyyi|veellu|pettu|kavali|ivala|ee\s*roju|eerodu|repu|ninna|lo|ki|mariyu|ani|chesko|vellandi|tiseseyyi|ippudu)\b/i,
-    /\b(patients|beds|doctors|revenue|pharmacy|stock|queue|opd|ipd|bill|report|icu|lab|tests|units|admissions)\s+(enni|entha|chupinchu|enti|open|chudali)\b/i,
-    /\b(open\s+cheyyi|open\s+chey|open\s+chesko|chupinchu|velthunnam)\b/i
+    /\b(chupinchu|chupiyyi|chupinchandi|choodu|chudu|chudali|kanipinchu|enti|enni|entha|unnayi|unnaru|undhi|undha|cheyi|cheyyi|cheyandi|cheyyandi|chesko|veellu|pettu|kavali|ivala|ee\s*roju|eerodu|repu|ninna|lo|ki|mariyu|ani|vellu|vellandi|tiseseyyi|ippudu)\b/i,
+    /\b(open\s+cheyyi|open\s+chey|open\s+cheyyandi|open\s+cheyandi|open\s+chesko|open\s+cheyyali|chupinchu|chupiyyi|chupinchandi|velthunnam)\b/i,
+    /\b(patients|beds|doctors|revenue|pharmacy|stock|queue|opd|ipd|bill|billing|report|reports|icu|lab|laboratory|tests|units|admissions)\s+(enni|entha|chupinchu|chupiyyi|enti|open|chudali|unnayi)\b/i,
+    /\b(available\s+beds\s+chupinchu|billing\s+open\s+chey|billing\s+open\s+cheyyi|opd\s+open\s+chey|opd\s+open\s+cheyyi|pharmacy\s+open\s+cheyyi|laboratory\s+open\s+cheyyi)\b/i
   ];
 
   for (const pattern of tanglishPatterns) {
@@ -1141,10 +1202,11 @@ ${isFinancialAuth ? `• **Financial & Insurance Summary (Authorized)**:
 }
 
 /**
- * Master Command Definition Table
+ * Canonical Module Navigation Registry with Full English, Telugu & Tanglish Coverage
  */
-interface NavCommandDef {
+export interface NavCommandDef {
   route: string;
+  canonicalAction: string;
   categoryLabel: string;
   keywords: string[];
   enTitle: string;
@@ -1154,261 +1216,386 @@ interface NavCommandDef {
   reqRole?: string;
 }
 
-const NAV_COMMAND_REGISTRY: NavCommandDef[] = [
+export const NAV_COMMAND_REGISTRY: NavCommandDef[] = [
   {
     route: '/dashboard',
+    canonicalAction: 'OPEN_DASHBOARD',
     categoryLabel: 'Hospital Overview',
-    keywords: ['dashboard', 'home', 'main page', 'డాష్ బోర్డ్', 'డాష్‌బోర్డ్', 'హోమ్', 'dashboard open', 'home open'],
+    keywords: ['dashboard', 'home', 'main page', 'డాష్ బోర్డ్', 'డాష్‌బోర్డ్', 'డాష్బోర్డ్', 'హోమ్', 'dashboard open', 'home open', 'go to dashboard', 'open dashboard', 'open home', 'open main page', 'డాష్బోర్డ్ ఓపెన్ చేయి', 'డాష్ బోర్డ్ ఓపెన్ చేయి', 'డాష్‌బోర్డ్ ఓపెన్ చేయి', 'డాష్బోర్డ్ తెరవండి'],
     enTitle: 'Hospital Operational Dashboard',
-    enVoice: 'Opening Hospital Dashboard',
-    teVoice: 'హాస్పిటల్ డాష్‌బోర్డ్ ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Hospital dashboard open chestunnanu',
-  },
-  {
-    route: '/ai',
-    categoryLabel: 'AI Command Center',
-    keywords: ['ai', 'ai assistant', 'ai command center', 'voice center', 'ఎఐ', 'కమాండ్ సెంటర్', 'ai open'],
-    enTitle: 'AI Command Center & Assistant',
-    enVoice: 'Opening ALN Cure AI Command Center',
-    teVoice: 'AI కమాండ్ సెంటర్‌ను ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'AI command center open chestunnanu',
-  },
-  {
-    route: '/dashboard',
-    categoryLabel: 'Hospital Overview',
-    keywords: ['dashboard', 'home', 'main page', 'డాష్ బోర్డ్', 'డాష్‌బోర్డ్', 'హోమ్', 'dashboard open', 'home open', 'go to dashboard', 'open dashboard'],
-    enTitle: 'Hospital Operational Dashboard',
-    enVoice: 'Opening Hospital Dashboard',
-    teVoice: 'హాస్పిటల్ డాష్‌బోర్డ్ ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Hospital dashboard open chestunnanu',
-  },
-  {
-    route: '/ai',
-    categoryLabel: 'AI Command Center',
-    keywords: ['ai', 'ai assistant', 'ai command center', 'voice center', 'ఎఐ', 'కమాండ్ సెంటర్', 'ai open', 'open ai', 'go to ai'],
-    enTitle: 'AI Command Center & Assistant',
-    enVoice: 'Opening ALN Cure AI Command Center',
-    teVoice: 'AI కమాండ్ సెంటర్‌ను ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'AI command center open chestunnanu',
-  },
-  {
-    route: '/patients',
-    categoryLabel: 'Patient Care',
-    keywords: ['patients', 'patient directory', 'patient registration', 'find patient', 'search patient', 'today patients', "today's patients", 'show today patients', 'open patients', 'go to patients', 'take me to patients', 'రోగులు', 'పేషెంట్లు', 'పేషెంట్', 'పేషెంట్లు ఓపెన్ చేయి', 'patients chupinchu', 'patient open', 'patients list'],
-    enTitle: 'Patient Registration Directory',
-    enVoice: 'Opening Patient Registration Directory',
-    teVoice: 'రోగుల రిజిస్ట్రేషన్ డైరెక్టరీ ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Patient directory open chestunnanu',
-  },
-  {
-    route: '/appointments',
-    categoryLabel: 'Patient Care',
-    keywords: ['appointments', 'appointment', 'booking', 'doctor schedule', 'open appointments', 'go to appointments', 'take me to appointments', 'అపాయింట్‌మెంట్', 'అపాయింట్‌మెంట్లు', 'బుకింగ్', 'అపాయింట్‌మెంట్లు ఓపెన్ చేయి', 'appointments open', 'appointment chupinchu', 'appointment booking'],
-    enTitle: 'Doctor Appointment Scheduling',
-    enVoice: 'Opening Doctor Appointment Scheduling',
-    teVoice: 'వైద్యుల అపాయింట్‌మెంట్ల విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Doctor appointments schedule open chestunnanu',
+    enVoice: 'Opening Hospital Dashboard.',
+    teVoice: 'హాస్పిటల్ డాష్‌బోర్డ్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Hospital dashboard open chestunnanu.',
   },
   {
     route: '/opd',
+    canonicalAction: 'OPEN_OPD',
     categoryLabel: 'Clinical Care',
-    keywords: ['opd', 'outpatient', 'opd queue', 'opd dashboard', 'opd clinic', 'open opd', 'go to opd', 'take me to opd', 'open outpatient', 'ఓపీడీ', 'ఒపిడి', 'ఓపీడీ ఓపెన్ చేయి', 'opd open', 'opd section', 'opd chupinchu', 'opd clinic open'],
+    keywords: ['opd', 'outpatient', 'opd dashboard', 'opd clinic', 'open opd', 'go to opd', 'take me to opd', 'open outpatient', 'ఓపీడీ', 'ఒపిడి', 'ఓపిడి', 'ఓపీడీ ఓపెన్ చేయి', 'ఓపిడి ఓపెన్ చేయి', 'ఒపిడి ఓపెన్ చేయి', 'opd open', 'opd section', 'opd clinic open', 'opd open cheyyi', 'opd open chey', 'opd ఓపెన్ చేయి', 'opd ఓపెన్ చెయ్యి', 'ఓపీడీ తెరవండి'],
     enTitle: 'Outpatient Department (OPD)',
-    enVoice: 'Opening Outpatient Department (OPD)',
-    teVoice: 'OPD విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'OPD section open chestunnanu',
+    enVoice: 'Opening OPD.',
+    teVoice: 'OPD ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'OPD open chestunnanu.',
+  },
+  {
+    route: '/appointments',
+    canonicalAction: 'OPEN_APPOINTMENTS',
+    categoryLabel: 'Patient Care',
+    keywords: ['appointments', 'appointment booking', 'doctor schedule', 'open appointments', 'open appointment', 'go to appointments', 'take me to appointments', 'అపాయింట్మెంట్స్ ఓపెన్ చేయి', 'అపాయింట్మెంట్స్', 'అపాయింట్మెంట్', 'అపాయింట్‌మెంట్లు ఓపెన్ చేయి', 'అపాయింట్‌మెంట్ ఓపెన్ చేయి', 'అపాయింట్మెంట్లు ఓపెన్ చేయి', 'appointments open', 'appointment booking open', 'appointments open cheyyi', 'appointments open chey', 'అపాయింట్మెంట్స్ తెరవండి'],
+    enTitle: 'Doctor Appointment Scheduling',
+    enVoice: 'Opening Appointments.',
+    teVoice: 'అపాయింట్మెంట్స్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Appointments schedule open chestunnanu.',
+  },
+  {
+    route: '/patients',
+    canonicalAction: 'OPEN_REGISTRATION',
+    categoryLabel: 'Patient Care',
+    keywords: ['patient registration', 'patient directory', 'registration directory', 'open patients', 'open patient', 'open registration', 'go to patients', 'take me to patients', 'పేషెంట్లు ఓపెన్ చేయి', 'పేషెంట్స్ ఓపెన్ చేయి', 'పేషెంట్ ఓపెన్ చేయి', 'రిజిస్ట్రేషన్ ఓపెన్ చేయి', 'patients open', 'registration open', 'పేషెంట్స్ తెరవండి'],
+    enTitle: 'Patient Registration Directory',
+    enVoice: 'Opening Patient Registration Directory.',
+    teVoice: 'రోగుల రిజిస్ట్రేషన్ డైరెక్టరీ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Patient directory open chestunnanu.',
   },
   {
     route: '/ipd',
+    canonicalAction: 'OPEN_IPD',
     categoryLabel: 'Clinical Care',
-    keywords: ['ipd', 'inpatient', 'beds', 'bed management', 'admissions', 'wards', 'icu', 'open ipd', 'go to ipd', 'take me to ipd', 'open beds', 'open bed management', 'open inpatient', 'ఐపీడీ', 'ఇన్ పేషెంట్', 'బెడ్లు', 'బెడ్స్', 'వార్డులు', 'ఐపీడీ ఓపెన్ చేయి', 'బెడ్స్ ఓపెన్ చేయి', 'ipd open', 'ipd beds', 'bed management open'],
+    keywords: ['ipd', 'inpatient department', 'bed management', 'open ipd', 'go to ipd', 'take me to ipd', 'open bed management', 'open inpatient', 'ఐపీడీ', 'ఇన్ పేషెంట్', 'ఐపీడీ ఓపెన్ చేయి', 'బెడ్ మేనేజ్‌మెంట్ ఓపెన్ చేయి', 'ipd open', 'ipd beds open', 'bed management open', 'ipd open cheyyi', 'ఐపీడీ తెరవండి'],
     enTitle: 'Inpatient Department (IPD) & Bed Management',
-    enVoice: 'Opening IPD & Bed Management',
-    teVoice: 'IPD మరియు బెడ్ల నిర్వహణ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'IPD and Bed management open chestunnanu',
+    enVoice: 'Opening IPD and Bed Management.',
+    teVoice: 'IPD మరియు బెడ్ మేనేజ్‌మెంట్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'IPD and Bed management open chestunnanu.',
   },
   {
     route: '/nursing',
+    canonicalAction: 'OPEN_NURSING',
     categoryLabel: 'Clinical Care',
-    keywords: ['nursing', 'nurse', 'open nursing', 'open nursing section', 'go to nursing', 'take me to nursing', 'nursing station', 'vitals charting', 'mar', 'ward nurse', 'నర్సింగ్', 'నర్సులు', 'వైటల్స్', 'నర్సింగ్ ఓపెన్ చేయి', 'nursing open', 'nursing station open'],
+    keywords: ['nursing station', 'nursing management', 'open nursing', 'open nursing station', 'go to nursing', 'take me to nursing', 'నర్సింగ్ ఓపెన్ చేయి', 'nursing open', 'nursing station open', 'నర్సింగ్ తెరవండి'],
     enTitle: 'Nursing Station & Inpatient Care',
-    enVoice: 'Opening Nursing Station & Inpatient Care',
-    teVoice: 'నర్సింగ్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Nursing care module open chestunnanu',
+    enVoice: 'Opening Nursing Station.',
+    teVoice: 'నర్సింగ్ విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Nursing station open chestunnanu.',
     reqRole: 'nursing',
   },
   {
     route: '/diet',
+    canonicalAction: 'OPEN_DIET',
     categoryLabel: 'Clinical Care',
-    keywords: ['diet', 'diet chart', 'diet charts', 'nutrition', 'meal plan', 'open diet', 'go to diet', 'take me to diet', 'డైట్', 'ఆహార ప్రణాళిక', 'డైట్ ఓపెన్ చేయి', 'diet open', 'diet charts chupinchu'],
+    keywords: ['diet', 'diet chart', 'diet charts', 'nutrition', 'open diet', 'open nutrition', 'go to diet', 'take me to diet', 'డైట్ ఓపెన్ చేయి', 'diet open', 'డైట్ తెరవండి'],
     enTitle: 'Clinical Nutrition & Diet Charts',
-    enVoice: 'Opening Clinical Nutrition & Diet Charts',
-    teVoice: 'డైట్ మరియు న్యూట్రిషన్ చార్టులను ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Diet charts open chestunnanu',
+    enVoice: 'Opening Diet and Nutrition.',
+    teVoice: 'డైట్ మరియు న్యూట్రిషన్ చార్టులను ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Diet charts open chestunnanu.',
     reqRole: 'diet',
   },
   {
     route: '/laboratory',
+    canonicalAction: 'OPEN_LABORATORY',
     categoryLabel: 'Diagnostic Services',
-    keywords: ['laboratory', 'lab', 'pathology', 'blood test', 'lab reports', 'lab tests', 'open laboratory', 'open lab', 'go to laboratory', 'go to lab', 'take me to laboratory', 'take me to lab', 'ల్యాబ్', 'ల్యాబొరేటరీ', 'పాథాలజీ', 'రక్త పరీక్షలు', 'లాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబ్ ఓపెన్ చేయి', 'లాబొరేటరీ ఓపెన్', 'ల్యాబొరేటరీ ఓపెన్', 'ల్యాబ్ ఓపెన్', 'lab open', 'laboratory open', 'lab reports open', 'lab tests list'],
+    keywords: ['laboratory', 'pathology laboratory', 'open laboratory', 'open lab', 'go to laboratory', 'go to lab', 'take me to laboratory', 'take me to lab', 'లాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబ్ ఓపెన్ చేయి', 'ల్యాబొరేటరీ', 'లాబొరేటరీ', 'lab open', 'laboratory open', 'laboratory open cheyyi', 'lab open chey', 'ల్యాబొరేటరీ తెరవండి'],
     enTitle: 'Clinical Pathology & Laboratory',
-    enVoice: 'Opening Clinical Pathology & Laboratory',
-    teVoice: 'ల్యాబొరేటరీ పేజీని ఓపెన్ చేస్తున్నాను.',
-    mixedVoice: 'Laboratory diagnostics open chestunnanu',
+    enVoice: 'Opening Laboratory.',
+    teVoice: 'ల్యాబొరేటరీ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Laboratory open chestunnanu.',
     reqRole: 'laboratory',
   },
   {
     route: '/radiology',
+    canonicalAction: 'OPEN_RADIOLOGY',
     categoryLabel: 'Diagnostic Services',
-    keywords: ['radiology', 'x-ray', 'xray', 'mri', 'ct scan', 'ultrasound', 'pacs', 'open radiology', 'go to radiology', 'take me to radiology', 'open diagnostics', 'రేడియోలజీ', 'ఎక్స్-రే', 'స్కానింగ్', 'రేడియోలజీ ఓపెన్ చేయి', 'రేడియోలజీ ఓపెన్', 'radiology open', 'pacs imaging open'],
+    keywords: ['radiology', 'radiology imaging', 'open radiology', 'go to radiology', 'take me to radiology', 'open diagnostics', 'రేడియాలజీ ఓపెన్ చేయి', 'రేడియోలజీ ఓపెన్ చేయి', 'రేడియాలజీ', 'రేడియోలజీ', 'radiology open', 'pacs imaging open', 'radiology open cheyyi', 'radiology open chey', 'రేడియాలజీ తెరవండి'],
     enTitle: 'Radiology Imaging & PACS',
-    enVoice: 'Opening Radiology Imaging & PACS',
-    teVoice: 'రేడియోలజీ మరియు ఇమేజింగ్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Radiology imaging open chestunnanu',
+    enVoice: 'Opening Radiology.',
+    teVoice: 'రేడియాలజీ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Radiology open chestunnanu.',
     reqRole: 'radiology',
   },
   {
     route: '/pharmacy',
+    canonicalAction: 'OPEN_PHARMACY',
     categoryLabel: 'Medication & Pharmacy',
-    keywords: ['pharmacy', 'medicines', 'medicine', 'drugs', 'dispensary', 'pharma', 'open pharmacy', 'go to pharmacy', 'take me to pharmacy', 'pharmacy stock', 'pharmacy stock chupinchu', 'low stock medicines', 'మందులు', 'ఫార్మసీ', 'మెడిసిన్స్', 'ఫార్మసీ ఓపెన్ చేయి', 'pharmacy open'],
+    keywords: ['pharmacy', 'dispensary', 'open pharmacy', 'go to pharmacy', 'take me to pharmacy', 'ఫార్మసీ ఓపెన్ చేయి', 'ఫార్మసీ తెరవండి', 'ఫార్మసీ', 'pharmacy open', 'pharmacy open chey', 'pharmacy open cheyyi'],
     enTitle: 'Pharmacy POS & Medication Inventory',
-    enVoice: 'Opening Pharmacy POS & Drug Inventory',
-    teVoice: 'ఫార్మసీ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Pharmacy inventory open chestunnanu',
+    enVoice: 'Opening Pharmacy.',
+    teVoice: 'ఫార్మసీ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Pharmacy open chestunnanu.',
     reqRole: 'pharmacy',
   },
   {
     route: '/billing',
+    canonicalAction: 'OPEN_BILLING',
     categoryLabel: 'Finance & Revenue',
-    keywords: ['billing', 'central billing', 'invoices', 'receipts', 'payments', 'cashier', 'accounts', 'open billing', 'go to billing', 'take me to billing', 'బిల్లింగ్', 'బిల్లులు', 'చెల్లింపులు', 'కలెక్షన్లు', 'బిల్లింగ్ ఓపెన్ చేయి', 'billing open', 'billing counter open', 'invoices list'],
+    keywords: ['billing', 'central billing', 'open billing', 'go to billing', 'take me to billing', 'బిల్లింగ్ ఓపెన్ చేయి', 'బిల్లింగ్ తెరవండి', 'బిల్లింగ్', 'billing open', 'billing counter open', 'billing open cheyyandi', 'billing open chey', 'billing open cheyyi'],
     enTitle: 'Central Billing & Cashier Desk',
-    enVoice: 'Opening Central Billing & Cashier Desk',
-    teVoice: 'సెంట్రల్ బిల్లింగ్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Central billing counter open chestunnanu',
+    enVoice: 'Opening Billing.',
+    teVoice: 'బిల్లింగ్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Billing open chestunnanu.',
     reqRole: 'revenue',
   },
   {
     route: '/insurance',
+    canonicalAction: 'OPEN_INSURANCE',
     categoryLabel: 'Insurance & TPA',
-    keywords: [
-      'insurance', 'tpa', 'pre auth', 'pre-auth', 'pre authorization', 'cashless', 'claims', 'claim tracking', 'settlement', 'insurance providers', 'insurance policy', 'policies',
-      'open insurance', 'go to insurance', 'take me to insurance',
-      'ఇన్సూరెన్స్', 'బీమా', 'క్లెయిమ్స్', 'టిపిఎ', 'ఇన్సూరెన్స్ ఓపెన్ చేయి', 'బీమా ఓపెన్ చేయి', 'insurance open', 'insurance chupinchu', 'claims list', 'preauth open'
-    ],
+    keywords: ['insurance', 'tpa management', 'open insurance', 'go to insurance', 'take me to insurance', 'ఇన్సూరెన్స్ ఓపెన్ చేయి', 'బీమా ఓపెన్ చేయి', 'insurance open', 'insurance open cheyyi', 'ఇన్సూరెన్స్ తెరవండి'],
     enTitle: 'Insurance & TPA Management Center',
-    enVoice: 'Opening Insurance and TPA Management Center',
-    teVoice: 'ఇన్సూరెన్స్ మరియు TPA మేనేజ్‌మెంట్‌ను ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Insurance and TPA management open chestunnanu',
+    enVoice: 'Opening Insurance and TPA.',
+    teVoice: 'ఇన్సూరెన్స్ మరియు TPA మేనేజ్‌మెంట్‌ను ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Insurance management open chestunnanu.',
     reqRole: 'revenue',
   },
   {
     route: '/doctors',
+    canonicalAction: 'OPEN_DOCTORS',
     categoryLabel: 'Staff Directory',
-    keywords: ['doctors', 'doctor directory', 'physicians', 'consultants', 'show doctors', 'doctor list', 'open doctors', 'go to doctors', 'take me to doctors', 'వైద్యులు', 'డాక్టర్లు', 'స్పెషలిస్టులు', 'డాక్టర్లు ఓపెన్ చేయి', 'doctors open', 'doctors list', 'doctor directory open'],
+    keywords: ['doctor directory', 'doctors directory', 'open doctors', 'open doctor', 'go to doctors', 'take me to doctors', 'డాక్టర్లు ఓపెన్ చేయి', 'doctors open'],
     enTitle: 'Medical Consultants Directory',
-    enVoice: 'Opening Medical Consultants Directory',
-    teVoice: 'వైద్యుల వివరాల జాబితాను ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Doctors directory open chestunnanu',
+    enVoice: 'Opening Doctors Directory.',
+    teVoice: 'వైద్యుల వివరాల జాబితాను ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Doctors directory open chestunnanu.',
     reqRole: 'doctors',
   },
   {
     route: '/ambulance',
+    canonicalAction: 'OPEN_AMBULANCE',
     categoryLabel: 'Emergency Services',
-    keywords: ['ambulance', 'emergency dispatch', 'emergency', 'rescue', 'open ambulance', 'go to ambulance', 'take me to ambulance', 'అంబులెన్స్', 'ఎమర్జెన్సీ', 'అంబులెన్స్ ఓపెన్ చేయి', 'ambulance open', 'emergency ambulance'],
+    keywords: ['ambulance', 'emergency dispatch', 'open ambulance', 'go to ambulance', 'take me to ambulance', 'అంబులెన్స్ ఓపెన్ చేయి', 'ambulance open'],
     enTitle: 'Emergency Ambulance & Fleet Dispatch',
-    enVoice: 'Opening Emergency Ambulance Dispatch',
-    teVoice: 'అంబులెన్స్ మరియు ఎమర్జెన్సీ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Emergency ambulance dispatch open chestunnanu',
+    enVoice: 'Opening Emergency Ambulance Dispatch.',
+    teVoice: 'అంబులెన్స్ విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Ambulance dispatch open chestunnanu.',
     reqRole: 'ambulance',
   },
   {
     route: '/blood-bank',
+    canonicalAction: 'OPEN_BLOOD_BANK',
     categoryLabel: 'Blood Bank',
-    keywords: ['blood bank', 'bloodbank', 'blood', 'blood stock', 'donors', 'open blood bank', 'go to blood bank', 'take me to blood bank', 'బ్లడ్ బ్యాంక్', 'బ్లడ్', 'రక్తం', 'రక్త నిధి', 'బ్లడ్ బ్యాంక్ ఓపెన్ చేయి', 'blood bank open', 'blood stock chupinchu'],
+    keywords: ['blood bank', 'bloodbank', 'open blood bank', 'go to blood bank', 'take me to blood bank', 'బ్లడ్ బ్యాంక్ ఓపెన్ చేయి', 'blood bank open'],
     enTitle: 'Blood Bank & Donor Inventory',
-    enVoice: 'Opening Blood Bank Inventory',
-    teVoice: 'బ్లడ్ బ్యాంక్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Blood bank inventory open chestunnanu',
+    enVoice: 'Opening Blood Bank.',
+    teVoice: 'బ్లడ్ బ్యాంక్ విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Blood bank open chestunnanu.',
     reqRole: 'bloodbank',
   },
   {
     route: '/reports',
+    canonicalAction: 'OPEN_REPORTS',
     categoryLabel: 'Analytics & Reports',
-    keywords: ['reports', 'analytics', 'statistics', 'revenue report', 'opd report', 'open reports', 'go to reports', 'take me to reports', 'రిపోర్ట్స్', 'రిపోర్టులు', 'నివేదికలు', 'రిపోర్ట్స్ ఓపెన్ చేయి', 'reports open', 'reports chupinchu'],
+    keywords: ['reports', 'analytics', 'open reports', 'open report', 'go to reports', 'take me to reports', 'రిపోర్ట్స్ ఓపెన్ చేయి', 'reports open'],
     enTitle: 'Clinical & Operational Reports',
-    enVoice: 'Opening Clinical & Operational Reports',
-    teVoice: 'హాస్పిటల్ రిపోర్టులు మరియు అనలిటిక్స్ ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Hospital reports open chestunnanu',
+    enVoice: 'Opening Reports.',
+    teVoice: 'హాస్పిటల్ రిపోర్టులు మరియు అనలిటిక్స్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Reports open chestunnanu.',
     reqRole: 'revenue',
   },
   {
     route: '/notifications',
+    canonicalAction: 'OPEN_NOTIFICATIONS',
     categoryLabel: 'Alerts & Triage',
-    keywords: ['notifications', 'alerts', 'critical alerts', 'triage alerts', 'show critical alerts', 'show alerts', 'open notifications', 'go to notifications', 'నోటిఫికేషన్లు', 'హెచ్చరికలు', 'నోటిఫికేషన్లు ఓపెన్ చేయి', 'alerts open'],
+    keywords: ['notifications', 'open notifications', 'open alerts', 'go to notifications', 'నోటిఫికేషన్లు ఓపెన్ చేయి', 'notifications open'],
     enTitle: 'Clinical Notifications & Triage Alarms',
-    enVoice: 'Opening Clinical Notifications and Triage Alarms',
-    teVoice: 'నోటిఫికేషన్లు మరియు ఎమర్జెన్సీ అలర్ట్స్ ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Hospital alerts and notifications open chestunnanu',
+    enVoice: 'Opening Notifications.',
+    teVoice: 'నోటిఫికేషన్లు మరియు ఎమర్జెన్సీ అలర్ట్స్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Notifications and triage alarms open chestunnanu.',
   },
   {
     route: '/emergency',
-    categoryLabel: 'Emergency Care',
-    keywords: ['emergency', 'er', 'trauma', 'casualty', 'triage', 'red alert', 'resuscitation', 'open emergency', 'go to emergency', 'take me to emergency', 'open trauma', 'ఎమర్జెన్సీ', 'ట్రామా', 'క్యాజువాలిటీ', 'ఎమర్జెన్సీ ఓపెన్ చేయి', 'emergency open', 'er triage open', 'trauma center'],
-    enTitle: 'Emergency & 24x7 Trauma Triage',
-    enVoice: 'Opening Emergency & Trauma Triage Center',
-    teVoice: 'ఎమర్జెన్సీ మరియు ట్రామా విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Emergency and Trauma triage open chestunnanu',
-    reqRole: 'ambulance',
+    canonicalAction: 'OPEN_EMERGENCY',
+    categoryLabel: 'Emergency Services',
+    keywords: ['emergency', 'trauma', 'er', 'casualty', 'open emergency', 'go to emergency', 'take me to emergency', 'ఎమర్జెన్సీ ఓపెన్ చేయి', 'emergency open'],
+    enTitle: '24x7 Emergency & Trauma Center',
+    enVoice: 'Opening Emergency Department.',
+    teVoice: 'ఎమర్జెన్సీ మరియు ట్రామా సెంటర్‌ను ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Emergency department open chestunnanu.',
+    reqRole: 'emergency',
   },
   {
     route: '/housekeeping',
+    canonicalAction: 'OPEN_HOUSEKEEPING',
     categoryLabel: 'Support Services',
-    keywords: ['housekeeping', 'facilities', 'cleaning', 'sanitization', 'bed turnover', 'maintenance', 'open housekeeping', 'go to housekeeping', 'take me to housekeeping', 'హౌస్ కీపింగ్', 'హౌస్‌కీపింగ్', 'పారిశుధ్యం', 'హౌస్‌కీపింగ్ ఓపెన్ చేయి', 'housekeeping open', 'bed turnover open', 'facility maintenance'],
+    keywords: ['housekeeping', 'facilities', 'cleaning', 'sanitization', 'maintenance', 'open housekeeping', 'go to housekeeping', 'take me to housekeeping', 'హౌస్ కీపింగ్', 'హౌస్‌కీపింగ్', 'పారిశుధ్యం', 'హౌస్‌కీపింగ్ ఓపెన్ చేయి', 'housekeeping open'],
     enTitle: 'Housekeeping & Facilities Management',
-    enVoice: 'Opening Housekeeping & Facilities Management',
-    teVoice: 'హౌస్‌కీపింగ్ మరియు ఫెసిలిటీస్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Housekeeping and facilities open chestunnanu',
+    enVoice: 'Opening Housekeeping.',
+    teVoice: 'హౌస్‌కీపింగ్ విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Housekeeping open chestunnanu.',
   },
   {
     route: '/hr',
+    canonicalAction: 'OPEN_HR',
     categoryLabel: 'Administration',
-    keywords: ['hr', 'employees', 'staff', 'attendance', 'payroll', 'leaves', 'staff directory', 'open hr', 'go to hr', 'take me to hr', 'open human resources', 'హెచ్ఆర్', 'సిబ్బంది', 'హాజరు', 'పేరోల్', 'హెచ్ఆర్ ఓపెన్ చేయి', 'సిబ్బంది ఓపెన్ చేయి', 'hr open', 'employee directory', 'staff list'],
+    keywords: ['hr', 'employees', 'staff', 'attendance', 'payroll', 'leaves', 'staff directory', 'open hr', 'go to hr', 'take me to hr', 'open human resources', 'హెచ్ఆర్', 'సిబ్బంది', 'హాజరు', 'పేరోల్', 'హెచ్ఆర్ ఓపెన్ చేయి', 'సిబ్బంది ఓపెన్ చేయి', 'hr open'],
     enTitle: 'Human Resources & Employee Directory',
-    enVoice: 'Opening HR and Staff Directory',
-    teVoice: 'HR మరియు సిబ్బంది విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'HR and Employee directory open chestunnanu',
+    enVoice: 'Opening HR and Staff Directory.',
+    teVoice: 'HR మరియు సిబ్బంది విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'HR directory open chestunnanu.',
     reqRole: 'admin',
   },
   {
     route: '/support',
+    canonicalAction: 'OPEN_SUPPORT',
     categoryLabel: 'Administration',
-    keywords: ['support', 'helpdesk', 'it support', 'tickets', 'help desk', 'knowledge base', 'sop', 'open help and support', 'open support', 'go to support', 'take me to support', 'open support tickets', 'help and support', 'open helpdesk', 'సహాయం', 'సపోర్ట్', 'హెల్ప్‌డెస్క్', 'సపోర్ట్ ఓపెన్ చేయి', 'support open', 'helpdesk open', 'support ticket'],
+    keywords: ['support', 'helpdesk', 'it support', 'tickets', 'help desk', 'knowledge base', 'open support', 'open helpdesk', 'go to support', 'take me to support', 'open help and support', 'help and support', 'సహాయం', 'సపోర్ట్', 'హెల్ప్‌డెస్క్', 'సపోర్ట్ ఓపెన్ చేయి', 'support open'],
     enTitle: 'Hospital Help & Support Desk',
-    enVoice: 'Opening Hospital Help & Support Desk',
-    teVoice: 'సపోర్ట్ మరియు హెల్ప్‌డెస్క్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Hospital support and helpdesk open chestunnanu',
+    enVoice: 'Opening Support Desk.',
+    teVoice: 'సపోర్ట్ మరియు హెల్ప్‌డెస్క్ విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Support desk open chestunnanu.',
   },
   {
     route: '/admin',
+    canonicalAction: 'OPEN_ADMIN',
     categoryLabel: 'Governance',
-    keywords: ['admin', 'admin panel', 'user management', 'governance', 'roles', 'open admin', 'go to admin', 'అడ్మిన్', 'అడ్మినిస్ట్రేషన్', 'అడ్మిన్ ఓపెన్ చేయి', 'admin open', 'admin panel open'],
+    keywords: ['admin', 'admin panel', 'user management', 'governance', 'roles', 'open admin', 'go to admin', 'take me to admin', 'అడ్మిన్', 'అడ్మినిస్ట్రేషన్', 'అడ్మిన్ ఓపెన్ చేయి', 'admin open'],
     enTitle: 'Hospital Administration & User Governance',
-    enVoice: 'Opening Hospital Administrative Panel',
-    teVoice: 'హాస్పిటల్ అడ్మిన్ ప్యానెల్ ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'Admin governance panel open chestunnanu',
+    enVoice: 'Opening Hospital Administration.',
+    teVoice: 'హాస్పిటల్ అడ్మిన్ ప్యానెల్ ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Admin panel open chestunnanu.',
     reqRole: 'admin',
   },
   {
     route: '/settings',
+    canonicalAction: 'OPEN_SETTINGS',
     categoryLabel: 'System Settings',
-    keywords: ['settings', 'configuration', 'system settings', 'hospital profile', 'open settings', 'go to settings', 'సెట్టింగ్స్', 'కాన్ఫిగరేషన్', 'సెట్టింగ్స్ ఓపెన్ చేయి', 'settings open', 'system settings open'],
+    keywords: ['settings', 'configuration', 'system settings', 'hospital profile', 'open settings', 'go to settings', 'take me to settings', 'సెట్టింగ్స్', 'కాన్ఫిగరేషన్', 'సెట్టింగ్స్ ఓపెన్ చేయి', 'settings open'],
     enTitle: 'System & Hospital Settings',
-    enVoice: 'Opening Hospital System Settings',
-    teVoice: 'సిస్టమ్ సెట్టింగ్స్ విభాగాన్ని ఓపెన్ చేస్తున్నాను',
-    mixedVoice: 'System settings open chestunnanu',
+    enVoice: 'Opening Settings.',
+    teVoice: 'సిస్టమ్ సెట్టింగ్స్ విభాగాన్ని ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'Settings open chestunnanu.',
     reqRole: 'settings',
   },
+  {
+    route: '/ai',
+    canonicalAction: 'OPEN_AI',
+    categoryLabel: 'AI Command Center',
+    keywords: ['ai', 'ai assistant', 'ai command center', 'open ai', 'open ai assistant', 'go to ai', 'take me to ai', 'ఎఐ', 'కమాండ్ సెంటర్', 'ai open'],
+    enTitle: 'AI Central Command Center',
+    enVoice: 'Opening AI Command Center.',
+    teVoice: 'AI కమాండ్ సెంటర్‌ను ఓపెన్ చేస్తున్నాను.',
+    mixedVoice: 'AI command center open chestunnanu.',
+  },
 ];
+
+/**
+ * Robust Centralized Navigation Matcher (0ms Resolution)
+ */
+export function matchNavigationCommand(normalizedQuery: string, rawQuery: string): NavCommandDef | null {
+  const norm = (normalizedQuery || '').toLowerCase().trim();
+  const rawLower = (rawQuery || '').toLowerCase().trim();
+
+  // 1. If query is a statistical / clinical inquiry or question, bypass navigation routing
+  const isQueryPattern = /(available\s+beds|bed\s+vacancy|how\s+many|count|show\s+critical|critical\s+patients|who\s+needs\s+attention|admitted\s+today|today'?s\s+admitted|show\s+admitted|pending\s+lab|lab\s+results|panic\s+results|pending\s+claims|pending\s+insurance|today'?s\s+opd|opd\s+statistics|opd\s+queue|opd\s+waiting|low\s+stock|revenue|collections|summary\s+of|chupinchu|chupiyyi|enni|entha|చూపించు|ఎంత|ఎవరు|ఎన్ని)/i.test(rawLower) ||
+    /(available\s+beds|bed\s+vacancy|critical\s+patients|admitted\s+today|admitted\s+patients|today\s+admitted|show\s+admitted)/i.test(norm);
+
+  const hasExplicitNavVerb = /(^|\s)(open|navigate|go\s+to|visit|take\s+me\s+to|ఓపెన్|తెరవండి|వెళ్లు|వెళ్ళండి)(\s|$)/i.test(norm) ||
+    /(ఓపెన్\s*చేయి|ఓపెన్\s*చెయ్యి|open\s*cheyyi|open\s*chey|open\s*cheyyandi|open\s*cheyandi)/i.test(rawLower);
+
+  if (isQueryPattern && !hasExplicitNavVerb) {
+    return null;
+  }
+
+  // 2. Direct keyword match
+  for (const item of NAV_COMMAND_REGISTRY) {
+    const hasMatch = item.keywords.some(kw => {
+      const kwLower = kw.toLowerCase().trim();
+      if (!kwLower) return false;
+      if (rawLower === kwLower || norm === kwLower) return true;
+
+      // Telugu script phrase match
+      if (/[\u0C00-\u0C7F]/.test(kwLower)) {
+        if (rawLower.includes(kwLower) || norm.includes(kwLower)) return true;
+      } else if (kwLower.includes(' ')) {
+        // Multi-word phrase boundary match (e.g. "open pharmacy", "go to opd")
+        const reg = new RegExp(`(^|\\s)${kwLower.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}(\\s|$)`, 'i');
+        if (reg.test(rawLower) || reg.test(norm)) return true;
+      }
+      return false;
+    });
+
+    if (hasMatch) return item;
+  }
+
+  // 2. Pattern Matching: "open <module>" / "go to <module>" / "<module> open"
+  const moduleMap: Record<string, string> = {
+    'opd': '/opd',
+    'outpatient': '/opd',
+    'appointment': '/appointments',
+    'appointments': '/appointments',
+    'booking': '/appointments',
+    'patient': '/patients',
+    'patients': '/patients',
+    'registration': '/patients',
+    'ipd': '/ipd',
+    'inpatient': '/ipd',
+    'beds': '/ipd',
+    'bed': '/ipd',
+    'nursing': '/nursing',
+    'nurse': '/nursing',
+    'diet': '/diet',
+    'nutrition': '/diet',
+    'laboratory': '/laboratory',
+    'lab': '/laboratory',
+    'pathology': '/laboratory',
+    'radiology': '/radiology',
+    'xray': '/radiology',
+    'x-ray': '/radiology',
+    'mri': '/radiology',
+    'pharmacy': '/pharmacy',
+    'medicine': '/pharmacy',
+    'medicines': '/pharmacy',
+    'billing': '/billing',
+    'bills': '/billing',
+    'invoices': '/billing',
+    'insurance': '/insurance',
+    'claims': '/insurance',
+    'tpa': '/insurance',
+    'doctor': '/doctors',
+    'doctors': '/doctors',
+    'physicians': '/doctors',
+    'ambulance': '/ambulance',
+    'blood-bank': '/blood-bank',
+    'blood bank': '/blood-bank',
+    'blood': '/blood-bank',
+    'report': '/reports',
+    'reports': '/reports',
+    'notification': '/notifications',
+    'notifications': '/notifications',
+    'alert': '/notifications',
+    'alerts': '/notifications',
+    'emergency': '/emergency',
+    'trauma': '/emergency',
+    'er': '/emergency',
+    'housekeeping': '/housekeeping',
+    'hr': '/hr',
+    'support': '/support',
+    'helpdesk': '/support',
+    'admin': '/admin',
+    'settings': '/settings',
+    'dashboard': '/dashboard',
+    'home': '/dashboard',
+    'ai': '/ai',
+  };
+
+  const forwardMatch = norm.match(/\b(?:open|go to|take me to|navigate to)\s+([a-z-]+)\b/);
+  if (forwardMatch) {
+    const targetKey = forwardMatch[1];
+    const route = moduleMap[targetKey];
+    if (route) {
+      const found = NAV_COMMAND_REGISTRY.find(n => n.route === route);
+      if (found) return found;
+    }
+  }
+
+  const reverseMatch = norm.match(/\b([a-z-]+)\s+(?:open|go to)\b/);
+  if (reverseMatch) {
+    const targetKey = reverseMatch[1];
+    const route = moduleMap[targetKey];
+    if (route) {
+      const found = NAV_COMMAND_REGISTRY.find(n => n.route === route);
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Natural Language AI Intent & Multilingual Command Processor
@@ -1429,8 +1616,9 @@ export function processAICommand(
     }
   }
 
-  const query = rawInput.trim();
+  const query = (rawInput || '').trim();
   const detectedLang: DetectedLanguage = targetLang === 'en' ? 'en' : targetLang === 'te' ? 'te' : detectLanguage(query);
+  const normalized = normalizeCommandText(query);
   const qLower = query.toLowerCase();
   const metrics = computeLiveHospitalMetrics();
 
@@ -1446,6 +1634,45 @@ export function processAICommand(
       status,
     });
   };
+
+  // -------------------------------------------------------------
+  // 1. FAST ZERO-LAG MASTER NAVIGATION ROUTING (HIGHEST PRIORITY)
+  // -------------------------------------------------------------
+  const navItem = matchNavigationCommand(normalized, query);
+  if (navItem) {
+    if (navItem.reqRole && !isAuthorizedFor(userRole, navItem.reqRole)) {
+      logAudit(`NAV_DENIED_${navItem.route.toUpperCase()}`, 'DENIED');
+      return {
+        rawQuery: query,
+        detectedLanguage: detectedLang,
+        intentType: 'DENIED',
+        voiceText: detectedLang === 'te' ? 'ఈ విభాగాన్ని చూసేందుకు మీకు అనుమతి లేదు.' : 'Access Denied. You do not have permission to access this module.',
+        displayText: detectedLang === 'te' ? 'ఈ విభాగాన్ని చూసేందుకు మీకు అనుమతి లేదు (RBAC Restriction).' : 'Access Denied: Your role does not have authorization to view this section.',
+        results: [],
+      };
+    }
+
+    logAudit(`NAV_${navItem.route.replace('/', '').toUpperCase()}`, 'SUCCESS');
+    const voice = detectedLang === 'te' ? navItem.teVoice : detectedLang === 'te-mixed' ? navItem.mixedVoice : navItem.enVoice;
+    return {
+      rawQuery: query,
+      detectedLanguage: detectedLang,
+      intentType: 'NAVIGATE',
+      voiceText: voice,
+      displayText: voice,
+      targetRoute: navItem.route,
+      results: [{
+        id: `nav-${navItem.route}`,
+        category: 'nav',
+        categoryLabel: navItem.categoryLabel,
+        title: navItem.enTitle,
+        subtitle: `Direct Route: ${navItem.route}`,
+        badgeText: 'Navigating...',
+        badgeVariant: 'primary',
+        route: navItem.route,
+      }],
+    };
+  }
 
   // -------------------------------------------------------------
   // 0. PROACTIVE AI ALERTS QUERY
@@ -1623,7 +1850,7 @@ export function processAICommand(
   // -------------------------------------------------------------
   // 2. TODAY'S ADMITTED PATIENTS (DIRECT DB QUERY)
   // -------------------------------------------------------------
-  const isAdmittedQuery = /(show today'?s admitted patients|today admitted patients|how many patients are admitted today|admitted patients|who is admitted|ఈ రోజు ఎంత మంది patients admit అయ్యారు|ఈరోజు ఎంత మంది patients admit అయ్యారు|ఈరోజు ఎంతమంది రోగులు admit అయ్యారు|ఈరోజు ఎంత మంది admit అయ్యారు|ఎంత మంది admit అయ్యారు|ఈరోజు అడ్మిట్ అయిన పేషెంట్లు|admit అయ్యారు|today admitted|admitted patients list|admitted patients చూపించు|admitted patients chupinchu)/i.test(qLower);
+  const isAdmittedQuery = /(show today'?s admitted patients|today admitted patients|show admitted today|admitted today|how many patients are admitted today|admitted patients|who is admitted|who was admitted today|ఈ రోజు ఎంత మంది patients admit అయ్యారు|ఈరోజు ఎంత మంది patients admit అయ్యారు|ఈరోజు ఎంతమంది రోగులు admit అయ్యారు|ఈరోజు ఎంత మంది admit అయ్యారు|ఎంత మంది admit అయ్యారు|ఈరోజు అడ్మిట్ అయిన పేషెంట్లు|ఈరోజు అడ్మిట్ అయిన పేషెంట్స్|ఈరోజు అడ్మిట్ అయిన పేషెంట్స్ చూపించు|ఈరోజు అడ్మిట్ అయిన పేషెంట్లు చూపించు|అడ్మిట్ అయిన పేషెంట్లు|అడ్మిట్ అయిన పేషెంట్స్|admit అయ్యారు|today admitted|admitted patients list|admitted patients చూపించు|admitted patients chupinchu)/i.test(qLower);
   if (isAdmittedQuery) {
     logAudit('STAT_TODAY_ADMITTED_PATIENTS', 'SUCCESS');
     const admissions = storageService.getAdmissions().filter(a => a.status === 'active');
@@ -1631,10 +1858,10 @@ export function processAICommand(
     const listNames = admissions.map(a => `• **${a.patientName}** — ${a.ward} (Bed: ${a.bedNumber}) · Dr. ${a.admittingDoctorName}`).join('\n');
 
     const narrativeEn = `🏥 **Active Inpatient Admissions (${admCount} Admitted)**:\n${listNames}\n\n• **Bed Availability**: ${metrics.availableBeds} beds currently vacant (${metrics.availableIcuBeds} ICU beds free).`;
-    const narrativeTe = `🏥 **ఈరోజు అడ్మిట్ అయిన ఇన్-పేషెంట్లు (${admCount} మంది)**:\n${listNames}\n\n• **ఖాళీ బెడ్లు**: ${metrics.availableBeds} beds available ఉన్నాయి (${metrics.availableIcuBeds} ICU beds ఖాళీగా ఉన్నాయి).`;
+    const narrativeTe = `🏥 **ఈరోజు అడ్మిట్ అయిన పేషెంట్స్ (${admCount} మంది)**:\n${listNames}\n\n• **ఖాళీ బెడ్లు**: ${metrics.availableBeds} బెడ్లు అందుబాటులో ఉన్నాయి (${metrics.availableIcuBeds} ICU బెడ్లు ఖాళీగా ఉన్నాయి).`;
 
     const voice = (detectedLang === 'te' || detectedLang === 'te-mixed')
-      ? `ఈరోజు మొత్తం ${admCount} మంది patients admit అయ్యారు.`
+      ? `ఈరోజు అడ్మిట్ అయిన పేషెంట్స్ ఇవి. ఈరోజు మొత్తం ${admCount} మంది రోగులు అడ్మిట్ అయ్యారు.`
       : `There are currently ${admCount} active admitted inpatients across all hospital wards.`;
 
     return {
@@ -1667,7 +1894,7 @@ export function processAICommand(
   // -------------------------------------------------------------
   // 3. WHICH PATIENTS NEED ATTENTION? (CRITICAL PATIENTS)
   // -------------------------------------------------------------
-  const isAttentionQuery = /(which patients need attention|patients need attention|critical patients ఎవరు|critical patients|who needs attention|patients requiring urgent care|evaru critical ga unnaru|critical ga ఉన్న రోగులు)/i.test(qLower);
+  const isAttentionQuery = /(which patients need attention|show critical patients|critical patients|patients need attention|critical patients ఎవరు|who needs attention|patients requiring urgent care|evaru critical ga unnaru|critical ga ఉన్న రోగులు|క్రిటికల్ రోగులు|క్రిటికల్ పేషెంట్లు|క్రిటికల్ పేషెంట్స్|క్రిటికల్ పేషెంట్స్ చూపించు|క్రిటికల్ రోగులు చూపించు|critical patients చూపించు|critical patients chupinchu)/i.test(qLower);
   if (isAttentionQuery) {
     logAudit('STAT_PATIENTS_NEEDING_ATTENTION', 'SUCCESS');
     const narrativeEn = `🚨 **High-Priority Patients Requiring Immediate Attention (3 Cases)**:
@@ -1675,13 +1902,13 @@ export function processAICommand(
 2. **Deepak Mehta (ALN-2026-00007)**: MICU-01 Bed 102 — Serum Potassium is **6.1 mEq/L** (Critical Hyperkalemia). Repeat ECG and stat medication review due.
 3. **Emergency Red-Code Trauma**: Acute resuscitation ongoing in ER Bed 1.`;
 
-    const narrativeTe = `🚨 **తక్షణ శ్రద్ధ అవసరమైన క్రిటికల్ రోగులు (3 కేసులు)**:
+    const narrativeTe = `🚨 **తక్షణ శ్రద్ధ అవసరమైన క్రిటికల్ పేషెంట్స్ (3 కేసులు)**:
 1. **రమేష్ యాదవ్**: ట్రోపోనిన్ I స్థాయి **4.8 ng/mL** కు పెరిగింది (కార్డియాలజీ అటెన్షన్ అవసరం).
 2. **దీపక్ మెహతా**: MICU-01 లో పొటాషియం స్థాయి **6.1 mEq/L** (క్రిటికల్ హైపర్ కెలీమియా).
 3. **ఎమర్జెన్సీ రెడ్-కోడ్ ట్రామా**: ER బెడ్ 1 లో రీససిటేషన్ చికిత్స కొనసాగుతోంది.`;
 
     const voice = detectedLang === 'te'
-      ? 'రమేష్ యాదవ్ మరియు దీపక్ మెహతా తో సహా 3 గురు రోగులకు తక్షణ వైద్య శ్రద్ధ అవసరం.'
+      ? 'క్రిటికల్ పేషెంట్స్ వివరాలు ఇవి. రమేష్ యాదవ్ మరియు దీపక్ మెహతా తో సహా ముగ్గురు రోగులకు తక్షణ వైద్య శ్రద్ధ అవసరం.'
       : 'Identified 3 high-priority clinical cases requiring immediate clinician attention.';
 
     return {
@@ -2653,13 +2880,13 @@ ${listQueue}`;
   // 2. ADDITIONAL SPECIFIC STAT / LIVE QUERIES
   // -------------------------------------------------------------
 
-  // Bed & ICU Availability Queries / "అందుబాటులో ఉన్న బెడ్స్ చూపించు"
-  const isBedStat = /(available bed|available beds|show available beds|how many beds|icu bed|icu beds|occupied beds|bed vacancy|బెడ్స్|బెడ్లు|ఎన్ని బెడ్లు|ఖాళీ బెడ్లు|అందుబాటులో ఉన్న బెడ్స్|అందుబాటులో ఉన్న బెడ్స్ చూపించు|బెడ్స్ చూపించు|available beds ఎంత ఉన్నాయి|available beds ఎంత|available beds చూపించు|available beds chupinchu|beds enni|ఎన్ని బెడ్లు ఉన్నాయి|బెడ్లు చూపించు|beds ఎంత)/i.test(qLower);
+  // Bed & ICU Availability Queries / "అందుబాటులో ఉన్న బెడ్స్ చూపించు" / "Which beds are available?"
+  const isBedStat = /(which beds are available|beds are available|beds available|available bed|available beds|show available beds|how many beds|icu bed|icu beds|occupied beds|bed vacancy|బెడ్స్|బెడ్లు|ఎన్ని బెడ్లు|ఖాళీ బెడ్లు|అందుబాటులో ఉన్న బెడ్స్|అందుబాటులో ఉన్న బెడ్స్ చూపించు|అందుబాటులో ఉన్న బెడ్లు చూపించు|బెడ్స్ చూపించు|available beds ఎంత ఉన్నాయి|available beds ఎంత|available beds చూపించు|available beds chupinchu|beds enni|ఎన్ని బెడ్లు ఉన్నాయి|బెడ్లు చూపించు|beds ఎంత)/i.test(qLower);
   if (isBedStat) {
     if (qLower.includes('icu') || qLower.includes('ఐసియు') || qLower.includes('ఐసీయూ')) {
       logAudit('STAT_ICU_BEDS', 'SUCCESS');
       const voice = (detectedLang === 'te' || detectedLang === 'te-mixed')
-        ? `ప్రస్తుతం ${metrics.availableIcuBeds} ICU beds ఖాళీగా ఉన్నాయి, మొత్తం ${metrics.icuTotal} లో.`
+        ? `అందుబాటులో ఉన్న ICU బెడ్స్ ఇవి. ప్రస్తుతం ${metrics.availableIcuBeds} ICU బెడ్లు అందుబాటులో ఉన్నాయి.`
         : `Currently, ${metrics.availableIcuBeds} out of ${metrics.icuTotal} ICU beds are available.`;
 
       const narrativeTe = `🛏️ **ఐసీయూ బెడ్ల లభ్యత**:
@@ -2685,13 +2912,13 @@ ${listQueue}`;
 
     logAudit('STAT_TOTAL_BEDS', 'SUCCESS');
     const voice = (detectedLang === 'te' || detectedLang === 'te-mixed')
-      ? `ప్రస్తుతం ${metrics.availableBeds} beds available ఉన్నాయి, ${metrics.availableIcuBeds} ICU beds ఖాళీగా ఉన్నాయి.`
+      ? `అందుబాటులో ఉన్న బెడ్స్ ఇవి. ప్రస్తుతం ${metrics.availableBeds} బెడ్లు అందుబాటులో ఉన్నాయి, ${metrics.availableIcuBeds} ICU బెడ్లు ఖాళీగా ఉన్నాయి.`
       : `Currently, ${metrics.availableBeds} out of ${metrics.totalBeds} beds are available.`;
 
-    const narrativeTe = `🛏️ **హాస్పిటల్ బెడ్ల లభ్యత**:
-• **Available Beds**: ${metrics.availableBeds} beds available ఉన్నాయి
-• **Occupied Beds**: ${metrics.occupiedBeds} బెడ్లు
-• **ICU Vacancy**: ${metrics.availableIcuBeds} ICU beds ఖాళీగా ఉన్నాయి (మొత్తం ${metrics.totalBeds} బెడ్లు)`;
+    const narrativeTe = `🛏️ **అందుబాటులో ఉన్న బెడ్స్ ఇవి**:
+• **అందుబాటులో ఉన్న బెడ్స్**: ${metrics.availableBeds} బెడ్లు ఖాళీగా ఉన్నాయి
+• **ఆక్యుపైడ్ బెడ్స్**: ${metrics.occupiedBeds} బెడ్లు
+• **ICU ఖాళీలు**: ${metrics.availableIcuBeds} ICU బెడ్లు అందుబాటులో ఉన్నాయి (మొత్తం ${metrics.totalBeds} బెడ్లు)`;
 
     return {
       rawQuery: query,
@@ -2930,47 +3157,6 @@ ${listQueue}`;
   }
 
   // -------------------------------------------------------------
-  // 3. MASTER NAVIGATION ROUTING (Auto Navigation for All Modules)
-  // -------------------------------------------------------------
-  for (const item of NAV_COMMAND_REGISTRY) {
-    const matched = item.keywords.some(k => qLower.includes(k.toLowerCase()));
-    if (matched) {
-      if (item.reqRole && !isAuthorizedFor(userRole, item.reqRole)) {
-        logAudit(`NAV_DENIED_${item.route.toUpperCase()}`, 'DENIED');
-        return {
-          rawQuery: query,
-          detectedLanguage: detectedLang,
-          intentType: 'DENIED',
-          voiceText: detectedLang === 'te' ? 'ఈ విభాగాన్ని చూసేందుకు మీకు అనుమతి లేదు.' : 'Access Denied. You do not have permission to access this module.',
-          displayText: detectedLang === 'te' ? 'ఈ విభాగాన్ని చూసేందుకు మీకు అనుమతి లేదు (RBAC Restriction).' : 'Access Denied: Your role does not have authorization to view this section.',
-          results: [],
-        };
-      }
-
-      logAudit(`NAV_${item.route.replace('/', '').toUpperCase()}`, 'SUCCESS');
-      const voice = detectedLang === 'te' ? item.teVoice : detectedLang === 'te-mixed' ? item.mixedVoice : item.enVoice;
-      return {
-        rawQuery: query,
-        detectedLanguage: detectedLang,
-        intentType: 'NAVIGATE',
-        voiceText: voice,
-        displayText: voice,
-        targetRoute: item.route,
-        results: [{
-          id: `nav-${item.route}`,
-          category: 'nav',
-          categoryLabel: item.categoryLabel,
-          title: item.enTitle,
-          subtitle: `Direct Route: ${item.route}`,
-          badgeText: 'Navigating...',
-          badgeVariant: 'primary',
-          route: item.route,
-        }],
-      };
-    }
-  }
-
-  // -------------------------------------------------------------
   // 3. EXACT ID & GENERAL SEARCH (Patients, Doctors, Invoices, etc.)
   // -------------------------------------------------------------
   const searchResults = performGlobalSearch(query, userRole);
@@ -2996,11 +3182,13 @@ ${listQueue}`;
   }
 
   // -------------------------------------------------------------
-  // 4. ZERO-HALLUCINATION FALLBACK
+  // 4. ZERO-HALLUCINATION ROBUST FALLBACK
   // -------------------------------------------------------------
-  const noResultVoice = (detectedLang === 'te' || detectedLang === 'te-mixed')
-    ? 'మీ వాయిస్ కమాండ్ నాకు స్పష్టంగా అర్థం కాలేదు. దయచేసి మళ్లీ చెప్పండి.'
-    : `I couldn't find any matching records or commands for "${query}". Please try speaking or typing another command.`;
+  const noResultVoice = detectedLang === 'te'
+    ? 'క్షమించండి, ఆ కమాండ్ అర్థం కాలేదు. దయచేసి మళ్లీ ప్రయత్నించండి.'
+    : detectedLang === 'te-mixed'
+    ? 'Sorry, aa command ardham kaaledhu. Please malli try cheyandi.'
+    : "Sorry, I didn't understand that command. Please try again.";
 
   return {
     rawQuery: query,

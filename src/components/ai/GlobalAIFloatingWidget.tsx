@@ -11,6 +11,8 @@ import {
   MODULE_DISPLAY_NAMES, MODULE_SUGGESTIONS,
   getProactiveAIAlerts, ProactiveAIAlert, DetectedLanguage
 } from '../../services/aiCommandEngine';
+import { speechService, VoiceState } from '../../services/speechRecognitionService';
+import { ttsService } from '../../services/textToSpeechService';
 import MedicalIcon from '../common/MedicalIcons';
 
 interface ChatMessage {
@@ -35,13 +37,13 @@ export default function GlobalAIFloatingWidget() {
   const [activePayload, setActivePayload] = useState<AICommandResponse | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamTimerRef = useRef<any>(null);
-  const recognitionRef = useRef<any>(null);
 
   // Active module information
   const currentPath = location.pathname;
@@ -55,14 +57,19 @@ export default function GlobalAIFloatingWidget() {
     setAlerts(getProactiveAIAlerts(userRole, currentPath));
   }, [userRole, currentPath]);
 
-  // Load voices when available
+  // Synchronize TTS state
   useEffect(() => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-      window.speechSynthesis.getVoices();
-    }
+    const handleTTSStateChange = (e: any) => {
+      const isSpeaking = e?.detail?.isSpeaking;
+      const id = e?.detail?.id;
+      if (isSpeaking && id) {
+        setCurrentlySpeakingId(id);
+      } else if (!isSpeaking) {
+        setCurrentlySpeakingId(null);
+      }
+    };
+    window.addEventListener('aln_tts_state_change', handleTTSStateChange);
+    return () => window.removeEventListener('aln_tts_state_change', handleTTSStateChange);
   }, []);
 
   // Initial welcome message per session
@@ -128,170 +135,60 @@ export default function GlobalAIFloatingWidget() {
     }
   }, [isOpen]);
 
-  // Speech Recognition with auto-detection for English / Telugu
+  // Speech Recognition with auto-detection for English / Telugu / Tanglish
   const startSpeechRecognition = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!speechService.isSupported()) {
       setSpeechError('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
       return;
     }
-    try {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch {}
+    setSpeechError(null);
+    stopSpeaking();
+
+    speechService.start({
+      lang: 'en-IN',
+      onInterim: (transcript) => {
+        setInputQuery(transcript);
+      },
+      onFinal: (transcript) => {
+        setInputQuery(transcript);
+        handleExecute(transcript, true);
+      },
+      onStateChange: (state, error) => {
+        setVoiceState(state);
+        setIsListening(state === 'listening');
+        if (error) {
+          setSpeechError(error);
+        } else if (state === 'listening' || state === 'processing') {
+          setSpeechError(null);
+        }
       }
-      const rec = new SpeechRecognition();
-      rec.continuous = false;
-      rec.interimResults = true;
-      rec.lang = 'en-IN'; // Multi-lingual Indian acoustics (English & Telugu)
-
-      rec.onstart = () => {
-        setIsListening(true);
-        setSpeechError(null);
-        stopSpeaking();
-        try { window.dispatchEvent(new CustomEvent('aln_voice_listening_start')); } catch {}
-      };
-
-      let finalCaptured = '';
-
-      rec.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-        const text = final || interim;
-        setInputQuery(text);
-        if (final && final.trim().length > 1) {
-          finalCaptured = final.trim();
-        }
-      };
-
-      rec.onerror = (e: any) => {
-        setIsListening(false);
-        try { window.dispatchEvent(new CustomEvent('aln_voice_listening_end')); } catch {}
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          setSpeechError('Microphone permission denied. Please allow microphone access in your browser.');
-        } else if (e.error === 'no-speech') {
-          setSpeechError("Sorry, I didn't understand. Please try again.");
-        } else if (e.error !== 'aborted') {
-          setSpeechError(`Voice input error (${e.error}). Please try again.`);
-        }
-      };
-
-      rec.onend = () => {
-        setIsListening(false);
-        try { window.dispatchEvent(new CustomEvent('aln_voice_listening_end')); } catch {}
-        if (finalCaptured && finalCaptured.trim().length > 1) {
-          handleExecute(finalCaptured.trim(), true);
-          finalCaptured = '';
-        }
-      };
-
-      recognitionRef.current = rec;
-      rec.start();
-    } catch (err: any) {
-      setIsListening(false);
-      setSpeechError(err.message || 'Could not start microphone');
-    }
+    });
   };
 
   const stopSpeechRecognition = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
-    }
+    speechService.abort();
     setIsListening(false);
+    setVoiceState('idle');
   };
 
-  // Helper to find best matching TTS voice for language
-  const getVoiceForLanguage = (lang: DetectedLanguage) => {
-    if (!('speechSynthesis' in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    if (lang === 'te' || lang === 'te-mixed') {
-      // 1. Look for explicit Telugu voices
-      const teluguVoice = voices.find(v =>
-        v.lang.toLowerCase().startsWith('te') ||
-        v.lang.toLowerCase().includes('te-in') ||
-        v.name.toLowerCase().includes('telugu') ||
-        v.name.toLowerCase().includes('mohan') ||
-        v.name.toLowerCase().includes('shruti') ||
-        v.name.toLowerCase().includes('kavya')
-      );
-      if (teluguVoice) return teluguVoice;
-
-      // 2. Fallback to Indian English voice which handles Indian phonetics smoothly
-      const indianVoice = voices.find(v =>
-        v.lang.toLowerCase().includes('en-in') ||
-        v.name.toLowerCase().includes('india') ||
-        v.name.toLowerCase().includes('neerja') ||
-        v.name.toLowerCase().includes('heera') ||
-        v.name.toLowerCase().includes('ravi')
-      );
-      if (indianVoice) return indianVoice;
-    }
-
-    // Default to Indian English / English voice
-    const englishVoice = voices.find(v =>
-      v.lang.toLowerCase().includes('en-in') ||
-      v.lang.toLowerCase().startsWith('en')
-    );
-    return englishVoice || voices[0] || null;
-  };
-
-  // Text to Speech
+  // Text to Speech using centralized ttsService with strict Telugu isolation
   const speakMessage = (msgId: string, text: string, lang: DetectedLanguage = 'en') => {
-    if (!('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      if (currentlySpeakingId === msgId) {
-        setCurrentlySpeakingId(null);
-        return;
-      }
-
-      const clean = text.replace(/[*_#`~•]/g, '').replace(/\[.*?\]/g, '').trim();
-      if (!clean) return;
-
-      const utterance = new SpeechSynthesisUtterance(clean);
-      const voice = getVoiceForLanguage(lang);
-      if (voice) {
-        utterance.voice = voice;
-        utterance.lang = voice.lang || (lang === 'te' ? 'te-IN' : 'en-IN');
-      } else {
-        utterance.lang = lang === 'te' ? 'te-IN' : 'en-IN';
-      }
-
-      utterance.rate = (lang === 'te' || lang === 'te-mixed') ? 0.92 : 1.0;
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => {
-        setCurrentlySpeakingId(msgId);
-      };
-      utterance.onend = () => {
-        setCurrentlySpeakingId(null);
-      };
-      utterance.onerror = () => {
-        setCurrentlySpeakingId(null);
-      };
-
-      setCurrentlySpeakingId(msgId);
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      setCurrentlySpeakingId(null);
+    if (currentlySpeakingId === msgId) {
+      stopSpeaking();
+      return;
     }
+    ttsService.speak({
+      id: msgId,
+      text,
+      lang,
+      onStart: () => setCurrentlySpeakingId(msgId),
+      onEnd: () => setCurrentlySpeakingId(null),
+      onError: () => setCurrentlySpeakingId(null),
+    });
   };
 
   const stopSpeaking = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    ttsService.stop();
     setCurrentlySpeakingId(null);
   };
 
@@ -787,10 +684,24 @@ export default function GlobalAIFloatingWidget() {
               </div>
             )}
 
-            {isListening && (
+            {voiceState === 'listening' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11.5px', color: '#059669', fontWeight: 700, padding: '2px 4px' }}>
                 <span className="spin" style={{ width: 8, height: 8, borderRadius: '50%', background: '#dc2626' }} />
-                <span>Listening... Speak naturally in English or తెలుగు (Telugu)</span>
+                <span>Listening... Speak naturally in English, తెలుగు (Telugu), or Tanglish</span>
+              </div>
+            )}
+
+            {voiceState === 'processing' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11.5px', color: '#2563eb', fontWeight: 700, padding: '2px 4px' }}>
+                <span className="spin" style={{ width: 8, height: 8, borderRadius: '50%', border: '2px solid #2563eb', borderTopColor: 'transparent' }} />
+                <span>Processing command...</span>
+              </div>
+            )}
+
+            {voiceState === 'success' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11.5px', color: '#16a34a', fontWeight: 700, padding: '2px 4px' }}>
+                <CheckCircle2 size={13} style={{ color: '#16a34a' }} />
+                <span>Command recognized</span>
               </div>
             )}
 
@@ -807,20 +718,20 @@ export default function GlobalAIFloatingWidget() {
                 type="button"
                 className="btn btn-ghost btn-icon btn-icon-sm"
                 onClick={() => {
-                  if (isListening) {
+                  if (voiceState === 'listening') {
                     stopSpeechRecognition();
                   } else {
                     startSpeechRecognition();
                   }
                 }}
-                title={isListening ? 'Click to stop listening' : 'Start AI Voice Command (Auto-detects English / Telugu)'}
+                title={voiceState === 'listening' ? 'Click to stop listening' : 'Start AI Voice Command (Auto-detects English / Telugu / Tanglish)'}
                 style={{
-                  color: isListening ? '#dc2626' : '#059669',
-                  background: isListening ? '#fee2e2' : 'rgba(5, 150, 105, 0.08)',
-                  boxShadow: isListening ? '0 0 0 2px rgba(220, 38, 38, 0.3)' : 'none',
+                  color: voiceState === 'listening' ? '#dc2626' : voiceState === 'processing' ? '#2563eb' : '#059669',
+                  background: voiceState === 'listening' ? '#fee2e2' : voiceState === 'processing' ? '#dbeafe' : 'rgba(5, 150, 105, 0.08)',
+                  boxShadow: voiceState === 'listening' ? '0 0 0 2px rgba(220, 38, 38, 0.3)' : 'none',
                 }}
               >
-                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                {voiceState === 'listening' ? <MicOff size={16} /> : <Mic size={16} />}
               </button>
 
               <input
