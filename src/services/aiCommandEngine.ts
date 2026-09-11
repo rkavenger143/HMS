@@ -1293,7 +1293,7 @@ export const NAV_COMMAND_REGISTRY: NavCommandDef[] = [
     route: '/laboratory',
     canonicalAction: 'OPEN_LABORATORY',
     categoryLabel: 'Diagnostic Services',
-    keywords: ['laboratory', 'pathology laboratory', 'open laboratory', 'open lab', 'go to laboratory', 'go to lab', 'take me to laboratory', 'take me to lab', 'లాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబ్ ఓపెన్ చేయి', 'ల్యాబొరేటరీ', 'లాబొరేటరీ', 'lab open', 'laboratory open', 'laboratory open cheyyi', 'lab open chey', 'ల్యాబొరేటరీ తెరవండి'],
+    keywords: ['laboratory', 'pathology laboratory', 'open laboratory', 'open lab', 'go to laboratory', 'go to lab', 'take me to laboratory', 'take me to lab', 'లాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబొరేటరీ ఓపెన్ చేయి', 'ల్యాబ్ ఓపెన్ చేయి', 'ల్యాబొరేటరీ', 'లాబొరేటరీ', 'lab open', 'laboratory open', 'laboratory open cheyyi', 'lab open chey', 'ల్యాబొరేటరీ తెరవండి', 'show critical lab results', 'critical lab results', 'pending lab reports', 'lab reports', 'lab results', 'pending lab'],
     enTitle: 'Clinical Pathology & Laboratory',
     enVoice: 'Opening Laboratory.',
     teVoice: 'ల్యాబొరేటరీ ఓపెన్ చేస్తున్నాను.',
@@ -2530,8 +2530,8 @@ ${listQueue}`;
     };
   }
 
-  // 4. "Show pending laboratory reports" / "ఈరోజు పెండింగ్ ల్యాబ్ రిపోర్ట్స్ చూపించు"
-  const isPendingLab = /(show pending laboratory reports|show pending lab reports|pending laboratory reports|pending lab reports|pending laboratory tests|pending lab tests|show critical lab reports|critical lab reports|పెండింగ్ ల్యాబ్|పెండింగ్ ల్యాబ్ రిపోర్ట్స్|ఈరోజు పెండింగ్ ల్యాబ్ రిపోర్ట్స్ చూపించు|పెండింగ్ ల్యాబ్ రిపోర్ట్స్ చూపించు|పెండింగ్ రిపోర్ట్స్ చూపించు|pending lab reports చూపించు|lab reports చూపించు|reports చూపించు|ల్యాబ్ రిపోర్టులు|ల్యాబ్ టెస్టులు|ల్యాబ్ రిపోర్ట్స్|lab reports chupinchu|pending lab chupinchu|పెండింగ్ రిపోర్టులు|పెండింగ్ ల్యాబ్ రిపోర్టులు)/i.test(qLower);
+  // 4. "Show pending laboratory reports" / "Show critical lab results" / "ఈరోజు పెండింగ్ ల్యాబ్ రిపోర్ట్స్ చూపించు"
+  const isPendingLab = /(show pending laboratory reports|show pending lab reports|pending laboratory reports|pending lab reports|pending laboratory tests|pending lab tests|show critical lab reports|critical lab reports|show critical lab results|critical lab results|critical lab|critical results|పెండింగ్ ల్యాబ్|పెండింగ్ ల్యాబ్ రిపోర్ట్స్|ఈరోజు పెండింగ్ ల్యాబ్ రిపోర్ట్స్ చూపించు|పెండింగ్ ల్యాబ్ రిపోర్ట్స్ చూపించు|పెండింగ్ రిపోర్ట్స్ చూపించు|pending lab reports చూపించు|lab reports చూపించు|reports చూపించు|ల్యాబ్ రిపోర్టులు|ల్యాబ్ టెస్టులు|ల్యాబ్ రిపోర్ట్స్|lab reports chupinchu|pending lab chupinchu|పెండింగ్ రిపోర్టులు|పెండింగ్ ల్యాబ్ రిపోర్టులు)/i.test(qLower);
   if (isPendingLab) {
     if (!isAuthorizedFor(userRole, 'laboratory')) {
       logAudit('LAB_REPORTS_DENIED', 'DENIED');

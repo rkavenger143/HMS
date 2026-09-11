@@ -44,6 +44,7 @@ function AppLayout() {
       return false;
     }
   });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const handleToggleSidebar = () => {
     setSidebarCollapsed(prev => {
@@ -53,6 +54,14 @@ function AppLayout() {
       } catch {}
       return next;
     });
+  };
+
+  const handleToggleMobileSidebar = () => {
+    setMobileSidebarOpen(prev => !prev);
+  };
+
+  const handleCloseMobileSidebar = () => {
+    setMobileSidebarOpen(false);
   };
 
   if (state.isLoading) {
@@ -86,9 +95,22 @@ function AppLayout() {
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar collapsed={sidebarCollapsed} onToggle={handleToggleSidebar} />
+      {/* Mobile Backdrop */}
+      <div
+        className={`sidebar-mobile-backdrop ${mobileSidebarOpen ? 'open' : ''}`}
+        onClick={handleCloseMobileSidebar}
+      />
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={handleToggleSidebar}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={handleCloseMobileSidebar}
+      />
       <div className="main-area">
-        <Header sidebarCollapsed={sidebarCollapsed} />
+        <Header
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleMobileSidebar={handleToggleMobileSidebar}
+        />
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

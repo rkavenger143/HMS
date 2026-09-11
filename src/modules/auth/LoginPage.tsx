@@ -10,6 +10,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const DEMO_ROLES = [
+    { label: 'Super Admin', email: 'admin@alnhms.com', pass: 'Admin@123', color: '#059669' },
+    { label: 'Doctor (Rajesh)', email: 'dr.rajesh@alnhms.com', pass: 'Doctor@123', color: '#0284c7' },
+    { label: 'Nurse', email: 'nurse@alnhms.com', pass: 'Nurse@123', color: '#ec4899' },
+    { label: 'Receptionist', email: 'receptionist@alnhms.com', pass: 'Staff@123', color: '#f59e0b' },
+    { label: 'Pharmacy', email: 'pharma@alnhms.com', pass: 'Staff@123', color: '#10b981' },
+    { label: 'Laboratory', email: 'lab@alnhms.com', pass: 'Staff@123', color: '#8b5cf6' },
+    { label: 'Billing Staff', email: 'billing@alnhms.com', pass: 'Staff@123', color: '#3b82f6' },
+    { label: 'Dietitian', email: 'dietitian@alnhms.com', pass: 'Staff@123', color: '#14b8a6' },
+  ];
+
+  const handleSelectRole = (r: typeof DEMO_ROLES[0]) => {
+    setEmail(r.email);
+    setPassword(r.pass);
+  };
+
+  const handleQuickLogin = async (r: typeof DEMO_ROLES[0]) => {
+    setEmail(r.email);
+    setPassword(r.pass);
+    const result = await loginWithCredentials(r.email, r.pass);
+    if (!result.success) {
+      toast.error('Login Failed', result.error);
+    }
+  };
+
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = await loginWithCredentials(email, password);
@@ -81,7 +106,40 @@ export default function LoginPage() {
                 <Lock size={20} style={{ color: 'var(--color-primary, #059669)' }} />
               </div>
               <h2 className="login-form-title">Staff Portal Sign In</h2>
-              <p className="login-form-sub">Enter your authorized hospital staff credentials to continue</p>
+              <p className="login-form-sub">Select a role or enter authorized hospital staff credentials</p>
+            </div>
+
+            {/* Quick One-Click Role Selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Quick Demo Access:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {DEMO_ROLES.map(r => (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => handleQuickLogin(r)}
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      padding: '5px 10px',
+                      borderRadius: 'var(--radius-full)',
+                      background: email === r.email ? 'var(--color-primary-muted)' : 'var(--bg-surface)',
+                      border: `1px solid ${email === r.email ? 'var(--color-primary)' : 'var(--border-default)'}`,
+                      color: email === r.email ? 'var(--color-primary-dark)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: r.color }} />
+                    {r.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <form onSubmit={handleStaffLogin} className="login-form">
@@ -179,10 +237,12 @@ export default function LoginPage() {
       <style>{`
         .login-page {
           min-height: 100vh;
+          min-height: 100dvh;
           display: flex;
           background: var(--bg-base);
           position: relative;
-          overflow: hidden;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
         }
         .login-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
         .login-bg-orb {
@@ -196,7 +256,7 @@ export default function LoginPage() {
         .orb-3 { width: 300px; height: 300px; background: #047857; top: 50%; right: -100px; }
         .login-container {
           position: relative; z-index: 1;
-          display: flex; width: 100%; min-height: 100vh;
+          display: flex; width: 100%; min-height: 100vh; min-height: 100dvh;
         }
         .login-brand {
           flex: 1; padding: 48px 56px;
@@ -237,7 +297,7 @@ export default function LoginPage() {
           color: var(--color-primary-dark, #065f46); width: fit-content;
         }
         .login-form-panel {
-          width: 500px; padding: 48px 44px;
+          width: 520px; padding: 48px 44px;
           display: flex; flex-direction: column; gap: 24px;
           justify-content: center; background: var(--bg-base);
         }
@@ -245,8 +305,8 @@ export default function LoginPage() {
           background: var(--bg-card);
           border: 1px solid var(--border-default);
           border-radius: var(--radius-xl);
-          padding: 38px 34px;
-          display: flex; flex-direction: column; gap: 26px;
+          padding: 34px 28px;
+          display: flex; flex-direction: column; gap: 22px;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
         }
         .login-card-icon-badge {
@@ -255,11 +315,11 @@ export default function LoginPage() {
           background: var(--color-primary-muted, #ecfdf5);
           border: 1px solid var(--color-primary-border, #a7f3d0);
           display: flex; align-items: center; justify-content: center;
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
-        .login-form-title { font-size: 24px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
-        .login-form-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
-        .login-form { display: flex; flex-direction: column; gap: 20px; }
+        .login-form-title { font-size: 22px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
+        .login-form-sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+        .login-form { display: flex; flex-direction: column; gap: 18px; }
         .login-submit-btn {
           width: 100%; justify-content: center; padding: 13px;
           font-size: 14.5px; font-weight: 700; border-radius: var(--radius-md);
@@ -275,16 +335,17 @@ export default function LoginPage() {
         }
         .login-security-notice {
           display: flex; align-items: center; gap: 8px;
-          font-size: 11.5px; color: var(--text-tertiary);
+          font-size: 11px; color: var(--text-tertiary);
           background: var(--bg-surface);
-          padding: 10px 12px; border-radius: var(--radius-md);
+          padding: 9px 12px; border-radius: var(--radius-md);
           border: 1px solid var(--border-muted);
           line-height: 1.4;
         }
-        .login-footer-text { font-size: 12px; color: var(--text-tertiary); text-align: center; line-height: 1.8; }
+        .login-footer-text { font-size: 11.5px; color: var(--text-tertiary); text-align: center; line-height: 1.7; }
         @media (max-width: 1024px) {
           .login-brand { display: none; }
-          .login-form-panel { width: 100%; padding: 32px 20px; }
+          .login-form-panel { width: 100%; padding: 24px 16px; justify-content: flex-start; min-height: 100dvh; }
+          .login-form-card { padding: 24px 18px; gap: 18px; }
         }
       `}</style>
     </div>

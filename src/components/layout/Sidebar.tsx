@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, Calendar, BedDouble,
   Stethoscope, HeartPulse, FlaskConical, Scan, UtensilsCrossed,
   Pill, ReceiptText, BarChart3, Settings as SettingsIcon,
-  Sparkles, Siren, Building2, UserCheck, LifeBuoy, Briefcase
+  Sparkles, Siren, Building2, UserCheck, LifeBuoy, Briefcase, X
 } from 'lucide-react';
 import MedicalIcon, { MedicalBrandLogo } from '../common/MedicalIcons';
 import { storageService } from '../../services/storageService';
@@ -26,11 +26,15 @@ interface NavItem {
 export default function Sidebar({
   collapsed,
   onToggle,
-  emergencyCount = 0
+  emergencyCount = 0,
+  mobileOpen = false,
+  onCloseMobile
 }: {
   collapsed: boolean;
   onToggle: () => void;
   emergencyCount?: number;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }) {
   const { state, logout } = useAuth();
   const location = useLocation();
@@ -306,7 +310,7 @@ export default function Sidebar({
   const initials = state.user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       {/* Brand Header */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon" style={{ background: 'transparent', padding: 0 }}>
@@ -318,6 +322,16 @@ export default function Sidebar({
             <div className="sidebar-logo-sub" style={{ color: '#059669', fontWeight: 600 }}>Enterprise Health System</div>
           </div>
         )}
+        {/* Mobile Close Button */}
+        <button
+          type="button"
+          className="sidebar-mobile-close-btn"
+          onClick={onCloseMobile}
+          aria-label="Close sidebar"
+          title="Close Sidebar"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       {/* Navigation List */}
@@ -331,6 +345,7 @@ export default function Sidebar({
                 <NavLink
                   key={item.id}
                   to={item.path}
+                  onClick={onCloseMobile}
                   className={`sidebar-item ${isActive ? 'active' : ''}`}
                   title={collapsed ? `${item.label}${item.badge ? ` (${item.badge})` : ''}` : undefined}
                 >

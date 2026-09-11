@@ -503,7 +503,7 @@ export default function EmergencyModule() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
                   <div>
                     <label className="label">Patient Name *</label>
                     <input
@@ -552,7 +552,7 @@ export default function EmergencyModule() {
                 </div>
 
                 {/* Vitals */}
-                <div style={{ padding: 10, background: 'var(--bg-base)', borderRadius: 6, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                <div style={{ padding: 10, background: 'var(--bg-base)', borderRadius: 6, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
                   <div>
                     <label className="label" style={{ fontSize: 10 }}>BP (mmHg)</label>
                     <input

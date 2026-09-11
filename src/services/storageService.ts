@@ -210,29 +210,61 @@ const INITIAL_ALERTS: CriticalAlert[] = [
 
 class StorageService {
   private notifyListeners() {
-    window.dispatchEvent(new CustomEvent('hms_storage_updated'));
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('hms_storage_updated'));
+      } catch {}
+    }
+  }
+
+  private memoryStore: Map<string, string> = new Map();
+
+  private isStorageAvailable(): boolean {
+    return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
   }
 
   // Generic Safe Storage Methods
   private get<T>(key: string, fallback: T): T {
     try {
-      const item = localStorage.getItem(key);
+      if (this.isStorageAvailable()) {
+        const item = window.localStorage.getItem(key);
+        if (!item) {
+          window.localStorage.setItem(key, JSON.stringify(fallback));
+          return fallback;
+        }
+        return JSON.parse(item);
+      } else {
+        const item = this.memoryStore.get(key);
+        if (!item) {
+          this.memoryStore.set(key, JSON.stringify(fallback));
+          return fallback;
+        }
+        return JSON.parse(item);
+      }
+    } catch {
+      const item = this.memoryStore.get(key);
       if (!item) {
-        localStorage.setItem(key, JSON.stringify(fallback));
         return fallback;
       }
-      return JSON.parse(item);
-    } catch {
-      return fallback;
+      try {
+        return JSON.parse(item);
+      } catch {
+        return fallback;
+      }
     }
   }
 
   private set<T>(key: string, data: T): void {
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      const json = JSON.stringify(data);
+      this.memoryStore.set(key, json);
+      if (this.isStorageAvailable()) {
+        window.localStorage.setItem(key, json);
+      }
       this.notifyListeners();
     } catch (e) {
-      console.error(`Error saving to storage key ${key}:`, e);
+      console.warn(`[StorageService] Fallback to in-memory store for ${key}:`, e);
+      this.notifyListeners();
     }
   }
 

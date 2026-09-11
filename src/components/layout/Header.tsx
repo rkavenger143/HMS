@@ -3,16 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Search, Bell, AlertTriangle, X, ChevronRight,
-  Mic, User, Settings, LogOut, Sparkles
+  Mic, User, Settings, LogOut, Sparkles, Menu
 } from 'lucide-react';
 import { performGlobalSearch, AISearchResult } from '../../services/aiCommandEngine';
 import MedicalIcon from '../common/MedicalIcons';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
+  onToggleMobileSidebar?: () => void;
 }
 
-export default function Header({ sidebarCollapsed }: HeaderProps) {
+export default function Header({ sidebarCollapsed, onToggleMobileSidebar }: HeaderProps) {
   const navigate = useNavigate();
   const { state, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,6 +101,17 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
   return (
     <>
       <header className={`header ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {/* Mobile Hamburger Menu Toggle */}
+        <button
+          type="button"
+          className="header-hamburger-btn"
+          onClick={onToggleMobileSidebar}
+          aria-label="Open navigation menu"
+          title="Open Menu"
+        >
+          <Menu size={18} />
+        </button>
+
         {/* 1. Global Search Box */}
         <div className="header-search" ref={searchRef}>
           <Search size={15} className="header-search-icon" />
